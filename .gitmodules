@@ -1,0 +1,6 @@
+[submodule "lib/gemmi"]
+	path = lib/gemmi
+	url = https://github.com/project-gemmi/gemmi.git
+[submodule "lib/lodepng"]
+	path = lib/lodepng
+	url = https://github.com/lvandeve/lodepng.git
