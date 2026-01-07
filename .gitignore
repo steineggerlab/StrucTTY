@@ -42,4 +42,4 @@
 
 build/*
 .vscode/
-example/*
+#example/*
