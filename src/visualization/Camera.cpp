@@ -51,12 +51,26 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& screenPixels,
     for (int y = 0; y < camera_height; y++) {
         for (int x = 0; x < camera_width; x++) {
             for (int d = 0; d < height_duplicate; d++){
-                if (camera_mode == "default") {
-                    screenImage[((y * height_duplicate) + d) * camera_width + x] = Palettes::ID2RGBA[Palettes::UNRAINBOW[screenPixels[y * camera_width + x].color_id]];
-                } else if(camera_mode == "chain"){
-                    screenImage[((y * height_duplicate) + d) * camera_width + x] = Palettes::ID2RGBA[Palettes::UNRAINBOW[screenPixels[y * camera_width + x].color_id]];
-                } else if(camera_mode == "rainbow"){
-                    screenImage[((y * height_duplicate) + d) * camera_width + x] = Palettes::ID2RGBA[Palettes::RAINBOW[screenPixels[y * camera_width + x].color_id]];
+                int cid = screenPixels[y * camera_width + x].color_id;
+
+                // color_id: 0이면 무색, 1..N이면 팔레트
+                if (cid <= 0) {
+                    // 배경(투명 유지하거나 검정 등)
+                    // screenImage[...] = RGBA{0,0,0,0};  // 이미 0으로 초기화 했으니 생략 가능
+                } else {
+                    int idx = cid - 1;  // ★ 1-based -> 0-based 보정
+
+                    if (camera_mode == "rainbow") {
+                        int n = (int)Palettes::RAINBOW.size();
+                        idx = idx % n;
+                        screenImage[((y * height_duplicate) + d) * camera_width + x] =
+                            Palettes::ID2RGBA[ Palettes::RAINBOW[idx] ];
+                    } else {
+                        int n = (int)(sizeof(Palettes::UNRAINBOW) / sizeof(int));
+                        idx = idx % n;
+                        screenImage[((y * height_duplicate) + d) * camera_width + x] =
+                            Palettes::ID2RGBA[ Palettes::UNRAINBOW[idx] ];
+                    }
                 }
             }
 
