@@ -12,6 +12,8 @@
 #include <iostream>
 #include <filesystem> 
 #include <unordered_map>
+#include <iomanip>
+#include <sstream>
 
 inline std::string get_home_dir() {
     if (const char* home = std::getenv("HOME")) return std::string(home);

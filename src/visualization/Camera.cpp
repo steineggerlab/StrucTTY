@@ -3,7 +3,7 @@
 Camera::Camera(const int width, const int height, const std::string mode){
     camera_width = width;
     camera_height = height;
-    screenshot_idx = 0;
+    // screenshot_idx = 0;
     camera_mode = mode;
     
     camera_dir = get_home_dir() + "/Pictures/StrucTTY_screenshot/";
@@ -13,6 +13,23 @@ Camera::Camera(const int width, const int height, const std::string mode){
     } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create screenshot directory: " << e.what() << std::endl;
     }
+}
+
+static std::string current_timestamp() {
+    using namespace std::chrono;
+
+    auto now = system_clock::now();
+    auto t = system_clock::to_time_t(now);
+    auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+
+    std::tm tm{};
+    localtime_r(&t, &tm);  // macOS/Linux 안전
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y%m%d_%H%M%S")
+        << "_" << std::setw(3) << std::setfill('0') << ms.count();
+
+    return oss.str();
 }
 
 void Camera::screenshot(const std::vector<RenderPoint>& screenPixels){    
@@ -60,7 +77,8 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& screenPixels,
 }
 
 bool Camera::save_image(std::vector<RGBA>& screenImage){
-    std::string screenshot_dir = camera_dir + std::to_string(screenshot_idx++) + ".png"; 
+    // std::string screenshot_dir = camera_dir + std::to_string(screenshot_idx++) + ".png"; 
+    std::string screenshot_dir = camera_dir + current_timestamp() + ".png";
     const unsigned char* bytes = reinterpret_cast<const unsigned char*>(screenImage.data());
     unsigned err = lodepng_encode32_file(screenshot_dir.c_str(), bytes, camera_width, camera_height * height_duplicate);
     if (err) { return false; }
