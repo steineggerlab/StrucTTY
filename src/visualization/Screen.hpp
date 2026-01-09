@@ -52,9 +52,7 @@ private:
     std::string screen_depthcharacter;
     int structNum = -1;
 
-    // "처음 보기 좋은 거리감"을 데이터 정규화 시점에 한 번 잡아두고,
-    // project()에서는 좌표를 절대 건드리지 않는다.
-    float focal_offset = 3.0f;   // 초기값(정규화 후 자동 재설정)
+    float focal_offset = 3.0f;
     float zoom_level;
 
     std::vector<float> pan_x;
@@ -69,7 +67,6 @@ private:
     Camera* camera = nullptr;
     Panel* panel = nullptr;
 
-    // ---- depth baseline: "첫 표시" 느낌을 고정하기 위한 값 ----
     bool depth_calibrated = false;
     float depth_base_min_z = 0.0f;
     float depth_base_max_z = 1.0f;
