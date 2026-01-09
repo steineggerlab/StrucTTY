@@ -27,12 +27,6 @@ Screen::~Screen() {
     data.clear();
     delete camera;
     delete panel;
-
-    if (vectorpointer) {
-        // vectorpointer[i]는 set_tmatrix에서 new float[3] 했으니 해제
-        // (filenum 저장 안 해둬서 여기서 정확히 못 지우면 누수 가능)
-        // 프로젝트에서 filenum 관리한다면 여기 정리해줘.
-    }
 }
 
 static float compute_scene_radius_from_render_positions(const std::vector<Protein*>& data) {
@@ -187,7 +181,6 @@ void Screen::set_utmatrix(const std::string& utmatrix, bool applyUT) {
     delete[] matrixpointer;
 }
 
-// ---- 여기 중요: 데이터 자체를 원점으로 옮기고 스케일/거리(카메라 z)를 초기 세팅 ----
 void Screen::normalize_proteins(const std::string& utmatrix) {
     const bool hasUT = !utmatrix.empty();
     for (size_t i = 0; i < data.size(); i++) {
@@ -202,20 +195,17 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         set_utmatrix(utmatrix, true);
     }
 
-    // 1) (원본) bounding box
     global_bb = BoundingBox();
     for (auto* p : data) {
         p->set_bounding_box();
         global_bb = global_bb + p->get_bounding_box();
     }
 
-    // 2) scale 계산 (원본 bb 기반)
     float max_ext = std::max(global_bb.max_x - global_bb.min_x,
                              global_bb.max_y - global_bb.min_y);
     max_ext = std::max(max_ext, global_bb.max_z - global_bb.min_z);
     float scale = (max_ext > 0.f) ? (2.0f / max_ext) : 1.0f;
 
-    // 3) shift + scale 적용
     if (hasUT) {
         float gx = 0.5f * (global_bb.min_x + global_bb.max_x);
         float gy = 0.5f * (global_bb.min_y + global_bb.max_y);
@@ -238,21 +228,16 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
 
     depth_calibrated = false;
 
-    // normalize가 제대로 먹었다면 radius는 대략 0.8~1.5 근처가 나오는 게 일반적
     float radius = compute_scene_radius_from_render_positions(data);
 
-    // focal_offset이 커지면 점이 됨. 작으면 클리핑/폭주.
-    // 정규화된 좌표라면 보통 2~5 사이가 보기 좋음.
     focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
 
-    // (선택) 첫 화면 중앙 확실히
     for (size_t i = 0; i < pan_x.size(); i++) {
         pan_x[i] = 0.0f;
         pan_y[i] = 0.0f;
     }
 }
 
-// depth mapping (baseline 고정)
 char Screen::get_pixel_char_from_depth(float z, float min_z, float max_z) {
     if (screen_depthcharacter.empty()) return '#';
     if (!(max_z > min_z)) return screen_depthcharacter.back();
@@ -266,7 +251,6 @@ char Screen::get_pixel_char_from_depth(float z, float min_z, float max_z) {
     return screen_depthcharacter[idx];
 }
 
-// "첫 표시"에서만 baseline 캘리브레이션
 void Screen::calibrate_depth_baseline_first_view() {
     const float nearPlane = 0.05f;
     float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
@@ -386,25 +370,17 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
     }
 }
 
-// ==============================
-// 핵심: project()는 "투영"만 한다.
-// data 좌표를 건드리지 않는다.
-// depth baseline은 첫 프레임에서만 잡고 이후 고정.
-// ==============================
 void Screen::project() {
     const float nearPlane = 0.05f;
 
-    // 원래 너 스타일 유지: zoom은 FOV/zoom_level로 처리
     float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
 
-    // z-buffer 초기화
     for (auto& px : screenPixels) {
         px.depth = std::numeric_limits<float>::infinity();
         px.pixel = ' ';
         px.color_id = 0;
     }
 
-    // 첫 표시 1회만 baseline 세팅
     if (!depth_calibrated) {
         calibrate_depth_baseline_first_view();
     }
@@ -485,7 +461,6 @@ void Screen::project() {
     }
 }
 
-// screenshot용 overload도 동일 철학(좌표 건드리지 않음)
 void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_width, const int proj_height) {
     const float nearPlane = 0.05f;
     float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
