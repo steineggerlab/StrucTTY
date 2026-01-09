@@ -3,7 +3,6 @@
 Camera::Camera(const int width, const int height, const std::string mode){
     camera_width = width;
     camera_height = height;
-    // screenshot_idx = 0;
     camera_mode = mode;
     
     camera_dir = get_home_dir() + "/Pictures/StrucTTY_screenshot/";
@@ -23,7 +22,7 @@ static std::string current_timestamp() {
     auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
 
     std::tm tm{};
-    localtime_r(&t, &tm);  // macOS/Linux 안전
+    localtime_r(&t, &tm);
 
     std::ostringstream oss;
     oss << std::put_time(&tm, "%Y%m%d_%H%M%S")
@@ -53,12 +52,9 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& screenPixels,
             for (int d = 0; d < height_duplicate; d++){
                 int cid = screenPixels[y * camera_width + x].color_id;
 
-                // color_id: 0이면 무색, 1..N이면 팔레트
                 if (cid <= 0) {
-                    // 배경(투명 유지하거나 검정 등)
-                    // screenImage[...] = RGBA{0,0,0,0};  // 이미 0으로 초기화 했으니 생략 가능
                 } else {
-                    int idx = cid - 1;  // ★ 1-based -> 0-based 보정
+                    int idx = cid - 1;
 
                     if (camera_mode == "rainbow") {
                         int n = (int)Palettes::RAINBOW.size();
@@ -91,7 +87,6 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& screenPixels,
 }
 
 bool Camera::save_image(std::vector<RGBA>& screenImage){
-    // std::string screenshot_dir = camera_dir + std::to_string(screenshot_idx++) + ".png"; 
     std::string screenshot_dir = camera_dir + current_timestamp() + ".png";
     const unsigned char* bytes = reinterpret_cast<const unsigned char*>(screenImage.data());
     unsigned err = lodepng_encode32_file(screenshot_dir.c_str(), bytes, camera_width, camera_height * height_duplicate);
