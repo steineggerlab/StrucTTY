@@ -633,6 +633,7 @@ bool Screen::handle_input(){
     };
 
     int key = getch();
+    flushinp();   
     switch(key){
         // select protein
         case 48:
