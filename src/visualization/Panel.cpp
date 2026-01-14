@@ -135,7 +135,7 @@ void Panel::draw_panel(int start_row, int start_col,
             if (!in_rows(r)) break;
 
             // 3개마다 줄바꿈 + 탭
-            if (count > 0 && count % 3 == 0) {
+            if (count > 0 && count % 5 == 0) {
                 ++r;
                 if (!in_rows(r)) break;
                 clear_line(r);
