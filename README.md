@@ -54,7 +54,7 @@ make
 ```bash
  ./StrucTTY ../example/1NPL-assembly1.cif --mode chain
 ```
-![1NPL_chain](.github/1NPL_chain_edit.mp4)
+![1NPL_chain](.github/1NPL_chain_edit.gif)
 
 ### Run a single PDB/mmCIF file with secondary structure:
 
@@ -62,7 +62,7 @@ make
  ./StrucTTY ../example/3HGM-assembly1.cif --mode chain
  ./StrucTTY ../example/3HGM-assembly1.cif --mode chain -s
 ```
-![1NPL_chain](.github/structure_pair.mp4)
+![1NPL_chain](.github/structure_pair.gif)
 
 ### Run a single PDB/mmCIF file with different color modes:
 
@@ -71,14 +71,14 @@ make
  ./StrucTTY ../example/1NPL-assembly1.cif --mode chain
  ./StrucTTY ../example/1NPL-assembly1.cif --mode rainbow
 ```
-![1NPL_chain](.github/color_modes.mp4)
+![1NPL_chain](.github/color_modes.gif)
 
 ### Compare multiple PDB/mmCIF files:
 
 ```bash
  ./StrucTTY ../example/9N47-assembly1.cif ../example/9FL9-assembly1.cif --mode chain
 ```
-![9N47_9FL9_chain](.github/9N47_9FL9_chain_edit.mp4)
+![9N47_9FL9_chain](.github/9N47_9FL9_chain_edit.gif)
 
 ### Compare multiple PDB/mmCIF files using rotation and transform matrix:
 
