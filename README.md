@@ -49,25 +49,43 @@ make
 
 ## 🚀 Quick Start
 
-### Run a single PDB file (show secondary structure & rainbow color):
+### Run a single PDB/mmCIF file:
 
 ```bash
-./StrucTTY 1mh1.pdb -s --mode rainbow
+ ./StrucTTY ../example/1NPL-assembly1.cif --mode chain
 ```
-![example](.github/Structty_example_single.gif)
+![1NPL_chain](.github/1NPL_chain_edit.mp4)
 
-### Compare two PDB files:
+### Run a single PDB/mmCIF file with secondary structure:
 
 ```bash
- ./StrucTTY 7DN3.pdb 2Y0S.pdb 7DU2.pdb
+ ./StrucTTY ../example/3HGM-assembly1.cif --mode chain
+ ./StrucTTY ../example/3HGM-assembly1.cif --mode chain -s
 ```
+![1NPL_chain](.github/structure_pair.mp4)
 
-### Compare two PDB files using rotation and transform matrix:
+### Run a single PDB/mmCIF file with different color modes:
 
 ```bash
- ./StrucTTY 7DN3.pdb 2Y0S.pdb 7DU2.pdb -ut utfile_ex 
+ ./StrucTTY ../example/1NPL-assembly1.cif 
+ ./StrucTTY ../example/1NPL-assembly1.cif --mode chain
+ ./StrucTTY ../example/1NPL-assembly1.cif --mode rainbow
 ```
-![example](.github/Structty_example_multiple.gif)
+![1NPL_chain](.github/color_modes.mp4)
+
+### Compare multiple PDB/mmCIF files:
+
+```bash
+ ./StrucTTY ../example/9N47-assembly1.cif ../example/9FL9-assembly1.cif --mode chain
+```
+![9N47_9FL9_chain](.github/9N47_9FL9_chain_edit.mp4)
+
+### Compare multiple PDB/mmCIF files using rotation and transform matrix:
+
+```bash
+ ./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif -ut ../example/utfile_1npl_3a0c.txt
+```
+![example](.github/1NPL_3A0C_align.png)
 
 ### With options:
 
