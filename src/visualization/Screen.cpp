@@ -560,35 +560,41 @@ void Screen::clear_screen() {
     screenPixels.assign(screen_width * screen_height, RenderPoint());
 }
 
-void Screen::draw_screen() {
+void Screen::draw_screen(bool no_panel) {
     clear_screen();
     project();
 
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
+    int panel_cols = std::min(cols, screen_width);
 
-    int panel_h = panel->get_height();
+    int panel_h = panel->get_height_for_width(panel_cols);
     if (panel_h > rows) panel_h = rows;
 
-    int margin = 0;
-    int offset = panel_h + margin;
+    int offset = 0;
+    if (!no_panel) {
+        offset += panel_h;
+    }
     if (offset > rows) offset = rows;
 
     clear();
     print_screen(offset);
 
-    int start_row = rows - panel_h;
+    int start_row = rows;
+    if (!no_panel) { 
+        start_row -= panel_h;
+    }
     if (start_row < 0) start_row = 0;
 
     for (int r = start_row; r < rows; ++r) {
         move(r, 0);
         clrtoeol();
     }
-
-    panel->draw_panel(start_row, 0, panel_h, cols);
+    if (!no_panel){
+        panel->draw_panel(start_row, 0, panel_h, panel_cols);
+    }
     refresh();
 }
-
 
 void Screen::print_screen(int y_offset) {
     int rows, cols;

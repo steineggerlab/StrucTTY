@@ -64,8 +64,7 @@ Parameters::Parameters(int argc, char* argv[]) {
                 } else {
                     throw std::runtime_error("Error: Missing value for -d / --depth.");
                 }
-            }
-            else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--chains")) {
+            } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--chains")) {
                 if (i + 1 < argc) {
                     chainfile = argv[++i];
                 } else {
@@ -107,14 +106,13 @@ Parameters::Parameters(int argc, char* argv[]) {
                 } else {
                     throw std::runtime_error("Error: Missing value for -h / --height.");
                 }
-            }
-            else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--structure")) {
+            } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--structure")) {
                 show_structure = true;
-            }
-            else if (!strcmp(argv[i], "-p") || !strcmp(argv[i], "--predict")) {
+            } else if (!strcmp(argv[i], "-n") || !strcmp(argv[i], "--nopanel")) {
+                no_panel = true;
+            } else if (!strcmp(argv[i], "-p") || !strcmp(argv[i], "--predict")) {
                 predict_structure = true;
-            }
-            else if (!strcmp(argv[i], "-ut") || !strcmp(argv[i], "--utmatrix")) {
+            } else if (!strcmp(argv[i], "-ut") || !strcmp(argv[i], "--utmatrix")) {
                 if (i + 1 < argc) {
                     utmatrix = argv[++i];
                 } else {
@@ -122,8 +120,7 @@ Parameters::Parameters(int argc, char* argv[]) {
                 }
             } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 6){
                 in_file.push_back(argv[i]);
-            }
-            else {
+            } else {
                 throw std::runtime_error("Error: Unknown parameter: " + std::string(argv[i]));
             }
         }       

@@ -32,7 +32,7 @@ public:
     void set_chainfile(const std::string& chainfile, int filesize);
     void set_zoom_level(float zoom);
 
-    void draw_screen();
+    void draw_screen(bool no_panel);
     void init_color_pairs();
     void assign_colors_to_points(std::vector<RenderPoint>& points, int protein_idx);
 

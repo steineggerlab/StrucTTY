@@ -6,6 +6,7 @@
 #include <sstream>
 #include <iostream>
 #include <ncurses.h>  
+#include <cstring>
 
 struct Entry {
     std::string file_name;
@@ -22,6 +23,7 @@ public:
                         const std::map<std::string, int>& chain_residue_info);
 
     int get_height() const;
+    int get_height_for_width(int max_cols) const; 
 
     void draw_panel(int start_row, int start_col,
                     int max_rows, int max_cols) const;
