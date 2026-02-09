@@ -12,6 +12,7 @@ namespace fs = std::filesystem;
 class Parameters{
     private:
         bool show_structure = false;
+        bool no_panel = false;
         bool predict_structure = false;
         bool arg_okay = true;
         int width = 3;
@@ -68,6 +69,9 @@ class Parameters{
         }
         bool get_show_structure(){
             return show_structure;
+        }
+        bool get_no_panel(){
+            return no_panel;
         }
         bool check_arg_okay(){
             return arg_okay;
