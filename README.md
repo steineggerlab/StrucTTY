@@ -89,7 +89,7 @@ make
 
 ### Select chains of PDB/mmCIF files:
 ```bash
- ./StrucTTY ../example/1NPL-assembly1.cif -c ../example/1NPL_ABC.tsv
+ ./StrucTTY ../example/9N47-assembly1.cif -c ../example/chainfile_9N47.tsv -m chain
 ```
 
 ### Change characters for visualization:
