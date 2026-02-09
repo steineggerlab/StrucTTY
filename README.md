@@ -83,9 +83,20 @@ make
 ### Compare multiple PDB/mmCIF files using rotation and transform matrix:
 
 ```bash
- ./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif -ut ../example/utfile_1npl_3a0c.txt
+ ./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif -ut ../example/utfile_1npl_3a0c.tsv
 ```
 ![example](.github/1NPL_3A0C_align.png)
+
+### Select chains of PDB/mmCIF files:
+```bash
+ ./StrucTTY ../example/1NPL-assembly1.cif -c ../example/1NPL_ABC.tsv
+```
+
+### Change characters for visualization:
+```bash
+ ./StrucTTY ../example/3HGM-assembly1.cif -d loveyou
+```
+
 
 ### With options:
 
@@ -94,7 +105,7 @@ make
   -c A,B \                     # select chains A and B
   -m chain \                   # color mode: chain / rainbow / default
   -w 3 -h 2 \                  # terminal screen size (width x height units, 1~5)
-  -ut utmatrix.txt \            # optional u, t matrix from Foldseek
+  -ut utmatrix.tsv \            # optional u, t matrix from Foldseek
   -s                          # show secondary structure (helix/sheet)
 ```
 
