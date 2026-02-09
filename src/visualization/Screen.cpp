@@ -87,7 +87,9 @@ void Screen::set_tmatrix() {
 }
 
 void Screen::set_chainfile(const std::string& chainfile, int filesize) {
-    for (int i = 0; i < filesize; i++) chainVec.push_back("-");
+    for (int i = 0; i < filesize; i++) {
+        chainVec.push_back("-");
+    }
     if (chainfile.empty()) return;
 
     std::ifstream file(chainfile);
