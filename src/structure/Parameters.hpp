@@ -22,7 +22,7 @@ class Parameters{
         string utmatrix = "";
         string chainfile = "";
         string mode = "protein";
-        string depthcharacter = "#@%*^-.";
+        string depthcharacter = "@#%*^-.";
     public:
         Parameters(int argc, char* argv[]);
 
