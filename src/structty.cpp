@@ -34,7 +34,6 @@ int main(int argc, char* argv[]) {
     while(run) {
         screen.draw_screen(params.get_no_panel());
         run = screen.handle_input();
-        usleep(100);
     }
 
     endwin();
