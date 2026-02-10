@@ -561,6 +561,7 @@ void Screen::clear_screen() {
 }
 
 void Screen::draw_screen(bool no_panel) {
+    auto t0 = Benchmark::clock::now();
     clear_screen();
     project();
 
@@ -594,6 +595,17 @@ void Screen::draw_screen(bool no_panel) {
         panel->draw_panel(start_row, 0, panel_h, panel_cols);
     }
     refresh();
+
+    auto t1 = Benchmark::clock::now();
+    int64_t render_dt_ms = Benchmark::ms_since(t0, t1);
+
+    if (bm && bm->enabled) {
+        if (!ttff_logged) {
+            bm->log("ttff", -1, Benchmark::ms_since(bm->t0, t1), total_len_ca, (int64_t)data.size());
+            ttff_logged = true;
+        }
+        bm->mark_frame_end(render_dt_ms, total_len_ca, (int64_t)data.size());
+    }
 }
 
 void Screen::print_screen(int y_offset) {
@@ -641,6 +653,8 @@ bool Screen::handle_input(){
     };
 
     int key = getch();
+    if (bm && bm->enabled) bm->mark_event(key);   // <-- 추가
+    flushinp();
     flushinp();   
     switch(key){
         // select protein

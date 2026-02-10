@@ -5,6 +5,7 @@
 #include "Palette.hpp"
 #include "Camera.hpp"
 #include "Panel.hpp"
+#include "Benchmark.hpp"
 #include <vector>
 #include <cmath>
 #include <iostream>
@@ -42,6 +43,17 @@ public:
                    float z1, float z2,
                    std::string chainID, char structure,
                    float min_z, float max_z);
+    
+    void set_benchmark(Benchmark* b) { bm = b; }
+    
+    void update_total_len_ca() {
+        int64_t sum = 0;
+        for (auto* p : data) {
+            if (!p) continue;
+            sum += (int64_t)p->get_length();  // Cα-only length라고 가정
+        }
+        total_len_ca = sum;
+    }
 
 private:
     int screen_width, screen_height;
@@ -71,10 +83,15 @@ private:
     float depth_base_min_z = 0.0f;
     float depth_base_max_z = 1.0f;
 
+    Benchmark* bm = nullptr;
+    bool ttff_logged = false;
+
     void calibrate_depth_baseline_first_view();
 
     void project();
     void project(std::vector<RenderPoint>& screenshotPixels, const int proj_width, const int proj_height);
     void clear_screen();
     void print_screen(int panel_lines);
+
+    int64_t total_len_ca = 0;
 };
