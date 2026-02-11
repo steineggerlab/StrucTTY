@@ -3,6 +3,7 @@
 #include "Atom.hpp"
 #include "Palette.hpp"
 #include "Camera.hpp"
+#include "Common.hpp"
 #include "RenderPoint.hpp"
 #include "lodepng.h"
 #include <ctime>
