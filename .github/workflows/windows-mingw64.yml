@@ -1,0 +1,88 @@
+name: windows-x64 (msys2 mingw64, mintty runtime)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSYS2 (mingw64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-ncurses
+            zip
+
+      - name: Configure
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        shell: msys2 {0}
+        run: |
+          cmake --build build
+
+      - name: Package (exe + dlls)
+        shell: msys2 {0}
+        run: |
+          set -euxo pipefail
+          mkdir -p dist
+
+          # 1) binary
+          if [ -f build/StrucTTY.exe ]; then
+            cp build/StrucTTY.exe dist/
+          elif [ -f build/StrucTTY ]; then
+            cp build/StrucTTY dist/StrucTTY.exe
+          else
+            echo "ERROR: StrucTTY binary not found"
+            find build -maxdepth 3 -type f -name "*.exe" -o -name "StrucTTY*" || true
+            exit 1
+          fi
+
+          find build -type f \( -name "libgemmi*.dll" -o -name "gemmi*.dll" \) -print -exec cp -n {} dist/ \; || true
+
+          ldd dist/StrucTTY.exe | awk '{print $3}' | grep -E '^/mingw64/bin/.*\.dll$' | xargs -r -I{} cp -n {} dist/
+
+          if [ -d /mingw64/share/terminfo ]; then
+            cp -r /mingw64/share/terminfo dist/terminfo
+          fi
+
+          cat > dist/run_structty.sh <<'SH'
+          #!/usr/bin/env bash
+          set -e
+          export PATH="$(cd "$(dirname "$0")" && pwd):$PATH"
+          if [ -d "$(dirname "$0")/terminfo" ]; then
+            export TERMINFO="$(cd "$(dirname "$0")" && pwd)/terminfo"
+          fi
+          exec "$(dirname "$0")/StrucTTY.exe" "$@"
+          SH
+          chmod +x dist/run_structty.sh
+
+          # licenses
+          cp -n LICENSE dist/ || true
+          cp -n THIRD_PARTY_NOTICES.md dist/ || true
+          cp -r third_party_licenses dist/ || true
+
+          cd dist
+          zip -r ../StrucTTY-windows-x64.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StrucTTY-windows-x64
+          path: StrucTTY-windows-x64.zip
