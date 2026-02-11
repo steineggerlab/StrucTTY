@@ -5,7 +5,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
-#include <ncurses.h>  
+#include <curses.h>  
 #include <cstring>
 
 struct Entry {
