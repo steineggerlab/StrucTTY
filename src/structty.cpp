@@ -1,6 +1,7 @@
 #include <iostream>
 #include <unistd.h> 
-#include "curses.hpp"
+#include "Curses.hpp"
+#include "Common.hpp"
 #include "Protein.hpp"
 #include "Parameters.hpp"
 #include "Screen.hpp"
@@ -15,7 +16,7 @@ int main(int argc, char* argv[]) {
     params.print_args();
 
     Benchmark bm;
-    bm.start("structty_bench.csv");
+    bm.start("structty_bench_" + current_timestamp() + ".csv");
     initscr();
     cbreak();
     noecho();

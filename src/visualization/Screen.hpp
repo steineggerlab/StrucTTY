@@ -1,5 +1,5 @@
 #pragma once
-#include "curses.hpp"
+#include "Curses.hpp"
 #include "Protein.hpp"
 #include "Atom.hpp"
 #include "RenderPoint.hpp"
