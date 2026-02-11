@@ -9,7 +9,7 @@
 #include <cmath>
 #include <iostream>
 #include <unordered_map>
-#include <curses.h>
+#include <ncurses.h>
 #include <cstdlib>
 #include <algorithm>   // clamp, max
 #include <limits>      // numeric_limits
