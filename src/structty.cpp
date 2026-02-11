@@ -1,5 +1,5 @@
 #include <iostream>
-#include <curses.h>
+#include <ncurses.h>
 #include <unistd.h> 
 #include "Protein.hpp"
 #include "Parameters.hpp"
