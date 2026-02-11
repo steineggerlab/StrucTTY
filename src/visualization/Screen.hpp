@@ -1,4 +1,5 @@
 #pragma once
+#include "curses.hpp"
 #include "Protein.hpp"
 #include "Atom.hpp"
 #include "RenderPoint.hpp"
@@ -10,7 +11,6 @@
 #include <cmath>
 #include <iostream>
 #include <unordered_map>
-#include <ncurses.h>
 #include <cstdlib>
 #include <algorithm>   // clamp, max
 #include <limits>      // numeric_limits

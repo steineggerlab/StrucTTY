@@ -22,6 +22,7 @@ file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
 
 file(GLOB_RECURSE APP_HEADERS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Benchmark.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/*.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/structure/*.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/visualization/*.hpp"
 )
@@ -35,6 +36,7 @@ add_executable(StrucTTY
 target_include_directories(StrucTTY
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
         ${CMAKE_CURRENT_SOURCE_DIR}/src/structure
         ${CMAKE_CURRENT_SOURCE_DIR}/src/visualization
 )
