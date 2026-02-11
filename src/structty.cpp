@@ -1,6 +1,6 @@
 #include <iostream>
-#include <ncurses.h>
 #include <unistd.h> 
+#include "curses.hpp"
 #include "Protein.hpp"
 #include "Parameters.hpp"
 #include "Screen.hpp"

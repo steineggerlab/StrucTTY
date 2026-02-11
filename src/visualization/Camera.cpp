@@ -22,7 +22,12 @@ static std::string current_timestamp() {
     auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
 
     std::tm tm{};
-    localtime_r(&t, &tm);
+    #if defined(_WIN32)
+        localtime_s(&tm, &t);
+    #else
+        localtime_r(&t, &tm);
+    #endif
+
 
     std::ostringstream oss;
     oss << std::put_time(&tm, "%Y%m%d_%H%M%S")

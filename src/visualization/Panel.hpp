@@ -1,11 +1,11 @@
 #pragma once
 #include "Palette.hpp"
+#include "curses.hpp"
 #include <vector>
 #include <map>
 #include <string>
 #include <sstream>
 #include <iostream>
-#include <ncurses.h>  
 #include <cstring>
 
 struct Entry {
