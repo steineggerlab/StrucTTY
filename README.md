@@ -21,6 +21,7 @@ An Interactive, Terminal-Native Protein Structure Viewer
   * Tested with **GCC 12.2.0 (Debian 12.2.0-14+deb12u1)**
 * **CMake ≥ 3.15**
 * **Linux or macOS** (Terminal-compatible)
+* **Windows** (we recommend using **Git Bash** or **MinTTY**)
 
 ### Build
 
