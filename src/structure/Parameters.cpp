@@ -70,18 +70,6 @@ Parameters::Parameters(int argc, char* argv[]) {
                 } else {
                     throw std::runtime_error("Error: Missing value for -c / --chains.");
                 }
-                // if (i + 1 < argc) {  
-                //     if (argv[i+1] == nullptr || strlen(argv[i+1]) == 0) {  // if empty value
-                //         throw std::runtime_error("Error: Chains argument is empty.");
-                //     }
-                //     while(in_file.size() - 1 != chains.size()){
-                //         chains.push_back("-");
-                //     }
-                //     chains.push_back(argv[i+1]);  
-                //     i++;
-                // } else {
-                //     throw std::runtime_error("Error: Missing argument for -c / --chains.");
-                // }
             }
             else if (!strcmp(argv[i], "-w") || !strcmp(argv[i], "--width")) {
                 if (i + 1 < argc) {
@@ -120,6 +108,9 @@ Parameters::Parameters(int argc, char* argv[]) {
                 }
             } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 6){
                 in_file.push_back(argv[i]);
+            } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
+                benchmark_mode = true;
+                show_structure = true;
             } else {
                 throw std::runtime_error("Error: Unknown parameter: " + std::string(argv[i]));
             }
@@ -156,6 +147,7 @@ void Parameters::print_args() {
     cout << "  utmatrix: " << utmatrix << endl;
     cout << "  chainfile: " << chainfile << endl;
     cout << "  show_structure: " << show_structure << endl;
+    cout << "  benchmark_mode: " << benchmark_mode << endl;
 
     cout << "\n";
     return;

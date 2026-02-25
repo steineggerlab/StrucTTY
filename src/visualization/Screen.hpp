@@ -23,6 +23,7 @@ public:
     ~Screen();
 
     bool handle_input();
+    bool handle_input(int key);
     char get_pixel_char_from_depth(float z, float min_z, float max_z);
 
     void set_protein(const std::string& in_file, int ii, const bool& show_structure);
