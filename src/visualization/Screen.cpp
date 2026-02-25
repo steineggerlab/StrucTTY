@@ -640,7 +640,12 @@ void Screen::set_zoom_level(float zoom){
     }
 }
 
-bool Screen::handle_input(){
+bool Screen::handle_input() {
+    int key = getch();
+    return handle_input(key);
+}
+
+bool Screen::handle_input(int key){
     bool keep_show = true;
 
     auto pan_step_x = 2.0f * 4.0f / screen_width;
@@ -652,10 +657,8 @@ bool Screen::handle_input(){
         pan_y[idx] += dy;
     };
 
-    int key = getch();
-    if (bm && bm->enabled) bm->mark_event(key);   // <-- 추가
+    if (bm && bm->enabled) bm->mark_event(key);
     flushinp();
-    flushinp();   
     switch(key){
         // select protein
         case 48:
