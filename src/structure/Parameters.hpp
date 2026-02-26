@@ -15,6 +15,7 @@ class Parameters{
         bool no_panel = false;
         bool predict_structure = false;
         bool arg_okay = true;
+        bool benchmark_mode = false;
         int width = 3;
         int height = 3;
         vector<string> in_file;
@@ -40,15 +41,6 @@ class Parameters{
             }
             return "";
         }
-        // vector<string>& get_chains(){
-        //     return chains;
-        // }
-        // string get_chains(int idx){
-        //     if (idx < chains.size()){
-        //         return chains[idx];
-        //     }
-        //     return "";
-        // }
         string get_chainfile(){
             return chainfile;
         }
@@ -72,6 +64,9 @@ class Parameters{
         }
         bool get_no_panel(){
             return no_panel;
+        }
+        bool get_benchmark_mode(){
+            return benchmark_mode;
         }
         bool check_arg_okay(){
             return arg_okay;
