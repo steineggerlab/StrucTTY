@@ -65,8 +65,8 @@ void Screen::init_color_pairs() {
         }
     }
     // Fixed pairs for secondary structure coloring (used when --structure is active)
-    init_pair(200, 196, -1);  // alpha helix: bright red
-    init_pair(201, 226, -1);  // beta sheet:  bright yellow
+    init_pair(41, 196, -1);  // alpha helix: bright red
+    init_pair(42, 226, -1);  // beta sheet:  bright yellow
 }
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
@@ -311,7 +311,7 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
                        int x1, int x2,
                        int y1, int y2,
                        float z1, float z2,
-                       std::string chainID, char structure,
+                       char chainID, char structure,
                        float min_z, float max_z,
                        int max_x, int max_y) {
     if (max_x < 0) max_x = screen_width;
@@ -356,11 +356,11 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         for (auto& pt : points) pt.color_id = (protein_idx % num_colors) + 1;
     } else if (screen_mode == "chain") {
         int num_colors = sizeof(Palettes::UNRAINBOW) / sizeof(int);
-        std::string cur_chain = points[0].chainID;
+        char cur_chain = points[0].chainID;
         int color_idx = 0;
 
         for (auto& pt : points) {
-            std::string cID = pt.chainID;
+            char cID = pt.chainID;
             if (cID != cur_chain) {
                 color_idx++;
                 cur_chain = cID;
@@ -382,8 +382,8 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
     // so they stand out regardless of the chosen color mode.
     if (screen_show_structure) {
         for (auto& pt : points) {
-            if      (pt.structure == 'H') pt.color_id = 200;  // bright red
-            else if (pt.structure == 'S') pt.color_id = 201;  // bright yellow
+            if      (pt.structure == 'H') pt.color_id = 41;  // bright red
+            else if (pt.structure == 'S') pt.color_id = 42;  // bright yellow
         }
     }
 }
@@ -405,7 +405,7 @@ void Screen::project() {
 
         std::vector<RenderPoint> finalPoints;
         std::vector<RenderPoint> chainPoints;
-        finalPoints.reserve(800000);
+        finalPoints.reserve(50000);
 
         int protein_idx = 0;
         for (size_t ii = 0; ii < data.size(); ii++) {
@@ -415,6 +415,7 @@ void Screen::project() {
             for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
                 if (chain_atoms.empty()) continue;
 
+                char chainChar = chainID.empty() ? ' ' : chainID[0];
                 int num_atoms = target->get_chain_length(chainID);
                 int prevScreenX = -1, prevScreenY = -1;
                 float prevZ = -1.0f;
@@ -459,18 +460,18 @@ void Screen::project() {
                                 float cpY = (cy/cz)*fovRads + pan_y[ii];
                                 int cX = (int)((cpX+1.0f)*0.5f*logical_w);
                                 int cY = (int)((1.0f-cpY)*0.5f*logical_h);
-                                draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h);
+                                draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainChar, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h);
                                 cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
                             }
                         } else {
-                            draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h);
+                            draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainChar, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h);
                         }
                     }
 
                     if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
                         chainPoints.push_back({screenX, screenY, z,
                                                get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                               0, chainID, structure});
+                                               0, chainChar, structure});
                     }
 
                     prevScreenX = screenX;
@@ -514,6 +515,7 @@ void Screen::project() {
         for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
             if (chain_atoms.empty()) continue;
 
+            char chainChar = chainID.empty() ? ' ' : chainID[0];
             int num_atoms = target->get_chain_length(chainID);
             int prevScreenX = -1, prevScreenY = -1;
             float prevZ = -1.0f;
@@ -558,18 +560,18 @@ void Screen::project() {
                             float cpY = (cy/cz)*fovRads + pan_y[ii];
                             int cX = (int)((cpX+1.0f)*0.5f*screen_width);
                             int cY = (int)((1.0f-cpY)*0.5f*screen_height);
-                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
+                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainChar, structure, depth_base_min_z, depth_base_max_z);
                             cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
                         }
                     } else {
-                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
+                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainChar, structure, depth_base_min_z, depth_base_max_z);
                     }
                 }
 
                 if (screenX >= 0 && screenX < screen_width && screenY >= 0 && screenY < screen_height) {
                     chainPoints.push_back({screenX, screenY, z,
                                            get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                           0, chainID, structure});
+                                           0, chainChar, structure});
                 }
 
                 prevScreenX = screenX;
@@ -626,6 +628,7 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
         for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
             if (chain_atoms.empty()) continue;
 
+            char chainChar = chainID.empty() ? ' ' : chainID[0];
             int num_atoms = target->get_chain_length(chainID);
             int prevScreenX = -1, prevScreenY = -1;
             float prevZ = -1.0f;
@@ -670,18 +673,18 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
                             float cpY = (cy/cz)*fovRads + pan_y[ii];
                             int cX = (int)((cpX+1.0f)*0.5f*proj_width);
                             int cY = (int)((1.0f-cpY)*0.5f*proj_height);
-                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
+                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainChar, structure, depth_base_min_z, depth_base_max_z);
                             cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
                         }
                     } else {
-                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
+                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainChar, structure, depth_base_min_z, depth_base_max_z);
                     }
                 }
 
                 if (screenX >= 0 && screenX < proj_width && screenY >= 0 && screenY < proj_height) {
                     chainPoints.push_back({screenX, screenY, z,
                                            get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                           0, chainID, structure});
+                                           0, chainChar, structure});
                 }
 
                 prevScreenX = screenX;
@@ -814,13 +817,15 @@ void Screen::print_screen_braille(int y_offset) {
             }
 
             if (bitmask > 0 && best_color_id > 0) {
-                wchar_t braille_ch = (wchar_t)(0x2800 + bitmask);
-                wchar_t wstr[2] = {braille_ch, L'\0'};
-                cchar_t wch;
-                setcchar(&wch, wstr, A_NORMAL, (short)best_color_id, nullptr);
-                mvadd_wch(row, tx, &wch);
-            } else {
-                mvaddch(row, tx, ' ');
+                // Encode U+2800+bitmask as UTF-8 (3 bytes) directly — faster than setcchar/mvadd_wch
+                char utf8[4];
+                utf8[0] = (char)0xE2;
+                utf8[1] = (char)(0xA0 | (bitmask >> 6));
+                utf8[2] = (char)(0x80 | (bitmask & 0x3F));
+                utf8[3] = '\0';
+                attron(COLOR_PAIR(best_color_id));
+                mvaddstr(row, tx, utf8);
+                attroff(COLOR_PAIR(best_color_id));
             }
         }
     }
