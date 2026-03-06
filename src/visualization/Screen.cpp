@@ -309,7 +309,11 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
                        int y1, int y2,
                        float z1, float z2,
                        std::string chainID, char structure,
-                       float min_z, float max_z) {
+                       float min_z, float max_z,
+                       int max_x, int max_y) {
+    if (max_x < 0) max_x = screen_width;
+    if (max_y < 0) max_y = screen_height;
+
     int dx = x2 - x1;
     int dy = y2 - y1;
     float dz = z2 - z1;
@@ -329,7 +333,7 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
         int ix = (int)x;
         int iy = (int)y;
 
-        if (ix >= 0 && ix < screen_width && iy >= 0 && iy < screen_height) {
+        if (ix >= 0 && ix < max_x && iy >= 0 && iy < max_y) {
             points.push_back({ix, iy, z,
                               get_pixel_char_from_depth(z, min_z, max_z),
                               0, chainID, structure});
@@ -377,14 +381,94 @@ void Screen::project() {
 
     float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
 
+    if (!depth_calibrated) {
+        calibrate_depth_baseline_first_view();
+    }
+
+    if (use_braille) {
+        // Braille sub-pixel path: render to logicalPixels at 2x width, 4x height.
+        // Each terminal cell maps to a 2x4 Braille dot grid giving 8x more detail.
+        const int logical_w = screen_width * 2;
+        const int logical_h = screen_height * 4;
+
+        std::vector<RenderPoint> finalPoints;
+        std::vector<RenderPoint> chainPoints;
+        finalPoints.reserve(800000);
+
+        int protein_idx = 0;
+        for (size_t ii = 0; ii < data.size(); ii++) {
+            Protein* target = data[ii];
+            chainPoints.clear();
+
+            for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
+                if (chain_atoms.empty()) continue;
+
+                int num_atoms = target->get_chain_length(chainID);
+                int prevScreenX = -1, prevScreenY = -1;
+                float prevZ = -1.0f;
+
+                for (int i = 0; i < num_atoms; ++i) {
+                    float* position = chain_atoms[i].get_position();
+                    float x = position[0];
+                    float y = position[1];
+                    float z = position[2] + focal_offset;
+
+                    if (z < nearPlane) {
+                        prevScreenX = prevScreenY = -1;
+                        prevZ = -1.0f;
+                        continue;
+                    }
+
+                    char structure = chain_atoms[i].get_structure();
+                    float projectedX = (x / z) * fovRads + pan_x[ii];
+                    float projectedY = (y / z) * fovRads + pan_y[ii];
+
+                    int screenX = (int)((projectedX + 1.0f) * 0.5f * logical_w);
+                    int screenY = (int)((1.0f - projectedY) * 0.5f * logical_h);
+
+                    if (prevScreenX != -1 && prevScreenY != -1) {
+                        draw_line(chainPoints,
+                                  prevScreenX, screenX,
+                                  prevScreenY, screenY,
+                                  prevZ, z,
+                                  chainID, structure,
+                                  depth_base_min_z, depth_base_max_z,
+                                  logical_w, logical_h);
+                    }
+
+                    if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
+                        chainPoints.push_back({screenX, screenY, z,
+                                               get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
+                                               0, chainID, structure});
+                    }
+
+                    prevScreenX = screenX;
+                    prevScreenY = screenY;
+                    prevZ = z;
+                }
+            }
+
+            assign_colors_to_points(chainPoints, protein_idx);
+            finalPoints.insert(finalPoints.end(), chainPoints.begin(), chainPoints.end());
+            protein_idx++;
+        }
+
+        // z-buffer resolve into logicalPixels
+        for (const auto& pt : finalPoints) {
+            if (pt.x < 0 || pt.x >= logical_w || pt.y < 0 || pt.y >= logical_h) continue;
+            int idx = pt.y * logical_w + pt.x;
+            if (pt.depth < logicalPixels[idx].depth) {
+                logicalPixels[idx] = pt;
+            }
+        }
+        return;
+    }
+
+    // Standard (non-braille) path
     for (auto& px : screenPixels) {
         px.depth = std::numeric_limits<float>::infinity();
         px.pixel = ' ';
         px.color_id = 0;
-    }
-
-    if (!depth_calibrated) {
-        calibrate_depth_baseline_first_view();
     }
 
     std::vector<RenderPoint> finalPoints;
@@ -558,6 +642,9 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
 
 void Screen::clear_screen() {
     screenPixels.assign(screen_width * screen_height, RenderPoint());
+    if (use_braille) {
+        logicalPixels.assign(screen_width * 2 * screen_height * 4, RenderPoint());
+    }
 }
 
 void Screen::draw_screen(bool no_panel) {
@@ -608,7 +695,76 @@ void Screen::draw_screen(bool no_panel) {
     }
 }
 
+void Screen::print_screen_braille(int y_offset) {
+    // Render logicalPixels (2*W x 4*H) to terminal using Unicode Braille characters.
+    // Each terminal cell covers a 2-wide x 4-tall sub-pixel block:
+    //
+    //   subcol=0  subcol=1          Braille dot numbering (bit positions):
+    //   subrow=0: dot1(0)  dot4(3)
+    //   subrow=1: dot2(1)  dot5(4)
+    //   subrow=2: dot3(2)  dot6(5)
+    //   subrow=3: dot7(6)  dot8(7)
+    //
+    // Unicode Braille: U+2800 + bitmask
+    static const int dot_bits[2][4] = {
+        {0, 1, 2, 6},  // left column  (subcol=0)
+        {3, 4, 5, 7}   // right column (subcol=1)
+    };
+
+    int rows, cols;
+    getmaxyx(stdscr, rows, cols);
+
+    const int logical_w = screen_width * 2;
+    const int logical_h = screen_height * 4;
+
+    for (int ty = 0; ty < screen_height; ++ty) {
+        int row = ty - (y_offset / 2) - 3;
+        if (row < 0) continue;
+        if (row >= rows) break;
+
+        int max_cols = std::min(screen_width, cols);
+
+        for (int tx = 0; tx < max_cols; ++tx) {
+            int bitmask = 0;
+            int best_color_id = 0;
+            float best_depth = std::numeric_limits<float>::infinity();
+
+            for (int sc = 0; sc < 2; ++sc) {
+                for (int sr = 0; sr < 4; ++sr) {
+                    int lx = tx * 2 + sc;
+                    int ly = ty * 4 + sr;
+                    if (lx >= logical_w || ly >= logical_h) continue;
+
+                    const RenderPoint& lp = logicalPixels[ly * logical_w + lx];
+                    if (lp.color_id > 0) {
+                        bitmask |= (1 << dot_bits[sc][sr]);
+                        if (lp.depth < best_depth) {
+                            best_depth = lp.depth;
+                            best_color_id = lp.color_id;
+                        }
+                    }
+                }
+            }
+
+            if (bitmask > 0 && best_color_id > 0) {
+                wchar_t braille_ch = (wchar_t)(0x2800 + bitmask);
+                wchar_t wstr[2] = {braille_ch, L'\0'};
+                cchar_t wch;
+                setcchar(&wch, wstr, A_NORMAL, (short)best_color_id, nullptr);
+                mvadd_wch(row, tx, &wch);
+            } else {
+                mvaddch(row, tx, ' ');
+            }
+        }
+    }
+}
+
 void Screen::print_screen(int y_offset) {
+    if (use_braille) {
+        print_screen_braille(y_offset);
+        return;
+    }
+
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
 

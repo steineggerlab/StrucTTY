@@ -43,7 +43,8 @@ public:
                    int y1, int y2,
                    float z1, float z2,
                    std::string chainID, char structure,
-                   float min_z, float max_z);
+                   float min_z, float max_z,
+                   int max_x = -1, int max_y = -1);
     
     void set_benchmark(Benchmark* b) { bm = b; }
     
@@ -64,6 +65,11 @@ private:
     std::string screen_mode;
     std::string screen_depthcharacter;
     int structNum = -1;
+
+    // Braille sub-pixel rendering
+    bool use_braille = true;
+    std::vector<RenderPoint> logicalPixels; // 2*width x 4*height logical buffer
+    void print_screen_braille(int y_offset);
 
     float focal_offset = 3.0f;
     float zoom_level;
