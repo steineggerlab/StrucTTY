@@ -19,8 +19,8 @@ public:
 private:
     float radius = 3.5f;
     int circle_steps = 16;  // unused (kept for compatibility)
-    int width = 6;          // half-width of beta-sheet ribbon (±6 steps)
-    float sheet_step = 0.40f; // ribbon offset per step unit (~4.8 Å total width)
+    int width = 4;          // half-width of beta-sheet ribbon (±4 steps)
+    float sheet_step = 0.28f; // ribbon offset per step unit (~2.2 Å total width)
 };
 
 
