@@ -36,28 +36,17 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& screenPixels,
                 int cid = screenPixels[y * camera_width + x].color_id;
 
                 if (cid <= 0) {
-                } else if (cid == 41) {
-                    // alpha helix: gold-orange (ncurses color 214)
-                    screenImage[((y * height_duplicate) + d) * camera_width + x] =
-                        Palettes::ID2RGBA[214];
-                } else if (cid == 42) {
-                    // beta sheet: cornflower blue (ncurses color 75)
-                    screenImage[((y * height_duplicate) + d) * camera_width + x] =
-                        Palettes::ID2RGBA[75];
                 } else {
-                    int idx = cid - 1;
-
-                    if (camera_mode == "rainbow") {
-                        int n = (int)Palettes::RAINBOW.size();
-                        idx = idx % n;
-                        screenImage[((y * height_duplicate) + d) * camera_width + x] =
-                            Palettes::ID2RGBA[ Palettes::RAINBOW[idx] ];
-                    } else {
-                        int n = (int)(sizeof(Palettes::UNRAINBOW) / sizeof(int));
-                        idx = idx % n;
-                        screenImage[((y * height_duplicate) + d) * camera_width + x] =
-                            Palettes::ID2RGBA[ Palettes::UNRAINBOW[idx] ];
-                    }
+                    int xterm;
+                    if      (cid >= 1  && cid <= 9)  xterm = Palettes::PROTEIN_COLORS[cid - 1];
+                    else if (cid >= 11 && cid <= 19) xterm = Palettes::PROTEIN_DIM_COLORS[cid - 11];
+                    else if (cid >= 21 && cid <= 35) xterm = Palettes::CHAIN_COLORS[cid - 21];
+                    else if (cid == 41)              xterm = 226;  // yellow helix
+                    else if (cid == 42)              xterm = 51;   // cyan sheet
+                    else if (cid >= 51 && cid <= 70) xterm = Palettes::RAINBOW[cid - 51];
+                    else                             xterm = 231;  // fallback white
+                    screenImage[((y * height_duplicate) + d) * camera_width + x] =
+                        Palettes::ID2RGBA[xterm];
                 }
             }
 
