@@ -16,7 +16,7 @@ struct Entry {
 
 class Panel {
 public:
-    Panel(int width, const std::string& mode);
+    Panel(int width, const std::string& mode, bool show_structure = false);
 
     void add_panel_info(const std::string& file_name,
                         const std::map<std::string, int>& chain_info,
@@ -33,4 +33,5 @@ private:
 
     int panel_width;
     std::string panel_mode;
+    bool panel_show_structure = false;
 };

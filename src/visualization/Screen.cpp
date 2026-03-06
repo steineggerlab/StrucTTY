@@ -19,7 +19,7 @@ Screen::Screen(const int& width, const int& height, const bool& show_structure,
     init_color_pairs();
 
     camera = new Camera(width, height, mode);
-    panel  = new Panel(width, mode);
+    panel  = new Panel(width, mode, show_structure);
 }
 
 Screen::~Screen() {
@@ -65,8 +65,8 @@ void Screen::init_color_pairs() {
         }
     }
     // Fixed pairs for secondary structure coloring (used when --structure is active)
-    init_pair(41, 196, -1);  // alpha helix: bright red
-    init_pair(42,  33, -1);  // beta sheet:  bright blue
+    init_pair(41, 214, -1);  // alpha helix: gold-orange (colorblind-safe)
+    init_pair(42,  75, -1);  // beta sheet:  cornflower blue (colorblind-safe)
     init_pair(43, 244, -1);  // coil/loop:   mid-gray (so H/S stand out)
 }
 
