@@ -115,8 +115,9 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                     float dz = segment.back().z - segment.front().z;
                     float length = std::sqrt(dx * dx + dy * dy + dz * dz);
 
-                    // One axial slice per residue for a smooth, properly-sampled cylinder
-                    const int steps = (int)(end - start);
+                    // Half-residue axial sampling: smooth with 16 stripes,
+                    // avoids O(residues * circle_steps) geometry blowup on long helices.
+                    const int steps = std::max(8, (int)(end - start) / 2);
 
                     float up[3] = {0.0f, 0.0f, 1.0f};
                     if (std::abs(axis[2]) > 0.99f) { up[0] = 1.0f; up[2] = 0.0f; }
