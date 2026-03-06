@@ -49,23 +49,21 @@ static float compute_scene_radius_from_render_positions(const std::vector<Protei
 }
 
 void Screen::init_color_pairs() {
-    if (screen_mode == "protein") {
-        for (int i = 0; i < (int)data.size(); ++i) {
-            init_pair(i+1, Palettes::UNRAINBOW[i], -1);
-        }
-    } else if (screen_mode == "chain") {
-        int num_colors = sizeof(Palettes::UNRAINBOW) / sizeof(int);
-        for (int i = 0; i < num_colors; ++i) {
-            init_pair(i+1, Palettes::UNRAINBOW[i], -1);
-        }
-    } else if (screen_mode == "rainbow") {
-        int num_colors = (int)Palettes::RAINBOW.size();
-        for (int i = 0; i < num_colors; ++i) {
-            init_pair(i + 1, Palettes::RAINBOW[i], -1);
-        }
-    }
-    // Fixed pair for secondary structure colouring (protein + -s mode only)
-    init_pair(43, 246, -1);  // medium gray for coil/loop atoms
+    // Protein vivid: pairs 1-9
+    for (int i = 0; i < 9; ++i)
+        init_pair(i + 1,  Palettes::PROTEIN_COLORS[i],     -1);
+    // Protein dim (coil in protein+-s): pairs 11-19
+    for (int i = 0; i < 9; ++i)
+        init_pair(i + 11, Palettes::PROTEIN_DIM_COLORS[i], -1);
+    // Chain colors: pairs 21-35
+    for (int i = 0; i < 15; ++i)
+        init_pair(i + 21, Palettes::CHAIN_COLORS[i],       -1);
+    // Rainbow: pairs 51-70
+    for (int i = 0; i < 20; ++i)
+        init_pair(i + 51, Palettes::RAINBOW[i],            -1);
+    // Secondary structure
+    init_pair(41, 226, -1);  // yellow helix
+    init_pair(42,  51, -1);  // cyan sheet
 }
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
@@ -351,39 +349,33 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
     if (points.empty()) return;
 
     if (screen_mode == "protein") {
-        int num_colors = sizeof(Palettes::UNRAINBOW) / sizeof(int);
-        for (auto& pt : points) pt.color_id = (protein_idx % num_colors) + 1;
+        int idx = protein_idx % 9;
+        for (auto& pt : points) pt.color_id = idx + 1;  // pairs 1-9
     } else if (screen_mode == "chain") {
-        int num_colors = sizeof(Palettes::UNRAINBOW) / sizeof(int);
         char cur_chain = points[0].chainID;
-        int color_idx = 0;
-
+        int color_idx  = 0;
         for (auto& pt : points) {
-            char cID = pt.chainID;
-            if (cID != cur_chain) {
-                color_idx++;
-                cur_chain = cID;
-            }
-            pt.color_id = (protein_idx * 10 + (color_idx % num_colors)) + 1;
+            if (pt.chainID != cur_chain) { color_idx++; cur_chain = pt.chainID; }
+            pt.color_id = 21 + ((protein_idx * 10 + color_idx) % 15);  // pairs 21-35
         }
     } else if (screen_mode == "rainbow") {
         int num_points = (int)points.size();
-        int num_colors = (int)Palettes::RAINBOW.size();
         for (int i = 0; i < num_points; i++) {
-            int color_idx = (i * num_colors) / std::max(1, num_points);
-            points[i].color_id = color_idx + 1;
+            int color_idx = (i * 20) / std::max(1, num_points);
+            points[i].color_id = color_idx + 51;  // pairs 51-70
         }
     } else {
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
     }
 
-    // In protein+structure mode, coil atoms get medium gray so that the vivid
-    // protein colours on helix/sheet atoms stand out clearly.
-    // Chain and rainbow modes are never overridden.
+    // In protein+-s mode: H=yellow(41), S=cyan(42), coil=dimmed protein color(11-19).
+    // Chain and rainbow are never overridden.
     if (screen_show_structure && screen_mode == "protein") {
+        int dim_id = (protein_idx % 9) + 11;
         for (auto& pt : points) {
-            if (pt.structure != 'H' && pt.structure != 'S')
-                pt.color_id = 43;  // medium gray for coil/loop
+            if      (pt.structure == 'H') pt.color_id = 41;
+            else if (pt.structure == 'S') pt.color_id = 42;
+            else                          pt.color_id = dim_id;
         }
     }
 }

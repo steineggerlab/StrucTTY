@@ -10,30 +10,50 @@ namespace Palettes {
         196, 202, 208, 214, 220, 226, 190, 154, 118, 82,
         49,  51,  45,  39,  33,  27,  21,  93,  129, 201
     };
-    // 20 maximally-distinct colours.
-    // No red or orange (clashes with yellow-gold helix); no blue/cornflower
-    // (clashes with cyan sheet).  Red/orange slots replaced with white/grays.
-    inline const std::array<int, 20> UNRAINBOW = {
-        231,  //  1  white
-         46,  //  2  pure green
-        201,  //  3  magenta
-         93,  //  4  violet
-         48,  //  5  mint / spring-green
-        252,  //  6  light gray
-        164,  //  7  dark magenta
-        118,  //  8  chartreuse
-         40,  //  9  vivid green
-        249,  // 10  medium-light gray
-        128,  // 11  purple
-         82,  // 12  lime green
-        200,  // 13  hot pink
-         34,  // 14  teal-green
-        211,  // 15  light pink
-         55,  // 16  dark violet
-        246,  // 17  medium gray
-         28,  // 18  forest green
-        129,  // 19  medium purple
-        243,  // 20  dark gray
+
+    // 9 named protein colors (vivid), pairs 1-9
+    inline const std::array<int, 9> PROTEIN_COLORS = {
+        100,  //  1  olive        #878700
+         80,  //  2  turquoise    #5fd7d7
+         27,  //  3  navy         #005fff
+        129,  //  4  purple       #af00ff
+        213,  //  5  pink         #ff87ff
+        209,  //  6  coral        #ff875f
+        130,  //  7  brown        #af5f00
+        214,  //  8  orange       #ffaf00
+        160,  //  9  red          #d70000
+    };
+
+    // Dimmed counterparts for coil atoms in protein+-s mode, pairs 11-19
+    inline const std::array<int, 9> PROTEIN_DIM_COLORS = {
+         58,  // 11  olive dim     #5f5f00
+         30,  // 12  turquoise dim #008787
+         18,  // 13  navy dim      #000087
+         54,  // 14  purple dim    #5f0087
+        132,  // 15  pink dim      #af5f87
+        131,  // 16  coral dim     #af5f5f
+         94,  // 17  brown dim     #875f00
+        172,  // 18  orange dim    #d78700
+         88,  // 19  red dim       #870000
+    };
+
+    // 15 chain colors (9 given + 6 extended), pairs 21-35
+    inline const std::array<int, 15> CHAIN_COLORS = {
+        100,  // 21  olive
+         80,  // 22  turquoise
+         27,  // 23  navy
+        129,  // 24  purple
+        213,  // 25  pink
+        209,  // 26  coral
+        130,  // 27  brown
+        214,  // 28  orange
+        160,  // 29  red
+         37,  // 30  teal         #00afaf
+        118,  // 31  lime         #87ff00
+        201,  // 32  magenta      #ff00ff
+        220,  // 33  gold         #ffd700
+        183,  // 34  lavender     #d7afff
+        210,  // 35  salmon       #ff8787
     };
 
     inline constexpr RGBA ID2RGBA[256] = {
