@@ -67,6 +67,7 @@ void Screen::init_color_pairs() {
     // Fixed pairs for secondary structure coloring (used when --structure is active)
     init_pair(41, 196, -1);  // alpha helix: bright red
     init_pair(42, 226, -1);  // beta sheet:  bright yellow
+    init_pair(43, 244, -1);  // coil/loop:   mid-gray (so H/S stand out)
 }
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
@@ -378,12 +379,13 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
     }
 
-    // When --structure is active, override helix/sheet with distinct fixed colors
-    // so they stand out regardless of the chosen color mode.
+    // When --structure is active, override all atoms with fixed colors so
+    // helix (red) and sheet (yellow) clearly stand out against gray coil.
     if (screen_show_structure) {
         for (auto& pt : points) {
             if      (pt.structure == 'H') pt.color_id = 41;  // bright red
             else if (pt.structure == 'S') pt.color_id = 42;  // bright yellow
+            else                          pt.color_id = 43;  // mid-gray coil
         }
     }
 }

@@ -136,27 +136,51 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                         axis[0]*n1[1] - axis[1]*n1[0]
                     };
 
-                    // Render as longitudinal zigzag stripes instead of cross-sectional rings.
-                    // Each stripe is one thread along the cylinder surface at a fixed angle;
-                    // alternating stripes go forward/backward so transitions are short arcs
-                    // at the cylinder ends rather than long diagonal cuts across the surface.
-                    for (int a = 0; a < circle_steps; ++a) {
-                        float theta = 2.0f * PI * a / circle_steps;
-                        float cos_t = std::cos(theta);
-                        float sin_t = std::sin(theta);
-                        bool forward = (a % 2 == 0);
+                    // Render as a spiral ribbon that winds around the helix axis.
+                    // The radial direction rotates by total_turns full turns as t goes 0→1,
+                    // producing a coiled-ribbon appearance.  A few parallel lines give the
+                    // ribbon its visible width.
+                    float num_residues = (float)(end - start);
+                    float total_turns  = num_residues / 3.6f;  // alpha-helix: ~3.6 res/turn
+                    const float ribbon_half_width = 1.5f;      // Angstroms
+                    const int   ribbon_lines      = 3;         // half-count; 7 lines total
+                    const int   spiral_steps      = std::max(100, (int)(end - start) * 8);
 
-                        for (int si = 0; si <= steps; ++si) {
-                            int s_idx = forward ? si : (steps - si);
-                            float t = static_cast<float>(s_idx) / steps;
+                    for (int rs = -ribbon_lines; rs <= ribbon_lines; ++rs) {
+                        float rw = ((float)rs / ribbon_lines) * ribbon_half_width;
+                        bool forward = ((rs + ribbon_lines) % 2 == 0);
+
+                        for (int si = 0; si <= spiral_steps; ++si) {
+                            int   s_idx = forward ? si : (spiral_steps - si);
+                            float t     = static_cast<float>(s_idx) / spiral_steps;
+                            float angle = total_turns * 2.0f * PI * t;
+                            float cos_a = std::cos(angle);
+                            float sin_a = std::sin(angle);
+
+                            // Outward radial direction at this angle
+                            float rad[3] = {
+                                cos_a * n1[0] + sin_a * n2[0],
+                                cos_a * n1[1] + sin_a * n2[1],
+                                cos_a * n1[2] + sin_a * n2[2]
+                            };
+
+                            // Tangential direction on cylinder surface (axis × rad)
+                            // – ribbon width lies along this direction
+                            float tan_dir[3] = {
+                                axis[1]*rad[2] - axis[2]*rad[1],
+                                axis[2]*rad[0] - axis[0]*rad[2],
+                                axis[0]*rad[1] - axis[1]*rad[0]
+                            };
+
                             float base[3] = {
                                 center[0] + axis[0] * (t - 0.5f) * length,
                                 center[1] + axis[1] * (t - 0.5f) * length,
                                 center[2] + axis[2] * (t - 0.5f) * length,
                             };
-                            float px = base[0] + radius * (cos_t * n1[0] + sin_t * n2[0]);
-                            float py = base[1] + radius * (cos_t * n1[1] + sin_t * n2[1]);
-                            float pz = base[2] + radius * (cos_t * n1[2] + sin_t * n2[2]);
+
+                            float px = base[0] + radius * rad[0] + rw * tan_dir[0];
+                            float py = base[1] + radius * rad[1] + rw * tan_dir[1];
+                            float pz = base[2] + radius * rad[2] + rw * tan_dir[2];
                             output.emplace_back(px, py, pz, 'H');
                         }
                     }
