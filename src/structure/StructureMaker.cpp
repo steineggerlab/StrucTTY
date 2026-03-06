@@ -142,8 +142,8 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                     // ribbon its visible width.
                     float num_residues = (float)(end - start);
                     float total_turns  = num_residues / 3.6f;  // alpha-helix: ~3.6 res/turn
-                    const float ribbon_half_width = 0.8f;      // Angstroms
-                    const int   ribbon_lines      = 2;         // half-count; 5 lines total
+                    const float ribbon_half_width = 0.5f;      // Angstroms
+                    const int   ribbon_lines      = 1;         // half-count; 3 lines total
                     const int   spiral_steps      = std::max(100, (int)(end - start) * 8);
 
                     for (int rs = -ribbon_lines; rs <= ribbon_lines; ++rs) {

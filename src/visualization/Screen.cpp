@@ -2,7 +2,7 @@
 
 const float FOV = 90.0f;
 const float PI  = 3.14159265359f;
-const int MAX_STRUCT_NUM = 6;
+const int MAX_STRUCT_NUM = 9;
 
 Screen::Screen(const int& width, const int& height, const bool& show_structure,
                const std::string& mode, const std::string& depthcharacter) {
@@ -65,8 +65,8 @@ void Screen::init_color_pairs() {
         }
     }
     // Fixed pairs for secondary structure coloring (used when --structure is active)
-    init_pair(41, 214, -1);  // alpha helix: gold-orange (colorblind-safe)
-    init_pair(42,  75, -1);  // beta sheet:  cornflower blue (colorblind-safe)
+    init_pair(41, 231, -1);  // alpha helix: white
+    init_pair(42,  51, -1);  // beta sheet:  bright cyan
     // coil/loop atoms use the regular color mode (no fixed pair needed)
 }
 
