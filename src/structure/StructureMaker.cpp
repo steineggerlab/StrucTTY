@@ -90,7 +90,6 @@ void StructureMaker::compute_helix_axis(const std::vector<Atom>& helix, float (&
 
 void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>>& init_atoms,
                                          std::map<std::string, std::vector<Atom>>& ss_atoms) {
-    // std::cout << "  apply structure\n";
     ss_atoms.clear();
 
     for (auto& [chainID, atoms] : init_atoms) {
@@ -100,7 +99,7 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
             char s = atoms[i].structure;
 
             if (s == 'H') {
-                // helix start: find sequential H
+                // Find the full helix segment
                 size_t start = i;
                 while (i < atoms.size() && atoms[i].structure == 'H') ++i;
                 size_t end = i;
@@ -116,10 +115,11 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                     float dz = segment.back().z - segment.front().z;
                     float length = std::sqrt(dx * dx + dy * dy + dz * dz);
 
-                    const int steps = std::min<int>(circle_steps, (end - start));     
+                    // One axial slice per residue for a smooth, properly-sampled cylinder
+                    const int steps = (int)(end - start);
 
-                    float up[3] = {0, 0, 1};
-                    if (std::abs(axis[2]) > 0.99f) { up[0] = 1; up[2] = 0; }
+                    float up[3] = {0.0f, 0.0f, 1.0f};
+                    if (std::abs(axis[2]) > 0.99f) { up[0] = 1.0f; up[2] = 0.0f; }
 
                     float n1[3] = {
                         axis[1]*up[2] - axis[2]*up[1],
@@ -135,89 +135,106 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                         axis[0]*n1[1] - axis[1]*n1[0]
                     };
 
-                    for (int s = 0; s <= steps; ++s) {
-                        float t = static_cast<float>(s) / steps;
-                        float base[3] = {
-                            center[0] + axis[0] * (t - 0.5f) * length,
-                            center[1] + axis[1] * (t - 0.5f) * length,
-                            center[2] + axis[2] * (t - 0.5f) * length,
-                        };
+                    // Render as longitudinal zigzag stripes instead of cross-sectional rings.
+                    // Each stripe is one thread along the cylinder surface at a fixed angle;
+                    // alternating stripes go forward/backward so transitions are short arcs
+                    // at the cylinder ends rather than long diagonal cuts across the surface.
+                    for (int a = 0; a < circle_steps; ++a) {
+                        float theta = 2.0f * PI * a / circle_steps;
+                        float cos_t = std::cos(theta);
+                        float sin_t = std::sin(theta);
+                        bool forward = (a % 2 == 0);
 
-                        for (int a = 0; a < circle_steps; ++a) {
-                            float theta = 2 * PI * a / circle_steps;
-                            float dx = std::cos(theta);
-                            float dy = std::sin(theta);
-
-                            float px = base[0] + radius * (dx * n1[0] + dy * n2[0]);
-                            float py = base[1] + radius * (dx * n1[1] + dy * n2[1]);
-                            float pz = base[2] + radius * (dx * n1[2] + dy * n2[2]);
-
+                        for (int si = 0; si <= steps; ++si) {
+                            int s_idx = forward ? si : (steps - si);
+                            float t = static_cast<float>(s_idx) / steps;
+                            float base[3] = {
+                                center[0] + axis[0] * (t - 0.5f) * length,
+                                center[1] + axis[1] * (t - 0.5f) * length,
+                                center[2] + axis[2] * (t - 0.5f) * length,
+                            };
+                            float px = base[0] + radius * (cos_t * n1[0] + sin_t * n2[0]);
+                            float py = base[1] + radius * (cos_t * n1[1] + sin_t * n2[1]);
+                            float pz = base[2] + radius * (cos_t * n1[2] + sin_t * n2[2]);
                             output.emplace_back(px, py, pz, 'H');
                         }
                     }
-                } else {
-                    // if too short, ignore
-                    i = end;
                 }
+                // i already advanced to end of helix segment by the inner while loop
             }
 
-            else if (s == 'S' && i + 1 < atoms.size() && atoms[i + 1].structure == 'S') {
-                const Atom& p1 = atoms[i];
-                const Atom& p2 = atoms[i + 1];
+            else if (s == 'S') {
+                // Process the full consecutive sheet segment at once for a uniform ribbon
+                size_t seg_start = i;
+                while (i < atoms.size() && atoms[i].structure == 'S') ++i;
+                size_t seg_end = i;
+                int seg_len = (int)(seg_end - seg_start);
 
-                float dx = p2.x - p1.x;
-                float dy = p2.y - p1.y;
-                float dz = p2.z - p1.z;
-                float len = std::sqrt(dx * dx + dy * dy + dz * dz);
-                if (len == 0) { i++; continue; }
-
-                float axis[3] = { dx / len, dy / len, dz / len };  // direction vector
-                float up[3] = { 0.0f, 0.0f, 1.0f };
-                if (std::abs(axis[2]) > 0.99f) {
-                    up[0] = 1.0f; up[2] = 0.0f;  // if almost similar to z-axis, replace
+                if (seg_len < 2) {
+                    output.push_back(atoms[seg_start]);
+                    continue;
                 }
 
-                // n1: vector perpendicular to axis
+                // Compute a consistent perpendicular from the overall segment direction
+                float dx = atoms[seg_end-1].x - atoms[seg_start].x;
+                float dy = atoms[seg_end-1].y - atoms[seg_start].y;
+                float dz = atoms[seg_end-1].z - atoms[seg_start].z;
+                float len = std::sqrt(dx*dx + dy*dy + dz*dz);
+                if (len < 1e-6f) {
+                    for (size_t k = seg_start; k < seg_end; ++k) output.push_back(atoms[k]);
+                    continue;
+                }
+
+                float fwd[3] = {dx/len, dy/len, dz/len};
+                float up[3] = {0.0f, 0.0f, 1.0f};
+                if (std::abs(fwd[2]) > 0.99f) { up[0] = 1.0f; up[2] = 0.0f; }
+
                 float n1[3] = {
-                    axis[1]*up[2] - axis[2]*up[1],
-                    axis[2]*up[0] - axis[0]*up[2],
-                    axis[0]*up[1] - axis[1]*up[0]
+                    fwd[1]*up[2] - fwd[2]*up[1],
+                    fwd[2]*up[0] - fwd[0]*up[2],
+                    fwd[0]*up[1] - fwd[1]*up[0]
                 };
                 float n1_norm = std::sqrt(n1[0]*n1[0] + n1[1]*n1[1] + n1[2]*n1[2]);
-                for (int j = 0; j < 3; ++j) n1[j] /= n1_norm;
+                if (n1_norm < 1e-6f) {
+                    for (size_t k = seg_start; k < seg_end; ++k) output.push_back(atoms[k]);
+                    continue;
+                }
+                for (int k = 0; k < 3; ++k) n1[k] /= n1_norm;
 
-                // ribbon width vector, move to direction n1
-                int line_steps = std::max<int>(2, static_cast<int>(len / 0.05f));
-
+                // Draw ribbon as parallel zigzag stripes along the full segment.
+                // Even steps traverse forward; odd steps traverse backward → short
+                // cross-connections at the ribbon ends, long clean lines along the strand.
                 for (int step = -width; step <= width; ++step) {
-                    float offset[3] = {
-                        n1[0] * step * 0.05f,
-                        n1[1] * step * 0.05f,
-                        n1[2] * step * 0.05f
-                    };
+                    float offset = step * sheet_step;
+                    float ox = n1[0]*offset, oy = n1[1]*offset, oz = n1[2]*offset;
+                    bool forward = ((step + width) % 2 == 0);
 
-                    float x1 = p1.x + offset[0];
-                    float y1 = p1.y + offset[1];
-                    float z1 = p1.z + offset[2];
+                    for (int j = 0; j < seg_len - 1; ++j) {
+                        int actual = forward ? j : (seg_len - 2 - j);
+                        const Atom& pa = atoms[seg_start + actual];
+                        const Atom& pb = atoms[seg_start + actual + 1];
 
-                    float x2 = p2.x + offset[0];
-                    float y2 = p2.y + offset[1];
-                    float z2 = p2.z + offset[2];
+                        float pair_dx = pb.x - pa.x;
+                        float pair_dy = pb.y - pa.y;
+                        float pair_dz = pb.z - pa.z;
+                        float pair_len = std::sqrt(pair_dx*pair_dx + pair_dy*pair_dy + pair_dz*pair_dz);
+                        int line_steps = std::max<int>(2, (int)(pair_len / 0.05f));
 
-                    for (int t = 0; t <= line_steps; ++t) {
-                        float f = static_cast<float>(t) / line_steps;
-                        float x = x1 + f * (x2 - x1);
-                        float y = y1 + f * (y2 - y1);
-                        float z = z1 + f * (z2 - z1);
-
-                        output.emplace_back(x, y, z, 'S');
+                        for (int t = 0; t <= line_steps; ++t) {
+                            float f = static_cast<float>(t) / line_steps;
+                            output.emplace_back(
+                                pa.x + ox + f * pair_dx,
+                                pa.y + oy + f * pair_dy,
+                                pa.z + oz + f * pair_dz,
+                                'S'
+                            );
+                        }
                     }
                 }
-                i++;  // sheet: pair
+                // i already advanced to seg_end by the inner while loop
             }
 
             else {
-                // no structure, just add
                 output.push_back(atoms[i]);
                 ++i;
             }

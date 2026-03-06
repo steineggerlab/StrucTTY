@@ -18,8 +18,9 @@ public:
     std::vector<std::vector<Atom>> extract_helix_segments(const Atom* atoms, int num_atoms);
 private:
     float radius = 2.5f;
-    int circle_steps = 8; 
-    int width = 4;
+    int circle_steps = 16;  // 16 longitudinal stripes → smooth cylinder
+    int width = 6;          // half-width of beta-sheet ribbon
+    float sheet_step = 0.07f; // ribbon offset per step unit
 };
 
 
