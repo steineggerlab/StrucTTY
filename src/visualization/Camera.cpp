@@ -36,6 +36,14 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& screenPixels,
                 int cid = screenPixels[y * camera_width + x].color_id;
 
                 if (cid <= 0) {
+                } else if (cid == 200) {
+                    // alpha helix: bright red (ncurses color 196)
+                    screenImage[((y * height_duplicate) + d) * camera_width + x] =
+                        Palettes::ID2RGBA[196];
+                } else if (cid == 201) {
+                    // beta sheet: bright yellow (ncurses color 226)
+                    screenImage[((y * height_duplicate) + d) * camera_width + x] =
+                        Palettes::ID2RGBA[226];
                 } else {
                     int idx = cid - 1;
 
