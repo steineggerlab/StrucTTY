@@ -17,8 +17,6 @@ void print_help(){
     std::cout<<"-m, --mode:\n\t1. protein (default)\n\t2. chain\n\t3. rainbow"<<std::endl;
     std::cout<<"-d, --depth:\n\t1 .#@%*^-. (default)\n\t2. 7-character user input e.g. -d a134((%"<<std::endl;
     std::cout<<"-c, --chains:\n\tshow only the selected chains, see example/chainfile"<<std::endl;
-    std::cout<<"-w, --width\n\t1. 3 (default)\n\t2. User input above 0, below 2000"<<std::endl;
-    std::cout<<"-h, --height\n\t1. 3 (default)\n\t2. User input above 0, below 2000"<<std::endl;
     std::cout<<"-s, --structure:\n\tshow secondary structure (alpha helix, beta sheet)"<<std::endl;
     std::cout<<"-p, --predict:\n\tshow secondary structure with prediction if it is not described in the input file"<<std::endl;
     std::cout<<"-ut, --utmatrix:\n\trotate and translate, see example/utfile"<<std::endl;
@@ -71,30 +69,7 @@ Parameters::Parameters(int argc, char* argv[]) {
                     throw std::runtime_error("Error: Missing value for -c / --chains.");
                 }
             }
-            else if (!strcmp(argv[i], "-w") || !strcmp(argv[i], "--width")) {
-                if (i + 1 < argc) {
-                    if (is_nonnegative_number(argv[i + 1])) {
-                        width = std::stoi(argv[i + 1]);
-                        ++i; 
-                    } else {
-                        throw std::runtime_error("Error: Parameter must be above 0");
-                    }
-                } else {
-                    throw std::runtime_error("Error: Missing value for -w / --width.");
-                }
-            }
-            else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--height")) {
-                if (i + 1 < argc) {
-                    if (is_nonnegative_number(argv[i + 1])) {
-                        height = std::stoi(argv[i + 1]);
-                        ++i; 
-                    } else {
-                        throw std::runtime_error("Error: Parameter must be above 0.");
-                    }
-                } else {
-                    throw std::runtime_error("Error: Missing value for -h / --height.");
-                }
-            } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--structure")) {
+            else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--structure")) {
                 show_structure = true;
             } else if (!strcmp(argv[i], "-n") || !strcmp(argv[i], "--nopanel")) {
                 no_panel = true;
@@ -142,8 +117,6 @@ void Parameters::print_args() {
     }
     cout << "  mode: " << mode << endl;
     cout << "  depthcharacter: " << depthcharacter << endl;
-    cout << "  width: " << width << endl;
-    cout << "  height: " << height << endl;
     cout << "  utmatrix: " << utmatrix << endl;
     cout << "  chainfile: " << chainfile << endl;
     cout << "  show_structure: " << show_structure << endl;

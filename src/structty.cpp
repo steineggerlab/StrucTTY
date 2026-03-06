@@ -18,11 +18,14 @@ int main(int argc, char* argv[]) {
     initscr();
     cbreak();
     noecho();
-    
-    Screen screen(params.get_width(), params.get_height(), 
-                  params.get_show_structure(), 
-                  params.get_mode(), 
-                  params.get_depthcharacter()); 
+
+    int term_rows, term_cols;
+    getmaxyx(stdscr, term_rows, term_cols);
+
+    Screen screen(term_cols, term_rows,
+                  params.get_show_structure(),
+                  params.get_mode(),
+                  params.get_depthcharacter());
     
     Benchmark bm;
     const bool bench = params.get_benchmark_mode();
