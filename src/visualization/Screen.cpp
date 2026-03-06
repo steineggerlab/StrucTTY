@@ -67,7 +67,7 @@ void Screen::init_color_pairs() {
     // Fixed pairs for secondary structure coloring (used when --structure is active)
     init_pair(41, 214, -1);  // alpha helix: yellow-gold
     init_pair(42,  51, -1);  // beta sheet:  bright cyan
-    // coil/loop atoms use the regular color mode (no fixed pair needed)
+    init_pair(43, 246, -1);  // coil in protein+structure mode: medium gray
 }
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
@@ -379,12 +379,13 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
     }
 
-    // H/S override only applies in protein mode: chain/rainbow use their own
-    // colours throughout, so mixing in fixed SS hues would clash.
+    // SS override only in protein mode. Coil atoms are grayed so helix/sheet pop.
+    // Chain/rainbow modes keep their own colours for all atoms.
     if (screen_show_structure && screen_mode == "protein") {
         for (auto& pt : points) {
-            if      (pt.structure == 'H') pt.color_id = 41;  // gold-orange helix
-            else if (pt.structure == 'S') pt.color_id = 42;  // cornflower-blue sheet
+            if      (pt.structure == 'H') pt.color_id = 41;  // yellow-gold helix
+            else if (pt.structure == 'S') pt.color_id = 42;  // bright cyan sheet
+            else                          pt.color_id = 43;  // medium gray coil
         }
     }
 }
