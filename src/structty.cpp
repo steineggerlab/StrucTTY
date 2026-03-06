@@ -1,5 +1,6 @@
 #include <iostream>
-#include <unistd.h> 
+#include <unistd.h>
+#include <clocale>
 #include <filesystem>
 #include "Curses.hpp"
 #include "Common.hpp"
@@ -13,6 +14,7 @@ int main(int argc, char* argv[]) {
     if (!params.check_arg_okay()) return -1; 
     params.print_args();
     
+    setlocale(LC_ALL, "");
     initscr();
     cbreak();
     noecho();
