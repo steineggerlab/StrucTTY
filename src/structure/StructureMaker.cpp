@@ -218,11 +218,11 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                         float pair_dx = pb.x - pa.x;
                         float pair_dy = pb.y - pa.y;
                         float pair_dz = pb.z - pa.z;
-                        float pair_len = std::sqrt(pair_dx*pair_dx + pair_dy*pair_dy + pair_dz*pair_dz);
-                        int line_steps = std::max<int>(2, (int)(pair_len / 0.05f));
 
-                        for (int t = 0; t <= line_steps; ++t) {
-                            float f = static_cast<float>(t) / line_steps;
+                        // Two endpoints per Ca-Ca pair are enough; the renderer connects them
+                        // with draw_line, so sub-sampling here just wastes atoms.
+                        for (int t = 0; t <= 1; ++t) {
+                            float f = static_cast<float>(t);
                             output.emplace_back(
                                 pa.x + ox + f * pair_dx,
                                 pa.y + oy + f * pair_dy,
