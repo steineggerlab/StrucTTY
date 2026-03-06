@@ -10,15 +10,30 @@ namespace Palettes {
         196, 202, 208, 214, 220, 226, 190, 154, 118, 82,
         49,  51,  45,  39,  33,  27,  21,  93,  129, 201
     };
-    inline const std::array<int, 40> UNRAINBOW = {
-        220,   75,   82,  211,   31,   
-        164,  190,   45,   21,   129, 
-        202,  226,  196,   51,   27, 
-        214,  154,   39,   33,   201,
-        206,  230,  128,   59,   43,   
-        218,   93,   55,  200,   139, 
-        212,  236,   92,   61,   37, 
-        224,  208,   54,  103,   49  
+    // 20 vivid, maximally-distinct colours.
+    // Deliberately avoids yellow/gold (clashes with helix 214) and
+    // blue/cornflower tones (clashes with sheet 75).
+    inline const std::array<int, 20> UNRAINBOW = {
+        196,  //  1  pure red
+         46,  //  2  pure green
+        201,  //  3  magenta
+         93,  //  4  violet
+         48,  //  5  mint / spring-green
+        202,  //  6  orange-red  (distinct from gold helix)
+        164,  //  7  dark magenta
+        118,  //  8  chartreuse
+         40,  //  9  vivid green
+        160,  // 10  dark red
+        128,  // 11  purple
+         82,  // 12  lime green
+        200,  // 13  hot pink
+         34,  // 14  teal-green
+        211,  // 15  light pink
+         55,  // 16  dark violet
+        204,  // 17  salmon
+         28,  // 18  forest green
+        129,  // 19  medium purple
+        203,  // 20  coral
     };
 
     inline constexpr RGBA ID2RGBA[256] = {

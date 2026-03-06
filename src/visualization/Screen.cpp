@@ -379,13 +379,12 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
     }
 
-    // When --structure is active, override only helix/sheet atoms.
-    // Coil/loop atoms keep their mode-based color (protein/chain/rainbow).
-    if (screen_show_structure) {
+    // H/S override only applies in protein mode: chain/rainbow use their own
+    // colours throughout, so mixing in fixed SS hues would clash.
+    if (screen_show_structure && screen_mode == "protein") {
         for (auto& pt : points) {
             if      (pt.structure == 'H') pt.color_id = 41;  // gold-orange helix
             else if (pt.structure == 'S') pt.color_id = 42;  // cornflower-blue sheet
-            // else: leave color_id as assigned by the color mode above
         }
     }
 }
