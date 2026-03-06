@@ -65,7 +65,7 @@ void Screen::init_color_pairs() {
         }
     }
     // Fixed pairs for secondary structure coloring (used when --structure is active)
-    init_pair(41, 231, -1);  // alpha helix: white
+    init_pair(41, 214, -1);  // alpha helix: yellow-gold
     init_pair(42,  51, -1);  // beta sheet:  bright cyan
     // coil/loop atoms use the regular color mode (no fixed pair needed)
 }
