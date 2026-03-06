@@ -427,13 +427,30 @@ void Screen::project() {
                     int screenY = (int)((1.0f - projectedY) * 0.5f * logical_h);
 
                     if (prevScreenX != -1 && prevScreenY != -1) {
-                        draw_line(chainPoints,
-                                  prevScreenX, screenX,
-                                  prevScreenY, screenY,
-                                  prevZ, z,
-                                  chainID, structure,
-                                  depth_base_min_z, depth_base_max_z,
-                                  logical_w, logical_h);
+                        // Catmull-Rom spline: interpolate 4 sub-steps through the 3-D
+                        // backbone to produce smooth curves instead of straight segments.
+                        const Atom& P0 = chain_atoms[std::max(0, i-2)];
+                        const Atom& P1 = chain_atoms[i-1];
+                        const Atom& P2 = chain_atoms[i];
+                        const Atom& P3 = chain_atoms[std::min(num_atoms-1, i+1)];
+
+                        int cr_prevX = prevScreenX, cr_prevY = prevScreenY;
+                        float cr_prevZ = prevZ;
+
+                        for (int cr = 1; cr <= 4; ++cr) {
+                            float t = cr * 0.25f;
+                            float t2 = t*t, t3 = t2*t;
+                            float cx = 0.5f*((-P0.x+3*P1.x-3*P2.x+P3.x)*t3 + (2*P0.x-5*P1.x+4*P2.x-P3.x)*t2 + (-P0.x+P2.x)*t + 2*P1.x);
+                            float cy = 0.5f*((-P0.y+3*P1.y-3*P2.y+P3.y)*t3 + (2*P0.y-5*P1.y+4*P2.y-P3.y)*t2 + (-P0.y+P2.y)*t + 2*P1.y);
+                            float cz = 0.5f*((-P0.z+3*P1.z-3*P2.z+P3.z)*t3 + (2*P0.z-5*P1.z+4*P2.z-P3.z)*t2 + (-P0.z+P2.z)*t + 2*P1.z) + focal_offset;
+                            if (cz < nearPlane) break;
+                            float cpX = (cx/cz)*fovRads + pan_x[ii];
+                            float cpY = (cy/cz)*fovRads + pan_y[ii];
+                            int cX = (int)((cpX+1.0f)*0.5f*logical_w);
+                            int cY = (int)((1.0f-cpY)*0.5f*logical_h);
+                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h);
+                            cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
+                        }
                     }
 
                     if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
@@ -509,12 +526,28 @@ void Screen::project() {
                 int screenY = (int)((1.0f - projectedY) * 0.5f * screen_height);
 
                 if (prevScreenX != -1 && prevScreenY != -1) {
-                    draw_line(chainPoints,
-                              prevScreenX, screenX,
-                              prevScreenY, screenY,
-                              prevZ, z,
-                              chainID, structure,
-                              depth_base_min_z, depth_base_max_z);
+                    const Atom& P0 = chain_atoms[std::max(0, i-2)];
+                    const Atom& P1 = chain_atoms[i-1];
+                    const Atom& P2 = chain_atoms[i];
+                    const Atom& P3 = chain_atoms[std::min(num_atoms-1, i+1)];
+
+                    int cr_prevX = prevScreenX, cr_prevY = prevScreenY;
+                    float cr_prevZ = prevZ;
+
+                    for (int cr = 1; cr <= 4; ++cr) {
+                        float t = cr * 0.25f;
+                        float t2 = t*t, t3 = t2*t;
+                        float cx = 0.5f*((-P0.x+3*P1.x-3*P2.x+P3.x)*t3 + (2*P0.x-5*P1.x+4*P2.x-P3.x)*t2 + (-P0.x+P2.x)*t + 2*P1.x);
+                        float cy = 0.5f*((-P0.y+3*P1.y-3*P2.y+P3.y)*t3 + (2*P0.y-5*P1.y+4*P2.y-P3.y)*t2 + (-P0.y+P2.y)*t + 2*P1.y);
+                        float cz = 0.5f*((-P0.z+3*P1.z-3*P2.z+P3.z)*t3 + (2*P0.z-5*P1.z+4*P2.z-P3.z)*t2 + (-P0.z+P2.z)*t + 2*P1.z) + focal_offset;
+                        if (cz < nearPlane) break;
+                        float cpX = (cx/cz)*fovRads + pan_x[ii];
+                        float cpY = (cy/cz)*fovRads + pan_y[ii];
+                        int cX = (int)((cpX+1.0f)*0.5f*screen_width);
+                        int cY = (int)((1.0f-cpY)*0.5f*screen_height);
+                        draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
+                        cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
+                    }
                 }
 
                 if (screenX >= 0 && screenX < screen_width && screenY >= 0 && screenY < screen_height) {
@@ -603,12 +636,28 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
                 int screenY = (int)((1.0f - projectedY) * 0.5f * proj_height);
 
                 if (prevScreenX != -1 && prevScreenY != -1) {
-                    draw_line(chainPoints,
-                              prevScreenX, screenX,
-                              prevScreenY, screenY,
-                              prevZ, z,
-                              chainID, structure,
-                              depth_base_min_z, depth_base_max_z);
+                    const Atom& P0 = chain_atoms[std::max(0, i-2)];
+                    const Atom& P1 = chain_atoms[i-1];
+                    const Atom& P2 = chain_atoms[i];
+                    const Atom& P3 = chain_atoms[std::min(num_atoms-1, i+1)];
+
+                    int cr_prevX = prevScreenX, cr_prevY = prevScreenY;
+                    float cr_prevZ = prevZ;
+
+                    for (int cr = 1; cr <= 4; ++cr) {
+                        float t = cr * 0.25f;
+                        float t2 = t*t, t3 = t2*t;
+                        float cx = 0.5f*((-P0.x+3*P1.x-3*P2.x+P3.x)*t3 + (2*P0.x-5*P1.x+4*P2.x-P3.x)*t2 + (-P0.x+P2.x)*t + 2*P1.x);
+                        float cy = 0.5f*((-P0.y+3*P1.y-3*P2.y+P3.y)*t3 + (2*P0.y-5*P1.y+4*P2.y-P3.y)*t2 + (-P0.y+P2.y)*t + 2*P1.y);
+                        float cz = 0.5f*((-P0.z+3*P1.z-3*P2.z+P3.z)*t3 + (2*P0.z-5*P1.z+4*P2.z-P3.z)*t2 + (-P0.z+P2.z)*t + 2*P1.z) + focal_offset;
+                        if (cz < nearPlane) break;
+                        float cpX = (cx/cz)*fovRads + pan_x[ii];
+                        float cpY = (cy/cz)*fovRads + pan_y[ii];
+                        int cX = (int)((cpX+1.0f)*0.5f*proj_width);
+                        int cY = (int)((1.0f-cpY)*0.5f*proj_height);
+                        draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
+                        cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
+                    }
                 }
 
                 if (screenX >= 0 && screenX < proj_width && screenY >= 0 && screenY < proj_height) {
