@@ -1,6 +1,7 @@
 #include "Panel.hpp"
 
-Panel::Panel(int width, const std::string& mode) : panel_width(width), panel_mode(mode) {}
+Panel::Panel(int width, const std::string& mode, bool show_structure)
+    : panel_width(width), panel_mode(mode), panel_show_structure(show_structure) {}
 
 void Panel::add_panel_info(const std::string& file_name, 
                            const std::map<std::string, int>& chain_info, 
@@ -27,7 +28,8 @@ int Panel::get_height() const {
 }
 void Panel::draw_panel(int start_row, int start_col,
                        int max_rows, int max_cols) const {
-    const int num_colors = (int)(sizeof(Palettes::UNRAINBOW) / sizeof(int));
+    const int num_protein_colors = 9;
+    const int num_chain_colors   = 15;
     if (max_rows <= 0 || max_cols <= 0) return;
 
     const int top    = start_row;
@@ -115,8 +117,8 @@ void Panel::draw_panel(int start_row, int start_col,
         const auto& chain_info       = entry.chain_atom_info;
 
         int protein_pair = 0;
-        if (panel_mode == "protein" && num_colors > 0) {
-            protein_pair = (file_idx % num_colors) + 1;
+        if (panel_mode == "protein") {
+            protein_pair = (file_idx % num_protein_colors) + 1;  // pairs 1-9
         }
 
         // file name line
@@ -160,8 +162,8 @@ void Panel::draw_panel(int start_row, int start_col,
             }
 
             int chain_pair = 0;
-            if (panel_mode == "chain" && num_colors > 0) {
-                chain_pair = (file_idx * 10 + (count % num_colors)) + 1;
+            if (panel_mode == "chain") {
+                chain_pair = 21 + ((file_idx * 10 + count) % num_chain_colors);  // pairs 21-35
             }
 
             int pair_to_use = (panel_mode == "protein") ? protein_pair : chain_pair;

@@ -16,8 +16,6 @@ class Parameters{
         bool predict_structure = false;
         bool arg_okay = true;
         bool benchmark_mode = false;
-        int width = 3;
-        int height = 3;
         vector<string> in_file;
         vector<string> chains;
         string utmatrix = "";
@@ -46,12 +44,6 @@ class Parameters{
         }
         string get_utmatrix(){
             return utmatrix;
-        }
-        int get_width(){
-            return width * 32 + 32;
-        }
-        int get_height(){
-            return height * 8 + 24;
         }
         string get_mode(){
             return mode;
