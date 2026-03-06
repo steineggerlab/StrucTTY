@@ -106,7 +106,7 @@ Parameters::Parameters(int argc, char* argv[]) {
                 } else {
                     throw std::runtime_error("Error: Missing value for -ut / --utmatrix.");
                 }
-            } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 6){
+            } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 9){
                 in_file.push_back(argv[i]);
             } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
                 benchmark_mode = true;
