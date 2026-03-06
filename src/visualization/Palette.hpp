@@ -10,15 +10,50 @@ namespace Palettes {
         196, 202, 208, 214, 220, 226, 190, 154, 118, 82,
         49,  51,  45,  39,  33,  27,  21,  93,  129, 201
     };
-    inline const std::array<int, 40> UNRAINBOW = {
-        220,   75,   82,  211,   31,   
-        164,  190,   45,   21,   129, 
-        202,  226,  196,   51,   27, 
-        214,  154,   39,   33,   201,
-        206,  230,  128,   59,   43,   
-        218,   93,   55,  200,   139, 
-        212,  236,   92,   61,   37, 
-        224,  208,   54,  103,   49  
+
+    // 9 named protein colors (vivid), pairs 1-9
+    inline const std::array<int, 9> PROTEIN_COLORS = {
+        100,  //  1  olive        #878700
+         80,  //  2  turquoise    #5fd7d7
+         27,  //  3  navy         #005fff
+        129,  //  4  purple       #af00ff
+        213,  //  5  pink         #ff87ff
+        209,  //  6  coral        #ff875f
+        130,  //  7  brown        #af5f00
+        214,  //  8  orange       #ffaf00
+        160,  //  9  red          #d70000
+    };
+
+    // Dimmed counterparts for coil atoms in protein+-s mode, pairs 11-19
+    inline const std::array<int, 9> PROTEIN_DIM_COLORS = {
+         58,  // 11  olive dim     #5f5f00
+         30,  // 12  turquoise dim #008787
+         18,  // 13  navy dim      #000087
+         54,  // 14  purple dim    #5f0087
+        132,  // 15  pink dim      #af5f87
+        131,  // 16  coral dim     #af5f5f
+         94,  // 17  brown dim     #875f00
+        172,  // 18  orange dim    #d78700
+         88,  // 19  red dim       #870000
+    };
+
+    // 15 chain colors (9 given + 6 extended), pairs 21-35
+    inline const std::array<int, 15> CHAIN_COLORS = {
+        100,  // 21  olive
+         80,  // 22  turquoise
+         27,  // 23  navy
+        129,  // 24  purple
+        213,  // 25  pink
+        209,  // 26  coral
+        130,  // 27  brown
+        214,  // 28  orange
+        160,  // 29  red
+         37,  // 30  teal         #00afaf
+        118,  // 31  lime         #87ff00
+        201,  // 32  magenta      #ff00ff
+        220,  // 33  gold         #ffd700
+        183,  // 34  lavender     #d7afff
+        210,  // 35  salmon       #ff8787
     };
 
     inline constexpr RGBA ID2RGBA[256] = {
