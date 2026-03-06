@@ -116,7 +116,7 @@ void Panel::draw_panel(int start_row, int start_col,
         const auto& chain_info       = entry.chain_atom_info;
 
         int protein_pair = 0;
-        if (!panel_show_structure && panel_mode == "protein" && num_colors > 0) {
+        if (panel_mode == "protein" && num_colors > 0) {
             protein_pair = (file_idx % num_colors) + 1;
         }
 
@@ -161,7 +161,7 @@ void Panel::draw_panel(int start_row, int start_col,
             }
 
             int chain_pair = 0;
-            if (!panel_show_structure && panel_mode == "chain" && num_colors > 0) {
+            if (panel_mode == "chain" && num_colors > 0) {
                 chain_pair = (file_idx * 10 + (count % num_colors)) + 1;
             }
 
