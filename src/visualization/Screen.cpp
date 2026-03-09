@@ -248,15 +248,20 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         default: cols=3; rows=(n+2)/3; break;
     }
 
-    if (n > 1) focal_offset *= std::max(cols, rows) * 0.7f;
-
-    float step_x = 2.0f / cols;
-    float step_y = 2.0f / rows;
-    for (int i = 0; i < n; i++) {
-        int col = i % cols;
-        int row = i / cols;
-        pan_x[i] = -1.0f + step_x * (col + 0.5f);
-        pan_y[i] =  1.0f - step_y * (row + 0.5f);
+    if (n > 1) {
+        int max_dim = std::max(cols, rows);
+        float step      = (max_dim == 2) ? 0.75f : 0.5f;
+        float foc_scale = (max_dim == 2) ? 0.8f  : 0.6f;
+        focal_offset *= max_dim * foc_scale;
+        for (int i = 0; i < n; i++) {
+            int col = i % cols;
+            int row = i / cols;
+            pan_x[i] =  (col - (cols - 1) / 2.0f) * step;
+            pan_y[i] = -((row - (rows - 1) / 2.0f) * step);
+        }
+    } else {
+        pan_x[0] = 0.0f;
+        pan_y[0] = 0.0f;
     }
 }
 
@@ -356,6 +361,7 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
         char pix = get_pixel_char_from_depth(z, min_z, max_z);
         for (int oy = -half; oy <= half; oy++) {
             for (int ox = -half; ox <= half; ox++) {
+                if (ox != 0 && oy != 0) continue;  // cross (+) pattern, not square
                 int nx = ix + ox, ny = iy + oy;
                 if (nx >= 0 && nx < max_x && ny >= 0 && ny < max_y)
                     points.push_back({nx, ny, z, pix, 0, chainID, structure});
@@ -486,6 +492,7 @@ void Screen::project() {
                         char pix = get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z);
                         for (int oy = -1; oy <= 1; oy++)
                             for (int ox = -1; ox <= 1; ox++) {
+                                if (ox != 0 && oy != 0) continue;
                                 int nx = screenX + ox, ny = screenY + oy;
                                 if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h)
                                     chainPoints.push_back({nx, ny, z, pix, 0, chainID, structure});
