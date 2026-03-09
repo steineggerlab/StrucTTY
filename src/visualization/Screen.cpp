@@ -879,7 +879,7 @@ void Screen::print_screen(int y_offset) {
 }
 
 void Screen::set_zoom_level(float zoom){
-    if ((zoom_level + zoom > 0.5)&&(zoom_level + zoom < 15)){
+    if ((zoom_level + zoom > 0.5)&&(zoom_level + zoom < 50)){
         float f_old = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
         zoom_level += zoom;
         float f_new = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
