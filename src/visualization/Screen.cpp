@@ -234,9 +234,29 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
 
     focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
 
-    for (size_t i = 0; i < pan_x.size(); i++) {
-        pan_x[i] = 0.0f;
-        pan_y[i] = 0.0f;
+    int n = (int)pan_x.size();
+    int cols, rows;
+    switch (n) {
+        case 1:  cols=1; rows=1; break;
+        case 2:  cols=2; rows=1; break;
+        case 3:  cols=3; rows=1; break;
+        case 4:  cols=2; rows=2; break;
+        case 5:  cols=3; rows=2; break;
+        case 6:  cols=3; rows=2; break;
+        case 7:  cols=3; rows=3; break;
+        case 8:  cols=3; rows=3; break;
+        default: cols=3; rows=(n+2)/3; break;
+    }
+
+    if (n > 1) focal_offset *= std::max(cols, rows);
+
+    float step_x = 2.0f / cols;
+    float step_y = 2.0f / rows;
+    for (int i = 0; i < n; i++) {
+        int col = i % cols;
+        int row = i / cols;
+        pan_x[i] = -1.0f + step_x * (col + 0.5f);
+        pan_y[i] =  1.0f - step_y * (row + 0.5f);
     }
 }
 
