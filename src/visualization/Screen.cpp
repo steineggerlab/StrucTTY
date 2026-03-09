@@ -248,7 +248,7 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         default: cols=3; rows=(n+2)/3; break;
     }
 
-    if (n > 1) focal_offset *= std::max(cols, rows);
+    if (n > 1) focal_offset *= std::max(cols, rows) * 0.7f;
 
     float step_x = 2.0f / cols;
     float step_y = 2.0f / rows;
