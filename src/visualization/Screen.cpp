@@ -248,7 +248,7 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         default: cols=3; rows=(n+2)/3; break;
     }
 
-    if (n > 1) {
+    if (n > 1 && !hasUT) {
         int max_dim = std::max(cols, rows);
         float step      = (max_dim == 2) ? 0.75f : 0.5f;
         float foc_scale = (max_dim == 2) ? 0.8f  : 0.6f;
@@ -260,8 +260,10 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
             pan_y[i] = -((row - (rows - 1) / 2.0f) * step);
         }
     } else {
-        pan_x[0] = 0.0f;
-        pan_y[0] = 0.0f;
+        for (int i = 0; i < n; i++) {
+            pan_x[i] = 0.0f;
+            pan_y[i] = 0.0f;
+        }
     }
 }
 
