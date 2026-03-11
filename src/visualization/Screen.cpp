@@ -234,9 +234,34 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
 
     focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
 
-    for (size_t i = 0; i < pan_x.size(); i++) {
-        pan_x[i] = 0.0f;
-        pan_y[i] = 0.0f;
+    int n = (int)pan_x.size();
+    int cols, rows;
+    switch (n) {
+        case 1:  cols=1; rows=1; break;
+        case 2:  cols=2; rows=1; break;
+        case 3:  cols=3; rows=1; break;
+        case 4:  cols=2; rows=2; break;
+        case 5:  cols=3; rows=2; break;
+        case 6:  cols=3; rows=2; break;
+        case 7:  cols=3; rows=3; break;
+        case 8:  cols=3; rows=3; break;
+        default: cols=3; rows=(n+2)/3; break;
+    }
+
+    if (n > 1) {
+        int max_dim = std::max(cols, rows);
+        float step      = (max_dim == 2) ? 0.75f : 0.5f;
+        float foc_scale = (max_dim == 2) ? 0.8f  : 0.6f;
+        focal_offset *= max_dim * foc_scale;
+        for (int i = 0; i < n; i++) {
+            int col = i % cols;
+            int row = i / cols;
+            pan_x[i] =  (col - (cols - 1) / 2.0f) * step;
+            pan_y[i] = -((row - (rows - 1) / 2.0f) * step);
+        }
+    } else {
+        pan_x[0] = 0.0f;
+        pan_y[0] = 0.0f;
     }
 }
 
@@ -308,9 +333,9 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
                        int x1, int x2,
                        int y1, int y2,
                        float z1, float z2,
-                       char chainID, char structure,
+                       const std::string& chainID, char structure,
                        float min_z, float max_z,
-                       int max_x, int max_y) {
+                       int max_x, int max_y, int half) {
     if (max_x < 0) max_x = screen_width;
     if (max_y < 0) max_y = screen_height;
 
@@ -333,10 +358,14 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
         int ix = (int)x;
         int iy = (int)y;
 
-        if (ix >= 0 && ix < max_x && iy >= 0 && iy < max_y) {
-            points.push_back({ix, iy, z,
-                              get_pixel_char_from_depth(z, min_z, max_z),
-                              0, chainID, structure});
+        char pix = get_pixel_char_from_depth(z, min_z, max_z);
+        for (int oy = -half; oy <= half; oy++) {
+            for (int ox = -half; ox <= half; ox++) {
+                if (ox != 0 && oy != 0) continue;  // cross (+) pattern, not square
+                int nx = ix + ox, ny = iy + oy;
+                if (nx >= 0 && nx < max_x && ny >= 0 && ny < max_y)
+                    points.push_back({nx, ny, z, pix, 0, chainID, structure});
+            }
         }
 
         x += xIncrement;
@@ -352,7 +381,7 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         int idx = protein_idx % 9;
         for (auto& pt : points) pt.color_id = idx + 1;  // pairs 1-9
     } else if (screen_mode == "chain") {
-        char cur_chain = points[0].chainID;
+        std::string cur_chain = points[0].chainID;
         int color_idx  = 0;
         for (auto& pt : points) {
             if (pt.chainID != cur_chain) { color_idx++; cur_chain = pt.chainID; }
@@ -407,7 +436,6 @@ void Screen::project() {
             for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
                 if (chain_atoms.empty()) continue;
 
-                char chainChar = chainID.empty() ? ' ' : chainID[0];
                 int num_atoms = target->get_chain_length(chainID);
                 int prevScreenX = -1, prevScreenY = -1;
                 float prevZ = -1.0f;
@@ -452,18 +480,23 @@ void Screen::project() {
                                 float cpY = (cy/cz)*fovRads + pan_y[ii];
                                 int cX = (int)((cpX+1.0f)*0.5f*logical_w);
                                 int cY = (int)((1.0f-cpY)*0.5f*logical_h);
-                                draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainChar, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h);
+                                draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h, 1);
                                 cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
                             }
                         } else {
-                            draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainChar, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h);
+                            draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h, 1);
                         }
                     }
 
                     if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
-                        chainPoints.push_back({screenX, screenY, z,
-                                               get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                               0, chainChar, structure});
+                        char pix = get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z);
+                        for (int oy = -1; oy <= 1; oy++)
+                            for (int ox = -1; ox <= 1; ox++) {
+                                if (ox != 0 && oy != 0) continue;
+                                int nx = screenX + ox, ny = screenY + oy;
+                                if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h)
+                                    chainPoints.push_back({nx, ny, z, pix, 0, chainID, structure});
+                            }
                     }
 
                     prevScreenX = screenX;
@@ -507,7 +540,6 @@ void Screen::project() {
         for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
             if (chain_atoms.empty()) continue;
 
-            char chainChar = chainID.empty() ? ' ' : chainID[0];
             int num_atoms = target->get_chain_length(chainID);
             int prevScreenX = -1, prevScreenY = -1;
             float prevZ = -1.0f;
@@ -552,18 +584,18 @@ void Screen::project() {
                             float cpY = (cy/cz)*fovRads + pan_y[ii];
                             int cX = (int)((cpX+1.0f)*0.5f*screen_width);
                             int cY = (int)((1.0f-cpY)*0.5f*screen_height);
-                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainChar, structure, depth_base_min_z, depth_base_max_z);
+                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
                             cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
                         }
                     } else {
-                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainChar, structure, depth_base_min_z, depth_base_max_z);
+                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
                     }
                 }
 
                 if (screenX >= 0 && screenX < screen_width && screenY >= 0 && screenY < screen_height) {
                     chainPoints.push_back({screenX, screenY, z,
                                            get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                           0, chainChar, structure});
+                                           0, chainID, structure});
                 }
 
                 prevScreenX = screenX;
@@ -620,7 +652,6 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
         for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
             if (chain_atoms.empty()) continue;
 
-            char chainChar = chainID.empty() ? ' ' : chainID[0];
             int num_atoms = target->get_chain_length(chainID);
             int prevScreenX = -1, prevScreenY = -1;
             float prevZ = -1.0f;
@@ -665,18 +696,18 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
                             float cpY = (cy/cz)*fovRads + pan_y[ii];
                             int cX = (int)((cpX+1.0f)*0.5f*proj_width);
                             int cY = (int)((1.0f-cpY)*0.5f*proj_height);
-                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainChar, structure, depth_base_min_z, depth_base_max_z);
+                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
                             cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
                         }
                     } else {
-                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainChar, structure, depth_base_min_z, depth_base_max_z);
+                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
                     }
                 }
 
                 if (screenX >= 0 && screenX < proj_width && screenY >= 0 && screenY < proj_height) {
                     chainPoints.push_back({screenX, screenY, z,
                                            get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                           0, chainChar, structure});
+                                           0, chainID, structure});
                 }
 
                 prevScreenX = screenX;
@@ -855,8 +886,15 @@ void Screen::print_screen(int y_offset) {
 }
 
 void Screen::set_zoom_level(float zoom){
-    if ((zoom_level + zoom > 0.5)&&(zoom_level + zoom < 15)){
+    if ((zoom_level + zoom > 0.5)&&(zoom_level + zoom < 50)){
+        float f_old = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
         zoom_level += zoom;
+        float f_new = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
+        float r = f_new / f_old;
+        for (size_t i = 0; i < pan_x.size(); i++) {
+            pan_x[i] *= r;
+            pan_y[i] *= r;
+        }
     }
 }
 
