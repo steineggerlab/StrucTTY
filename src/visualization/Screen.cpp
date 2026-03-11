@@ -248,7 +248,7 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         default: cols=3; rows=(n+2)/3; break;
     }
 
-    if (n > 1) {
+    if (n > 1 && !hasUT) {
         int max_dim = std::max(cols, rows);
         float step      = (max_dim == 2) ? 0.75f : 0.5f;
         float foc_scale = (max_dim == 2) ? 0.8f  : 0.6f;
@@ -260,8 +260,10 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
             pan_y[i] = -((row - (rows - 1) / 2.0f) * step);
         }
     } else {
-        pan_x[0] = 0.0f;
-        pan_y[0] = 0.0f;
+        for (int i = 0; i < n; i++) {
+            pan_x[i] = 0.0f;
+            pan_y[i] = 0.0f;
+        }
     }
 }
 
@@ -963,34 +965,40 @@ bool Screen::handle_input(int key){
         case 120:
             if (structNum != -1) {
                 data[structNum]->set_rotate(1, 0, 0);
+            } else if (yesUT) {
+                float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
+                float m[9] = {1,0,0, 0,c,-s, 0,s,c};
+                for (auto* p : data) p->do_naive_rotation(m);
             } else {
-                for (int i = 0; i < data.size(); i++){
-                    data[i]->set_rotate(1, 0, 0);
-                }
+                for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(1, 0, 0);
             }
-            break;  
+            break;
         // Y, y (rotate y-centered)
         case 89:
         case 121:
             if (structNum != -1) {
                 data[structNum]->set_rotate(0, 1, 0);
+            } else if (yesUT) {
+                float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
+                float m[9] = {c,0,s, 0,1,0, -s,0,c};
+                for (auto* p : data) p->do_naive_rotation(m);
             } else {
-                for (int i = 0; i < data.size(); i++){
-                    data[i]->set_rotate(0, 1, 0);
-                }
+                for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(0, 1, 0);
             }
-            break;  
+            break;
         // Z, z (rotate z-centered)
         case 90:
         case 122:
             if (structNum != -1) {
                 data[structNum]->set_rotate(0, 0, 1);
+            } else if (yesUT) {
+                float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
+                float m[9] = {c,-s,0, s,c,0, 0,0,1};
+                for (auto* p : data) p->do_naive_rotation(m);
             } else {
-                for (int i = 0; i < data.size(); i++){
-                    data[i]->set_rotate(0, 0, 1);
-                }
+                for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(0, 0, 1);
             }
-            break;  
+            break;
 
         // F, f (zoom out)
         case 70:
