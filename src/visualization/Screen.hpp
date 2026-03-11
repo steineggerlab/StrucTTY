@@ -42,9 +42,9 @@ public:
                    int x1, int x2,
                    int y1, int y2,
                    float z1, float z2,
-                   char chainID, char structure,
+                   const std::string& chainID, char structure,
                    float min_z, float max_z,
-                   int max_x = -1, int max_y = -1);
+                   int max_x = -1, int max_y = -1, int half = 0);
     
     void set_benchmark(Benchmark* b) { bm = b; }
     
