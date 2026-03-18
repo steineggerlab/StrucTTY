@@ -13,17 +13,24 @@ void Panel::add_panel_info(const std::string& file_name,
     });
 }
 
+void Panel::set_align_method(const std::string& method) {
+    align_method = method;
+}
+
 int Panel::get_height() const {
     int lines = 0;
-    lines += 3; 
+    lines += 3;
+    if (panel_mode == "aligned" && !align_method.empty()) {
+        lines += 1;  // "Align: nearest-nbr" or "Align: aln-string"
+    }
     for (const auto& entry : entries) {
-        lines += 1; 
+        lines += 1;
         int n = (int)entry.chain_atom_info.size();
         int chain_lines = (n == 0) ? 1 : ((n + 2) / 3); // 3 per line
         lines += chain_lines;
-        lines += 1; 
+        lines += 1;
     }
-    lines += 1; 
+    lines += 1;
     return lines;
 }
 void Panel::draw_panel(int start_row, int start_col,
@@ -107,6 +114,17 @@ void Panel::draw_panel(int start_row, int start_col,
     }
     ++r;
     if (!in_rows(r)) return;
+
+    // 기능 4: aligned 모드일 때 정렬 방식 표시
+    if (panel_mode == "aligned" && !align_method.empty()) {
+        if (!in_rows(r)) return;
+        clear_line(r);
+        int x = left;
+        put_cstr(r, x, "Align: ");
+        put_str(r, x, align_method);
+        ++r;
+        if (!in_rows(r)) return;
+    }
 
     // Body
     int file_idx = 0;
@@ -236,6 +254,10 @@ int Panel::get_height_for_width(int max_cols) const {
     int lines = 0;
 
     lines += 3; // Top border + Help line + Separator
+
+    if (panel_mode == "aligned" && !align_method.empty()) {
+        lines += 1;  // "Align: ..." line
+    }
 
     int avail_cols = max_cols;
     if (avail_cols < 1) avail_cols = 1;

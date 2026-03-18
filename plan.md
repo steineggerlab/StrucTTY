@@ -275,7 +275,7 @@ if (mode == "interface") {
 
 ---
 
-## 기능 4: UTMatrix 정렬 구조 색상 표시
+## 기능 4: UTMatrix 정렬 구조 색상 표시 ✅
 
 ### 전제 조건 및 `-ut` 인수 처리 방침
 

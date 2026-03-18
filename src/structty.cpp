@@ -55,6 +55,11 @@ int main(int argc, char* argv[]) {
     if (params.get_mode() == "interface") {
         screen.compute_interface_all();
     }
+
+    // 기능 4: aligned 모드일 때 nearest-neighbor 기반 정렬 잔기 계산 (threshold=10.0Å)
+    if (params.get_mode() == "aligned") {
+        screen.compute_aligned_all();
+    }
     
     if (bench) {
         auto t_load1 = Benchmark::clock::now();
