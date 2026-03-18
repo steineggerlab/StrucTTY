@@ -477,40 +477,185 @@ void Protein::compute_interface_pair(const std::string& chain_A,
     }
 }
 
-// init_atoms.is_interface를 screen_atoms으로 전파
+// init_atoms.is_interface를 screen_atoms으로 전파 (공통 헬퍼: bool 필드용)
 // - residue_number >= 0 (coil/junction): residue_number로 직접 매핑
-// - residue_number == -1 (H/S geometry): 3D 최근접 init_atom의 값 사용
-void Protein::sync_interface_to_screen() {
+// - residue_number == -1 (H/S geometry): screen_atoms 내 인덱스 기준 가장 가까운 coil 원자 값 사용
+//   (좌표계 불일치 방지: scaled screen_atoms와 unscaled init_atoms의 3D 비교는 부정확)
+static void sync_bool_field_to_screen(
+    std::map<std::string, std::vector<Atom>>& screen_atoms,
+    const std::map<std::string, std::vector<Atom>>& init_atoms,
+    bool Atom::* field)
+{
     for (auto& [chainID, screen_chain] : screen_atoms) {
         auto init_it = init_atoms.find(chainID);
         if (init_it == init_atoms.end()) continue;
         const std::vector<Atom>& init_chain = init_it->second;
 
-        for (Atom& sa : screen_chain) {
+        int n = (int)screen_chain.size();
+
+        // 1단계: residue_number >= 0 (coil/junction) 원자를 init_atoms에서 매핑
+        //         동시에 coil 원자의 (index, value) 리스트 수집 (H/S geometry용)
+        struct CoilEntry { int idx; bool val; };
+        std::vector<CoilEntry> coil_entries;
+        coil_entries.reserve(n / 2);
+
+        for (int k = 0; k < n; ++k) {
+            Atom& sa = screen_chain[k];
             if (sa.residue_number >= 0) {
-                // coil / junction 원자: residue_number로 매핑
+                bool found_val = sa.*field;  // 기본값 유지
                 for (const Atom& ia : init_chain) {
                     if (ia.residue_number == sa.residue_number) {
-                        sa.is_interface = ia.is_interface;
+                        found_val = ia.*field;
                         break;
                     }
                 }
-            } else {
-                // H/S geometry 원자: 3D 최근접 init_atom 사용
-                float best_d2 = std::numeric_limits<float>::max();
-                for (const Atom& ia : init_chain) {
-                    float dx = sa.x - ia.x;
-                    float dy = sa.y - ia.y;
-                    float dz = sa.z - ia.z;
-                    float d2 = dx*dx + dy*dy + dz*dz;
-                    if (d2 < best_d2) {
-                        best_d2 = d2;
-                        sa.is_interface = ia.is_interface;
+                sa.*field = found_val;
+                coil_entries.push_back({k, found_val});
+            }
+        }
+
+        // 2단계: residue_number == -1 (H/S geometry) 원자 → 인덱스 기준 최근접 coil 원자
+        if (!coil_entries.empty()) {
+            for (int k = 0; k < n; ++k) {
+                Atom& sa = screen_chain[k];
+                if (sa.residue_number < 0) {
+                    int best_dist = std::numeric_limits<int>::max();
+                    bool best_val = false;
+                    for (const CoilEntry& ce : coil_entries) {
+                        int d = (k > ce.idx) ? (k - ce.idx) : (ce.idx - k);
+                        if (d < best_dist) {
+                            best_dist = d;
+                            best_val  = ce.val;
+                        }
                     }
+                    sa.*field = best_val;
                 }
             }
         }
     }
+}
+
+void Protein::sync_interface_to_screen() {
+    sync_bool_field_to_screen(screen_atoms, init_atoms, &Atom::is_interface);
+}
+
+void Protein::sync_aligned_to_screen() {
+    sync_bool_field_to_screen(screen_atoms, init_atoms, &Atom::is_aligned);
+}
+
+// 기능 4: UT transform을 init_atoms에도 적용 (screen_atoms와 동일한 rotation+shift)
+void Protein::apply_ut_to_init_atoms(const float* U, const float* T) {
+    for (auto& [chainID, chain_atoms] : init_atoms) {
+        for (Atom& atom : chain_atoms) {
+            float x = atom.x;
+            float y = atom.y;
+            float z = atom.z;
+            atom.x = U[0]*x + U[1]*y + U[2]*z + T[0];
+            atom.y = U[3]*x + U[4]*y + U[5]*z + T[1];
+            atom.z = U[6]*x + U[7]*y + U[8]*z + T[2];
+        }
+    }
+}
+
+// 기능 4: nearest-neighbor 기반 정렬 잔기 표시 (UT transform 이미 적용된 init_atoms 사용)
+// this와 other 두 단백질 모두 is_aligned 설정 후 screen_atoms에 반영
+void Protein::compute_aligned_regions_nn(Protein& other, float threshold) {
+    float thr2 = threshold * threshold;
+
+    // query (this) 측: 최근접 target CA < threshold이면 is_aligned = true
+    for (auto& [cid_a, chain_a] : init_atoms) {
+        for (Atom& a : chain_a) {
+            for (const auto& [cid_b, chain_b] : other.init_atoms) {
+                for (const Atom& b : chain_b) {
+                    float dx = a.x - b.x;
+                    float dy = a.y - b.y;
+                    float dz = a.z - b.z;
+                    if (dx*dx + dy*dy + dz*dz < thr2) {
+                        a.is_aligned = true;
+                        break;
+                    }
+                }
+                if (a.is_aligned) break;
+            }
+        }
+    }
+
+    // target (other) 측: 최근접 query CA < threshold이면 is_aligned = true
+    for (auto& [cid_b, chain_b] : other.init_atoms) {
+        for (Atom& b : chain_b) {
+            for (const auto& [cid_a, chain_a] : init_atoms) {
+                for (const Atom& a : chain_a) {
+                    float dx = b.x - a.x;
+                    float dy = b.y - a.y;
+                    float dz = b.z - a.z;
+                    if (dx*dx + dy*dy + dz*dz < thr2) {
+                        b.is_aligned = true;
+                        break;
+                    }
+                }
+                if (b.is_aligned) break;
+            }
+        }
+    }
+
+    sync_aligned_to_screen();
+    other.sync_aligned_to_screen();
+}
+
+// 기능 4: alignment string 기반 정렬 잔기 표시 (Foldseek qaln/taln 사용)
+// qaln[i] != '-' and taln[i] != '-' 인 위치의 CA 쌍 거리 < threshold이면 양쪽 is_aligned = true
+void Protein::compute_aligned_regions_from_aln(Protein& other,
+                                               const std::string& qaln,
+                                               const std::string& taln,
+                                               float threshold) {
+    if (qaln.size() != taln.size()) return;
+    float thr2 = threshold * threshold;
+
+    // query CA flat 목록 (chain 이름 순 = map 순)
+    std::vector<Atom*> query_cas;
+    for (auto& [cid, chain] : init_atoms) {
+        for (Atom& a : chain) {
+            query_cas.push_back(&a);
+        }
+    }
+
+    // target CA flat 목록
+    std::vector<Atom*> target_cas;
+    for (auto& [cid, chain] : other.init_atoms) {
+        for (Atom& a : chain) {
+            target_cas.push_back(&a);
+        }
+    }
+
+    int q_idx = 0;
+    int t_idx = 0;
+    const int q_size = (int)query_cas.size();
+    const int t_size = (int)target_cas.size();
+
+    for (size_t i = 0; i < qaln.size(); ++i) {
+        bool q_gap = (qaln[i] == '-');
+        bool t_gap = (taln[i] == '-');
+
+        if (!q_gap && !t_gap) {
+            if (q_idx < q_size && t_idx < t_size) {
+                Atom* qa = query_cas[q_idx];
+                Atom* ta = target_cas[t_idx];
+                float dx = qa->x - ta->x;
+                float dy = qa->y - ta->y;
+                float dz = qa->z - ta->z;
+                if (dx*dx + dy*dy + dz*dz < thr2) {
+                    qa->is_aligned = true;
+                    ta->is_aligned = true;
+                }
+            }
+        }
+
+        if (!q_gap) q_idx++;
+        if (!t_gap) t_idx++;
+    }
+
+    sync_aligned_to_screen();
+    other.sync_aligned_to_screen();
 }
 
 // 공개 진입점: 모든 체인 쌍에 대해 interface를 계산하고 screen_atoms에 반영

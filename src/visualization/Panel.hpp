@@ -28,10 +28,14 @@ public:
     void draw_panel(int start_row, int start_col,
                     int max_rows, int max_cols) const;
 
+    // 기능 4: 정렬 방식 표시 ("nearest-nbr" or "aln-string")
+    void set_align_method(const std::string& method);
+
 private:
     std::vector<Entry> entries;
 
     int panel_width;
     std::string panel_mode;
     bool panel_show_structure = false;
+    std::string align_method;
 };
