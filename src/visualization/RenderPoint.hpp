@@ -11,13 +11,19 @@ struct RenderPoint {
     std::string chainID;
     char        structure = 0;
 
-    // 기능 6: 잔기 정보
-    int         residue_number = -1;
-    std::string residue_name;
+    // 기능 1: interface region
+    bool        is_interface = false;
+
+    // 기능 4: 정렬 구조
+    bool        is_aligned = false;
 
     // 기능 2: pLDDT
     float       bfactor = 0.0f;
 
     // 기능 5: conservation
     float       conservation_score = -1.0f;
+
+    // 기능 6: 잔기 정보
+    int         residue_number = -1;
+    std::string residue_name;
 };

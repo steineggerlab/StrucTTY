@@ -21,7 +21,7 @@
 
 ---
 
-## 단계 0: 공통 인프라
+## 단계 0: 공통 인프라 ✅
 
 ### 0-1. `src/structure/Atom.hpp` 필드 확장 ✅
 
@@ -57,7 +57,7 @@ struct Atom {
 };
 ```
 
-### 0-2. `src/visualization/RenderPoint.hpp` 필드 확장
+### 0-2. `src/visualization/RenderPoint.hpp` 필드 확장 ✅
 
 **색상 적용 코드(`assign_colors_to_points()`)는 Atom이 아닌 RenderPoint를 참조한다.
 따라서 색상 판단에 필요한 모든 플래그와 값은 반드시 RenderPoint에도 존재해야 한다.**
@@ -90,7 +90,7 @@ struct RenderPoint {
 };
 ```
 
-### 0-3. `src/visualization/Screen.cpp` — `project()` 함수 내 RenderPoint 전파 목록
+### 0-3. `src/visualization/Screen.cpp` — `project()` 함수 내 RenderPoint 전파 목록 ✅
 
 `project()` 함수에서 Atom → RenderPoint로 값을 복사할 때, **아래 필드 전체**를 빠짐없이 복사해야 한다:
 
@@ -139,12 +139,12 @@ rp.residue_name       = atom.residue_name;
 
 ---
 
-## 기능 7: 헬릭스/시트 영역의 Coil 제거 + Coil 굵기 조정
+## 기능 7: 헬릭스/시트 영역의 Coil 제거 + Coil 굵기 조정 ✅
 
 ### 문제 원인
 `StructureMaker::calculate_ss_points()`에서 helix/sheet 지오메트리를 생성하지만, 해당 잔기들의 원본 CA 원자들도 coil 리스트에 그대로 남아 있어 이중으로 그려진다.
 
-### 수정 대상: `src/structure/StructureMaker.cpp`
+### 수정 대상: `src/structure/StructureMaker.cpp` ✅
 
 **Helix/Sheet CA 원자를 coil 파이프라인에서 제외하되, 접합부(junction) 처리를 반드시 포함한다.**
 
@@ -162,7 +162,7 @@ rp.residue_name       = atom.residue_name;
 
 즉, helix/sheet segment 경계 잔기(첫 번째, 마지막)는 이중 등록(ss_atoms + screen_atoms)이 허용된다.
 
-### 수정 대상: `src/visualization/Screen.cpp` — coil 굵기
+### 수정 대상: `src/visualization/Screen.cpp` — coil 굵기 ✅
 
 `project()` 또는 `draw_line()` 함수에서 coil 포인트 렌더링 방식 변경:
 
