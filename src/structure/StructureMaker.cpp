@@ -104,7 +104,14 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                 while (i < atoms.size() && atoms[i].structure == 'H') ++i;
                 size_t end = i;
 
-                if (end - start >= 4) {
+                if (end - start < 4) {
+                    // Short helix: fall back to coil rendering instead of silently dropping
+                    for (size_t k = start; k < end; ++k) {
+                        Atom coil_atom = atoms[k];
+                        coil_atom.structure = 'x';
+                        output.push_back(coil_atom);
+                    }
+                } else {
                     auto segment = std::vector<Atom>(atoms.begin() + start, atoms.begin() + end);
 
                     float center[3], axis[3];

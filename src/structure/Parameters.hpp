@@ -22,6 +22,9 @@ class Parameters{
         string chainfile = "";
         string mode = "protein";
         string depthcharacter = "@#%*^-.";
+        string msa_file = "";
+        string foldseek_file = "";
+        string db_path = "";
     public:
         Parameters(int argc, char* argv[]);
 
@@ -62,5 +65,14 @@ class Parameters{
         }
         bool check_arg_okay(){
             return arg_okay;
+        }
+        string get_msa_file(){
+            return msa_file;
+        }
+        string get_foldseek_file(){
+            return foldseek_file;
+        }
+        string get_db_path(){
+            return db_path;
         }
 };
