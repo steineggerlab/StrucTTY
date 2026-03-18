@@ -144,6 +144,9 @@ void Protein::load_init_atoms(const std::string& in_file,
             float z = (float)ca->pos.z;
 
             Atom a(x, y, z);
+            a.bfactor        = (float)ca->b_iso;
+            a.residue_number = resn;
+            a.residue_name   = res.name;
 
             for (auto& t : ss_info) {
                 std::string sc; int s; std::string ec; int e; char type;
@@ -180,7 +183,11 @@ void Protein::load_init_atoms(const std::string& in_file,
             float y = (float)ca->pos.y;
             float z = (float)ca->pos.z;
 
-            Atom a(x, y, z, 'x'); 
+            Atom a(x, y, z, 'x');
+            a.bfactor      = (float)ca->b_iso;
+            a.residue_name = res.name;
+            if (res.seqid.num.has_value())
+                a.residue_number = (int)res.seqid.num;
             init_atoms[cid].push_back(a);
         }
     }

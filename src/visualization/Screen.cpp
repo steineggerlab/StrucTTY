@@ -407,6 +407,14 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
             int color_idx = (i * 20) / std::max(1, num_points);
             points[i].color_id = color_idx + 51;  // pairs 51-70
         }
+    } else if (screen_mode == "plddt") {
+        for (auto& pt : points) {
+            float plddt = pt.bfactor;
+            if      (plddt >= 90) pt.color_id = 71;  // Very high: 파란색
+            else if (plddt >= 70) pt.color_id = 72;  // Confident: 청록색
+            else if (plddt >= 50) pt.color_id = 73;  // Low: 노란색
+            else                  pt.color_id = 74;  // Very low: 주황색
+        }
     } else {
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
     }
