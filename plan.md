@@ -334,7 +334,7 @@ void compute_aligned_regions_nn(
 
 **주의: `Atom.is_aligned`를 설정한 뒤, 해당 값이 `project()` 과정에서 RenderPoint로 복사되는지 반드시 확인한다 (0-3절 참조).**
 
-### 색상 적용: `src/visualization/Screen.cpp`
+### 색상 적용: `src/visualization/Screen.cpp` ✅
 
 ```cpp
 if (mode == "aligned") {
@@ -342,15 +342,30 @@ if (mode == "aligned") {
 }
 ```
 
-### CLI
+### CLI ✅
 
 ```bash
-# -fs와 함께 사용 (alignment string 기반, -ut 불필요)
+# -fs와 함께 사용 (alignment string 기반, -ut 불필요) — 기능 3 구현 시 연결
 structty query.pdb -fs result.m8 -m aligned
 
 # -ut 단독 사용 (nearest-neighbor fallback, threshold=10Å)
 structty query.pdb target.pdb -ut matrix.tsv -m aligned
 ```
+
+### [추가] 구현 세부사항
+
+- `apply_ut_to_init_atoms(const float* U, const float* T)` public: UT transform을 `init_atoms`에도 적용.
+  `Screen::set_utmatrix()` 에서 `do_naive_rotation()` / `do_shift()` 직후 호출하여 `screen_atoms`와 `init_atoms`의 좌표 공간을 일치시킨다.
+- `compute_aligned_regions_nn(Protein& other, threshold=10.0f)` public: nearest-neighbor 기반 정렬 잔기 표시.
+  UT transform 적용 후 `init_atoms` 좌표 공간에서 CA-CA 거리를 계산한다. `-ut` 단독 사용 시 진입점.
+- `compute_aligned_regions_from_aln(Protein& other, qaln, taln, threshold=10.0f)` public: alignment string 기반 정렬 잔기 표시.
+  함수 자체는 기능 4에서 구현 완료. **실제 호출은 기능 3 (`-fs`) 구현 시 `Screen::load_next_hit()` 에서 연결한다.**
+  (`hit.has_aln == true` 이면 `compute_aligned_regions_from_aln()` 호출, 아니면 `compute_aligned_regions_nn()` 호출 — plan.md 기능 3, `load_next_hit()` 7번 항목 참조)
+- `sync_aligned_to_screen()` private: `init_atoms.is_aligned` → `screen_atoms` 전파.
+  `sync_bool_field_to_screen()` 공통 헬퍼(pointer-to-member)로 구현. H/S geometry 원자는 index 기준 최근접 coil 원자 값 사용.
+- `Screen::compute_aligned_all(threshold=10.0f)` 추가: 로드된 모든 Protein 쌍에 대해 NN 계산 후 패널에 `"nearest-nbr"` 표시.
+- `Panel::set_align_method(method)` 추가: `panel_mode == "aligned"` 일 때 구분선 아래에 `Align: nearest-nbr` 또는 `Align: aln-string` 표시.
+- `structty.cpp`: `-m aligned` 시 `screen.compute_aligned_all()` 호출.
 
 ---
 
