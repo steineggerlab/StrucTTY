@@ -296,7 +296,7 @@ FoldseekHit.qaln과 FoldseekHit.taln을 동시에 순회:
   qaln[i] != '-' and taln[i] != '-' 인 위치만 대응 쌍으로 수집
   qaln 기준 잔기 인덱스 → protein1의 CA 원자
   taln 기준 잔기 인덱스 → protein2의 CA 원자
-  hit의 U/T 변환 후 3D 거리 < 5.0Å이면 양쪽 모두 Atom.is_aligned = true
+  hit의 U/T 변환 후 3D 거리 < 10.0이면 양쪽 모두 Atom.is_aligned = true
 ```
 
 **`-fs`가 없는 경우 (nearest-neighbor fallback):**
@@ -307,8 +307,6 @@ UT 변환 후 nearest-neighbor 방식으로 대응:
     protein2의 모든 CA 원자 중 최소 거리 탐색
     최소 거리 < 10.0Å이면 양쪽 모두 is_aligned = true
 ```
-
-threshold를 10.0Å으로 설정한다. alignment string 없이 nearest-neighbor만으로 대응하는 경우 5.0Å은 너무 엄격하여 거의 모든 잔기가 non-aligned로 표시된다. 10.0Å은 구조적으로 유사한 영역을 포착하는 실용적인 기준이다.
 
 패널에 현재 사용 중인 대응 방식을 표시한다:
 - `-fs` 있음: `Align: aln-string`
@@ -747,7 +745,7 @@ structty query.pdb -fs result.m8 -m aligned
 4. **마우스 hover**: 클릭이 아닌 이동 이벤트(`REPORT_MOUSE_POSITION`)로 잔기 정보를 갱신한다. 패널 Residue Info 섹션은 항상 고정 높이를 유지하여 화면 레이아웃이 변하지 않도록 한다.
 5. **패널 고정 크기**: `Panel::set_hover_residue()` 호출 시 빈 칸으로 패딩하여 항상 동일한 줄 수를 출력한다.
 6. **`-fs`와 `-ut` 상호 배제**: `-fs`가 있으면 hit의 U/T를 자동 사용하고 `-ut` 인수는 무시한다. `-fs` 없이 `-m aligned`를 사용하려면 반드시 `-ut`가 필요하다.
-7. **nearest-neighbor threshold**: `-fs` 없이 `-ut`만 사용하는 경우 10.0Å을 기본값으로 한다. 5.0Å은 alignment 정보 없는 상황에서 지나치게 엄격하다.
+7. **nearest-neighbor threshold**: `-fs` 없이 `-ut`만 사용하는 경우 10.0Å을 기본값으로 한다.
 8. **자동 다운로드**: `curl` → `wget` 순으로 시도한다. 둘 다 없으면 패널에 "curl/wget not found" 표시. 네트워크 오류는 파일 크기 0 또는 파일 미생성으로 감지한다.
 9. **기존 기능 무결성**: 기존 `-m protein/chain/rainbow` 모드와 `-s` (이차구조 표시)는 변경 없이 동작해야 함.
 10. **Foldseek hit 전환 시 메모리**: 매 hit 전환마다 target Protein 객체를 새로 생성하므로 이전 객체 명시적 해제 필요.
