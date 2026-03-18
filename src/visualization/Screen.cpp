@@ -473,7 +473,9 @@ void Screen::project() {
                     int screenX = (int)((projectedX + 1.0f) * 0.5f * logical_w);
                     int screenY = (int)((1.0f - projectedY) * 0.5f * logical_h);
 
+                    const Atom& cur_atom = chain_atoms[i];
                     if (prevScreenX != -1 && prevScreenY != -1) {
+                        size_t before_draw = chainPoints.size();
                         if (structure != 'H' && structure != 'S') {
                             // Catmull-Rom for coil/backbone only — SS geometry is already
                             // dense from StructureMaker so applying it there is wasteful.
@@ -500,21 +502,43 @@ void Screen::project() {
                         } else {
                             draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h, 1);
                         }
+                        // Propagate current atom's metadata to all points added by draw_line
+                        for (size_t k = before_draw; k < chainPoints.size(); ++k) {
+                            chainPoints[k].bfactor            = cur_atom.bfactor;
+                            chainPoints[k].is_interface       = cur_atom.is_interface;
+                            chainPoints[k].is_aligned         = cur_atom.is_aligned;
+                            chainPoints[k].conservation_score = cur_atom.conservation_score;
+                            chainPoints[k].residue_number     = cur_atom.residue_number;
+                            chainPoints[k].residue_name       = cur_atom.residue_name;
+                        }
                     }
 
                     if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
                         char pix = get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z);
                         if (structure == 'x') {
-                            // Coil: single pixel node (draw_line handles connectivity)
-                            chainPoints.push_back({screenX, screenY, z, pix, 0, chainID, structure});
+                            // Coil: 3-pixel vertical cross node (center + top + bottom)
+                            RenderPoint rp{screenX, screenY, z, pix, 0, chainID, structure};
+                            rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
+                            rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
+                            rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                            chainPoints.push_back(rp);
+                            rp.y = screenY - 1;
+                            if (rp.y >= 0) chainPoints.push_back(rp);
+                            rp.y = screenY + 1;
+                            if (rp.y < logical_h) chainPoints.push_back(rp);
                         } else {
                             // Helix/Sheet geometry: 5-pixel cross node
                             for (int oy = -1; oy <= 1; oy++)
                                 for (int ox = -1; ox <= 1; ox++) {
                                     if (ox != 0 && oy != 0) continue;
                                     int nx = screenX + ox, ny = screenY + oy;
-                                    if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h)
-                                        chainPoints.push_back({nx, ny, z, pix, 0, chainID, structure});
+                                    if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h) {
+                                        RenderPoint rp{nx, ny, z, pix, 0, chainID, structure};
+                                        rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
+                                        rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
+                                        rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                                        chainPoints.push_back(rp);
+                                    }
                                 }
                         }
                     }
@@ -585,7 +609,9 @@ void Screen::project() {
                 int screenX = (int)((projectedX + 1.0f) * 0.5f * screen_width);
                 int screenY = (int)((1.0f - projectedY) * 0.5f * screen_height);
 
+                const Atom& cur_atom = chain_atoms[i];
                 if (prevScreenX != -1 && prevScreenY != -1) {
+                    size_t before_draw = chainPoints.size();
                     if (structure != 'H' && structure != 'S') {
                         const Atom& P0 = chain_atoms[std::max(0, i-2)];
                         const Atom& P1 = chain_atoms[i-1];
@@ -610,12 +636,25 @@ void Screen::project() {
                     } else {
                         draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
                     }
+                    // Propagate current atom's metadata to all points added by draw_line
+                    for (size_t k = before_draw; k < chainPoints.size(); ++k) {
+                        chainPoints[k].bfactor            = cur_atom.bfactor;
+                        chainPoints[k].is_interface       = cur_atom.is_interface;
+                        chainPoints[k].is_aligned         = cur_atom.is_aligned;
+                        chainPoints[k].conservation_score = cur_atom.conservation_score;
+                        chainPoints[k].residue_number     = cur_atom.residue_number;
+                        chainPoints[k].residue_name       = cur_atom.residue_name;
+                    }
                 }
 
                 if (screenX >= 0 && screenX < screen_width && screenY >= 0 && screenY < screen_height) {
-                    chainPoints.push_back({screenX, screenY, z,
-                                           get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                           0, chainID, structure});
+                    RenderPoint rp{screenX, screenY, z,
+                                   get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
+                                   0, chainID, structure};
+                    rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
+                    rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
+                    rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                    chainPoints.push_back(rp);
                 }
 
                 prevScreenX = screenX;
@@ -697,7 +736,9 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
                 int screenX = (int)((projectedX + 1.0f) * 0.5f * proj_width);
                 int screenY = (int)((1.0f - projectedY) * 0.5f * proj_height);
 
+                const Atom& cur_atom = chain_atoms[i];
                 if (prevScreenX != -1 && prevScreenY != -1) {
+                    size_t before_draw = chainPoints.size();
                     if (structure != 'H' && structure != 'S') {
                         const Atom& P0 = chain_atoms[std::max(0, i-2)];
                         const Atom& P1 = chain_atoms[i-1];
@@ -722,12 +763,25 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
                     } else {
                         draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
                     }
+                    // Propagate current atom's metadata to all points added by draw_line
+                    for (size_t k = before_draw; k < chainPoints.size(); ++k) {
+                        chainPoints[k].bfactor            = cur_atom.bfactor;
+                        chainPoints[k].is_interface       = cur_atom.is_interface;
+                        chainPoints[k].is_aligned         = cur_atom.is_aligned;
+                        chainPoints[k].conservation_score = cur_atom.conservation_score;
+                        chainPoints[k].residue_number     = cur_atom.residue_number;
+                        chainPoints[k].residue_name       = cur_atom.residue_name;
+                    }
                 }
 
                 if (screenX >= 0 && screenX < proj_width && screenY >= 0 && screenY < proj_height) {
-                    chainPoints.push_back({screenX, screenY, z,
-                                           get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                           0, chainID, structure});
+                    RenderPoint rp{screenX, screenY, z,
+                                   get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
+                                   0, chainID, structure};
+                    rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
+                    rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
+                    rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                    chainPoints.push_back(rp);
                 }
 
                 prevScreenX = screenX;
