@@ -441,3 +441,97 @@ void Protein::do_scale(float scale) {
         }
     }
 }
+
+// 기능 1: Interface Region ─────────────────────────────────────────────────
+// 두 체인 간 CA-CA 거리 < threshold 인 잔기들을 init_atoms에서 is_interface = true 로 표시
+void Protein::compute_interface_pair(const std::string& chain_A,
+                                     const std::string& chain_B,
+                                     float threshold) {
+    float thr2 = threshold * threshold;
+
+    auto& atomsA = init_atoms[chain_A];
+    auto& atomsB = init_atoms[chain_B];
+
+    for (Atom& a : atomsA) {
+        for (const Atom& b : atomsB) {
+            float dx = a.x - b.x;
+            float dy = a.y - b.y;
+            float dz = a.z - b.z;
+            if (dx*dx + dy*dy + dz*dz < thr2) {
+                a.is_interface = true;
+                break;
+            }
+        }
+    }
+
+    for (Atom& b : atomsB) {
+        for (const Atom& a : atomsA) {
+            float dx = b.x - a.x;
+            float dy = b.y - a.y;
+            float dz = b.z - a.z;
+            if (dx*dx + dy*dy + dz*dz < thr2) {
+                b.is_interface = true;
+                break;
+            }
+        }
+    }
+}
+
+// init_atoms.is_interface를 screen_atoms으로 전파
+// - residue_number >= 0 (coil/junction): residue_number로 직접 매핑
+// - residue_number == -1 (H/S geometry): 3D 최근접 init_atom의 값 사용
+void Protein::sync_interface_to_screen() {
+    for (auto& [chainID, screen_chain] : screen_atoms) {
+        auto init_it = init_atoms.find(chainID);
+        if (init_it == init_atoms.end()) continue;
+        const std::vector<Atom>& init_chain = init_it->second;
+
+        for (Atom& sa : screen_chain) {
+            if (sa.residue_number >= 0) {
+                // coil / junction 원자: residue_number로 매핑
+                for (const Atom& ia : init_chain) {
+                    if (ia.residue_number == sa.residue_number) {
+                        sa.is_interface = ia.is_interface;
+                        break;
+                    }
+                }
+            } else {
+                // H/S geometry 원자: 3D 최근접 init_atom 사용
+                float best_d2 = std::numeric_limits<float>::max();
+                for (const Atom& ia : init_chain) {
+                    float dx = sa.x - ia.x;
+                    float dy = sa.y - ia.y;
+                    float dz = sa.z - ia.z;
+                    float d2 = dx*dx + dy*dy + dz*dz;
+                    if (d2 < best_d2) {
+                        best_d2 = d2;
+                        sa.is_interface = ia.is_interface;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 공개 진입점: 모든 체인 쌍에 대해 interface를 계산하고 screen_atoms에 반영
+void Protein::compute_interface(float threshold) {
+    // 체인 ID 목록 수집
+    std::vector<std::string> chain_ids;
+    chain_ids.reserve(init_atoms.size());
+    for (const auto& [cid, _] : init_atoms) {
+        chain_ids.push_back(cid);
+    }
+
+    // 체인이 1개 이하면 inter-chain interface 없음
+    if (chain_ids.size() < 2) return;
+
+    // 모든 체인 쌍 계산
+    for (size_t i = 0; i < chain_ids.size(); ++i) {
+        for (size_t j = i + 1; j < chain_ids.size(); ++j) {
+            compute_interface_pair(chain_ids[i], chain_ids[j], threshold);
+        }
+    }
+
+    // screen_atoms으로 전파
+    sync_interface_to_screen();
+}

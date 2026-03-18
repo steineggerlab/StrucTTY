@@ -66,7 +66,10 @@ public:
     std::string get_file_name() { return in_file; }
 
     void load_data(float * vectorpointers, bool yesUT);
-    
+
+    // 기능 1: Interface Region — 모든 체인 쌍에 대해 CA-CA 거리 < threshold 인 잔기를 표시
+    void compute_interface(float threshold = 8.0f);
+
     void set_rotate(int x_rotate, int y_rotate, int z_rotate);
     void set_shift(float shift_x, float shift_y, float shift_z);
     void do_naive_rotation(float* rotate_mat);
@@ -88,6 +91,8 @@ private:
                              const std::string& target_chains, float * vectorpointers, bool yesUT);
     
     void pred_ss_info(std::map<std::string, std::vector<Atom>>& init_atoms);
+    void compute_interface_pair(const std::string& chain_A, const std::string& chain_B, float threshold);
+    void sync_interface_to_screen();
 
     std::map<std::string, std::vector<Atom>> init_atoms;
     std::map<std::string, std::vector<Atom>> screen_atoms;

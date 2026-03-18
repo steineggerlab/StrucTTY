@@ -223,12 +223,12 @@ structty protein.pdb -m plddt
 
 ---
 
-## 기능 1: Interface Region 색상 표시
+## 기능 1: Interface Region 색상 표시 ✅
 
 ### Interface 정의
 두 체인(또는 두 구조) 간 CA-CA 거리 < 8Å인 잔기들을 interface residue로 표시.
 
-### 계산: `src/structure/Protein.cpp`
+### 계산: `src/structure/Protein.cpp` ✅
 
 신규 멤버 함수 `compute_interface(chain_A, chain_B, threshold=8.0)` 추가:
 
@@ -245,7 +245,7 @@ structty protein.pdb -m plddt
 
 **주의: `Atom.is_interface`를 설정한 뒤, 해당 값이 `project()` 과정에서 RenderPoint로 복사되는지 반드시 확인한다 (0-3절 참조).**
 
-### CLI
+### CLI ✅
 
 ```
 structty complex.pdb -m interface
@@ -255,7 +255,17 @@ single PDB 파일 내 두 체인 사이의 interface를 자동 계산. 체인이
 
 체인이 1개일 경우: 두 번째 PDB 파일을 `-p2 <file>` 인수로 받아 계산 (향후 확장, 현재 구현에서는 단일 PDB 내 다체인만 지원).
 
-### 색상 적용: `src/visualization/Screen.cpp`
+### [추가] 구현 세부사항
+
+- `compute_interface_pair(chain_A, chain_B, threshold)` private 헬퍼: 두 체인 쌍에 대한 CA-CA 거리 계산
+- `compute_interface(threshold=8.0f)` public 진입점: 모든 체인 쌍 자동 계산 후 `sync_interface_to_screen()` 호출
+- `sync_interface_to_screen()` private: init_atoms → screen_atoms 전파
+  - residue_number >= 0 (coil/junction): residue_number로 직접 매핑
+  - residue_number == -1 (H/S geometry): 3D 최근접 init_atom 값 사용
+- `Screen::compute_interface_all()` 추가: 로드된 모든 Protein에 대해 호출
+- `structty.cpp`: `-m interface` 시 `screen.compute_interface_all()` 호출
+
+### 색상 적용: `src/visualization/Screen.cpp` ✅
 
 ```cpp
 if (mode == "interface") {
