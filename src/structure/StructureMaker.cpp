@@ -112,6 +112,11 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                         output.push_back(coil_atom);
                     }
                 } else {
+                    // Junction: 첫 번째 CA를 coil로 추가 (coil→helix 경계 끊김 방지)
+                    Atom junction_start = atoms[start];
+                    junction_start.structure = 'x';
+                    output.push_back(junction_start);
+
                     auto segment = std::vector<Atom>(atoms.begin() + start, atoms.begin() + end);
 
                     float center[3], axis[3];
@@ -191,6 +196,11 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                             output.emplace_back(px, py, pz, 'H');
                         }
                     }
+
+                    // Junction: 마지막 CA를 coil로 추가 (helix→coil 경계 끊김 방지)
+                    Atom junction_end = atoms[end - 1];
+                    junction_end.structure = 'x';
+                    output.push_back(junction_end);
                 }
                 // i already advanced to end of helix segment by the inner while loop
             }
@@ -203,8 +213,18 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                 int seg_len = (int)(seg_end - seg_start);
 
                 if (seg_len < 2) {
-                    output.push_back(atoms[seg_start]);
+                    // 1-residue sheet: coil로 폴백
+                    Atom coil_atom = atoms[seg_start];
+                    coil_atom.structure = 'x';
+                    output.push_back(coil_atom);
                     continue;
+                }
+
+                // Junction: 첫 번째 CA를 coil로 추가 (coil→sheet 경계 끊김 방지)
+                {
+                    Atom junc = atoms[seg_start];
+                    junc.structure = 'x';
+                    output.push_back(junc);
                 }
 
                 // Compute a consistent perpendicular from the overall segment direction
@@ -262,6 +282,13 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                             );
                         }
                     }
+                }
+
+                // Junction: 마지막 CA를 coil로 추가 (sheet→coil 경계 끊김 방지)
+                {
+                    Atom junc = atoms[seg_end - 1];
+                    junc.structure = 'x';
+                    output.push_back(junc);
                 }
                 // i already advanced to seg_end by the inner while loop
             }
