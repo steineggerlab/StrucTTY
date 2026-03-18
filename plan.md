@@ -23,7 +23,7 @@
 
 ## 단계 0: 공통 인프라
 
-### 0-1. `src/structure/Atom.hpp` 필드 확장
+### 0-1. `src/structure/Atom.hpp` 필드 확장 ✅
 
 현재:
 ```cpp
@@ -105,7 +105,7 @@ rp.residue_name       = atom.residue_name;
 
 이 복사가 누락되면 해당 기능의 색상 분기가 RenderPoint 기본값(false, 0.0f, -1)만 읽게 되어 전체가 단일 색상으로 표시된다. **구현 후 반드시 각 필드가 복사되는지 코드에서 확인한다.**
 
-### 0-4. `src/visualization/Palette.hpp` 색상 확장
+### 0-4. `src/visualization/Palette.hpp` 색상 확장 ✅
 
 신규 color pair 할당:
 ```
@@ -122,7 +122,7 @@ rp.residue_name       = atom.residue_name;
 
 `init_colors()` 함수에 위 pair들을 추가 초기화한다.
 
-### 0-5. `src/structure/Parameters.hpp` CLI 인수 확장
+### 0-5. `src/structure/Parameters.hpp` CLI 인수 확장 ✅
 
 신규 인수:
 ```

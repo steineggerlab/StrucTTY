@@ -14,12 +14,15 @@ bool is_nonnegative_number(const char* s) {
 }
 
 void print_help(){
-    std::cout<<"-m, --mode:\n\t1. protein (default)\n\t2. chain\n\t3. rainbow"<<std::endl;
+    std::cout<<"-m, --mode:\n\t1. protein (default)\n\t2. chain\n\t3. rainbow\n\t4. plddt\n\t5. interface\n\t6. conservation\n\t7. aligned"<<std::endl;
     std::cout<<"-d, --depth:\n\t1 .#@%*^-. (default)\n\t2. 7-character user input e.g. -d a134((%"<<std::endl;
     std::cout<<"-c, --chains:\n\tshow only the selected chains, see example/chainfile"<<std::endl;
     std::cout<<"-s, --structure:\n\tshow secondary structure (alpha helix, beta sheet)"<<std::endl;
     std::cout<<"-p, --predict:\n\tshow secondary structure with prediction if it is not described in the input file"<<std::endl;
     std::cout<<"-ut, --utmatrix:\n\trotate and translate, see example/utfile"<<std::endl;
+    std::cout<<"--msa <file>:\n\tMSA file for conservation score (FASTA/A3M format)"<<std::endl;
+    std::cout<<"-fs <file>:\n\tFoldseek result file for hit navigation"<<std::endl;
+    std::cout<<"--db-path <dir>:\n\ttarget PDB directory for Foldseek hit loading"<<std::endl;
 }
 Parameters::Parameters(int argc, char* argv[]) {
     arg_okay = true;
@@ -42,11 +45,12 @@ Parameters::Parameters(int argc, char* argv[]) {
                 if (i + 1 < argc) {
                     std::string val(argv[i + 1]);
                     std::transform(val.begin(), val.end(), val.begin(), ::tolower); // to lowercase
-                    if (val == "chain" || val == "rainbow" || val == "protein") {
+                    if (val == "chain" || val == "rainbow" || val == "protein" ||
+                        val == "plddt" || val == "interface" || val == "conservation" || val == "aligned") {
                         mode = val;
                         i++;
                     } else {
-                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain' or 'rainbow'.");
+                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'plddt', 'interface', 'conservation', or 'aligned'.");
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");
@@ -83,6 +87,24 @@ Parameters::Parameters(int argc, char* argv[]) {
                 }
             } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 9){
                 in_file.push_back(argv[i]);
+            } else if (!strcmp(argv[i], "--msa")) {
+                if (i + 1 < argc) {
+                    msa_file = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --msa.");
+                }
+            } else if (!strcmp(argv[i], "-fs")) {
+                if (i + 1 < argc) {
+                    foldseek_file = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for -fs.");
+                }
+            } else if (!strcmp(argv[i], "--db-path")) {
+                if (i + 1 < argc) {
+                    db_path = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --db-path.");
+                }
             } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
                 benchmark_mode = true;
                 show_structure = true;
