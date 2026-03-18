@@ -415,6 +415,10 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
             else if (plddt >= 50) pt.color_id = 73;  // Low: 노란색
             else                  pt.color_id = 74;  // Very low: 주황색
         }
+    } else if (screen_mode == "interface") {
+        for (auto& pt : points) {
+            pt.color_id = pt.is_interface ? 43 : 44;  // 강조(마젠타) or dim
+        }
     } else {
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
     }
@@ -1109,8 +1113,15 @@ bool Screen::handle_input(int key){
             break;
 
         default:
-            break;       
-    }     
+            break;
+    }
 
     return keep_show;
+}
+
+// 기능 1: 로드된 모든 Protein에 대해 inter-chain interface를 계산
+void Screen::compute_interface_all(float threshold) {
+    for (Protein* p : data) {
+        if (p) p->compute_interface(threshold);
+    }
 }

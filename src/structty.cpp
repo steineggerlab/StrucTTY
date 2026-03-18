@@ -50,6 +50,11 @@ int main(int argc, char* argv[]) {
     }
     screen.normalize_proteins(params.get_utmatrix());
     screen.update_total_len_ca();
+
+    // 기능 1: interface 모드일 때 inter-chain interface 계산 (threshold=8.0Å)
+    if (params.get_mode() == "interface") {
+        screen.compute_interface_all();
+    }
     
     if (bench) {
         auto t_load1 = Benchmark::clock::now();
