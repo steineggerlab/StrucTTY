@@ -193,7 +193,13 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                             float px = base[0] + radius * rad[0] + rw * tan_dir[0];
                             float py = base[1] + radius * rad[1] + rw * tan_dir[1];
                             float pz = base[2] + radius * rad[2] + rw * tan_dir[2];
-                            output.emplace_back(px, py, pz, 'H');
+                            Atom geom(px, py, pz, 'H');
+                            // Interpolate per-residue metadata along the helix spiral (t: 0→1)
+                            geom.bfactor            = segment.front().bfactor + t * (segment.back().bfactor - segment.front().bfactor);
+                            geom.is_interface       = segment.front().is_interface;
+                            geom.is_aligned         = segment.front().is_aligned;
+                            geom.conservation_score = segment.front().conservation_score + t * (segment.back().conservation_score - segment.front().conservation_score);
+                            output.push_back(geom);
                         }
                     }
 
@@ -274,12 +280,16 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                         // with draw_line, so sub-sampling here just wastes atoms.
                         for (int t = 0; t <= 1; ++t) {
                             float f = static_cast<float>(t);
-                            output.emplace_back(
-                                pa.x + ox + f * pair_dx,
-                                pa.y + oy + f * pair_dy,
-                                pa.z + oz + f * pair_dz,
-                                'S'
-                            );
+                            Atom geom(pa.x + ox + f * pair_dx,
+                                      pa.y + oy + f * pair_dy,
+                                      pa.z + oz + f * pair_dz,
+                                      'S');
+                            // Interpolate per-residue metadata along the strand (f: 0→1)
+                            geom.bfactor            = pa.bfactor + f * (pb.bfactor - pa.bfactor);
+                            geom.is_interface       = pa.is_interface;
+                            geom.is_aligned         = pa.is_aligned;
+                            geom.conservation_score = pa.conservation_score + f * (pb.conservation_score - pa.conservation_score);
+                            output.push_back(geom);
                         }
                     }
                 }
