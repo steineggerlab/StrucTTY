@@ -64,6 +64,18 @@ void Screen::init_color_pairs() {
     // Secondary structure
     init_pair(41, 226, -1);  // yellow helix
     init_pair(42,  51, -1);  // cyan sheet
+    // Interface region: pairs 43-44
+    init_pair(43, Palettes::INTERFACE_COLOR,     -1);  // interface residue (bright magenta)
+    init_pair(44, Palettes::INTERFACE_DIM_COLOR, -1);  // non-interface dim
+    // Aligned region: pairs 45-46
+    init_pair(45, Palettes::ALIGNED_COLOR,     -1);  // aligned residue (bright green)
+    init_pair(46, Palettes::ALIGNED_DIM_COLOR, -1);  // non-aligned dim
+    // pLDDT: pairs 71-74
+    for (int i = 0; i < 4; ++i)
+        init_pair(i + 71, Palettes::PLDDT_COLORS[i], -1);
+    // Conservation gradient: pairs 75-84
+    for (int i = 0; i < 10; ++i)
+        init_pair(i + 75, Palettes::CONSERVATION_COLORS[i], -1);
 }
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
@@ -492,13 +504,19 @@ void Screen::project() {
 
                     if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
                         char pix = get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z);
-                        for (int oy = -1; oy <= 1; oy++)
-                            for (int ox = -1; ox <= 1; ox++) {
-                                if (ox != 0 && oy != 0) continue;
-                                int nx = screenX + ox, ny = screenY + oy;
-                                if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h)
-                                    chainPoints.push_back({nx, ny, z, pix, 0, chainID, structure});
-                            }
+                        if (structure == 'x') {
+                            // Coil: single pixel node (draw_line handles connectivity)
+                            chainPoints.push_back({screenX, screenY, z, pix, 0, chainID, structure});
+                        } else {
+                            // Helix/Sheet geometry: 5-pixel cross node
+                            for (int oy = -1; oy <= 1; oy++)
+                                for (int ox = -1; ox <= 1; ox++) {
+                                    if (ox != 0 && oy != 0) continue;
+                                    int nx = screenX + ox, ny = screenY + oy;
+                                    if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h)
+                                        chainPoints.push_back({nx, ny, z, pix, 0, chainID, structure});
+                                }
+                        }
                     }
 
                     prevScreenX = screenX;

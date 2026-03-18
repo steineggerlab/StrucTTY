@@ -37,6 +37,26 @@ namespace Palettes {
          88,  // 19  red dim       #870000
     };
 
+    // Interface region colors, pairs 43-44
+    // pair 43: interface residue (bright magenta, xterm-201)
+    // pair 44: non-interface dim  (olive dim, xterm-58)
+    inline constexpr int INTERFACE_COLOR     = 201;
+    inline constexpr int INTERFACE_DIM_COLOR = 58;
+
+    // Aligned region colors, pairs 45-46
+    // pair 45: aligned residue (bright green, xterm-46)
+    // pair 46: non-aligned dim (olive dim, xterm-58)
+    inline constexpr int ALIGNED_COLOR     = 46;
+    inline constexpr int ALIGNED_DIM_COLOR = 58;
+
+    // pLDDT colors: pairs 71-74
+    // 71: Very High (>=90) blue, 72: Confident (70-90) cyan
+    // 73: Low (50-70) yellow, 74: Very Low (<50) orange
+    inline const std::array<int, 4> PLDDT_COLORS = {21, 51, 226, 208};
+
+    // Conservation gradient: pairs 75-84 (blue→red, 10 steps, variable→conserved)
+    inline const std::array<int, 10> CONSERVATION_COLORS = {21, 27, 33, 39, 49, 118, 190, 226, 214, 196};
+
     // 15 chain colors (9 given + 6 extended), pairs 21-35
     inline const std::array<int, 15> CHAIN_COLORS = {
         100,  // 21  olive
