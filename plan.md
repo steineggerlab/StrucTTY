@@ -176,9 +176,9 @@ rp.residue_name       = atom.residue_name;
 
 ---
 
-## 기능 2: pLDDT 색상 표시
+## 기능 2: pLDDT 색상 표시 ✅
 
-### 데이터 획득: `src/structure/Protein.cpp`
+### 데이터 획득: `src/structure/Protein.cpp` ✅
 
 `load_init_atoms()` 내 CA 원자 로딩 부분에서 Gemmi B-factor 읽기:
 ```cpp
@@ -189,7 +189,7 @@ a.residue_name = residue.name;
 
 `residue_number`와 `residue_name`은 기능 6에도 공통 사용.
 
-### 색상 적용: `src/visualization/Screen.cpp`
+### 색상 적용: `src/visualization/Screen.cpp` ✅
 
 `assign_colors_to_points()` 함수에 `"plddt"` 모드 분기 추가:
 
@@ -202,6 +202,18 @@ if (mode == "plddt") {
     else                  color_id = 74;  // Very low: 주황색
 }
 ```
+
+### [추가] `src/structure/StructureMaker.cpp` — geometry 포인트 메타데이터 보간 ✅
+
+plan.md에 명시되지 않았으나 구현 중 발견된 암묵적 요구사항:
+`calculate_ss_points()`에서 H/S geometry 포인트를 `Atom(x, y, z, 'H'/'S')`로 생성하면 `bfactor=0.0f`가 됩니다.
+`project()`의 `before_draw` 패턴은 `screen_atoms[i].bfactor`를 그대로 RenderPoint에 복사하므로,
+geometry 포인트의 bfactor가 0이면 pLDDT 색상이 항상 Very Low(74, 주황색)로 표시됩니다.
+
+**수정 내용**: geometry Atom 생성 시 세그먼트 양 끝 잔기의 값을 `t`(0→1)로 선형 보간하여 설정.
+- helix spiral: `segment.front()` ~ `segment.back()` bfactor/conservation_score 보간
+- sheet ribbon: 각 Ca-Ca pair의 `pa` ~ `pb` bfactor/conservation_score 보간
+- is_interface, is_aligned: pa(또는 front) 값 사용 (보간 없이)
 
 ### CLI
 
