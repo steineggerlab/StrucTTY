@@ -186,8 +186,9 @@ void Screen::set_utmatrix(const std::string& utmatrix, bool applyUT) {
 
     if (applyUT) {
         for (size_t i = 0; i < filenum; i++) {
-            data[i]->do_naive_rotation(matrixpointer[i]); // U
-            data[i]->do_shift(vectorpointer[i]);          // T
+            data[i]->do_naive_rotation(matrixpointer[i]); // U → screen_atoms
+            data[i]->do_shift(vectorpointer[i]);          // T → screen_atoms
+            data[i]->apply_ut_to_init_atoms(matrixpointer[i], vectorpointer[i]); // U,T → init_atoms
         }
     }
 
@@ -418,6 +419,10 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
     } else if (screen_mode == "interface") {
         for (auto& pt : points) {
             pt.color_id = pt.is_interface ? 43 : 44;  // 강조(마젠타) or dim
+        }
+    } else if (screen_mode == "aligned") {
+        for (auto& pt : points) {
+            pt.color_id = pt.is_aligned ? 45 : 46;  // 정렬됨(초록) or dim
         }
     } else {
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
@@ -1124,4 +1129,23 @@ void Screen::compute_interface_all(float threshold) {
     for (Protein* p : data) {
         if (p) p->compute_interface(threshold);
     }
+}
+
+// 기능 4: 로드된 모든 Protein 쌍에 대해 nearest-neighbor 기반 정렬 잔기를 계산
+void Screen::compute_aligned_all(float threshold) {
+    if (data.size() < 2) {
+        // 단일 단백질인 경우: 전체 잔기를 aligned로 표시
+        for (Protein* p : data) {
+            if (p) p->compute_aligned_regions_nn(*p, threshold);
+        }
+        return;
+    }
+    for (size_t i = 0; i < data.size(); ++i) {
+        for (size_t j = i + 1; j < data.size(); ++j) {
+            if (data[i] && data[j]) {
+                data[i]->compute_aligned_regions_nn(*data[j], threshold);
+            }
+        }
+    }
+    panel->set_align_method("nearest-nbr");
 }
