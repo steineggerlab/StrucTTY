@@ -82,6 +82,9 @@ public:
     // 기능 4: nearest-neighbor 기반 (-ut 단독 사용 fallback)
     void compute_aligned_regions_nn(Protein& other, float threshold = 10.0f);
 
+    // 기능 5: 0-based 인덱스 순서로 conservation_score를 init_atoms에 적용 후 screen_atoms에 전파
+    void apply_conservation_scores(const std::vector<float>& scores);
+
     void set_rotate(int x_rotate, int y_rotate, int z_rotate);
     void set_shift(float shift_x, float shift_y, float shift_z);
     void do_naive_rotation(float* rotate_mat);
@@ -106,6 +109,7 @@ private:
     void compute_interface_pair(const std::string& chain_A, const std::string& chain_B, float threshold);
     void sync_interface_to_screen();
     void sync_aligned_to_screen();
+    void sync_conservation_to_screen();
 
     std::map<std::string, std::vector<Atom>> init_atoms;
     std::map<std::string, std::vector<Atom>> screen_atoms;

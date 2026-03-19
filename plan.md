@@ -369,9 +369,9 @@ structty query.pdb target.pdb -ut matrix.tsv -m aligned
 
 ---
 
-## 기능 5: MSA Conservation Score 색상 표시
+## 기능 5: MSA Conservation Score 색상 표시 ✅
 
-### 신규 파일: `src/structure/MSAParser.hpp` / `MSAParser.cpp`
+### 신규 파일: `src/structure/MSAParser.hpp` / `MSAParser.cpp` ✅
 
 **MSAParser 클래스 설계:**
 
@@ -404,12 +404,14 @@ private:
   conservation(i) = 1 - H(i) / log2(20)
 ```
 
-### 적용: `src/structure/Protein.cpp`
+### 적용: `src/structure/Protein.cpp` ✅
 
 `apply_conservation_scores(const std::vector<float>& scores)` 함수 추가.
 매핑: 0-based 인덱스 순서 기준.
+`sync_conservation_to_screen()` private 헬퍼로 screen_atoms 전파.
+H/S geometry 원자는 인덱스 기준 최근접 coil 원자 값 사용(`sync_float_field_to_screen()` 공통 헬퍼).
 
-### 색상 적용: `src/visualization/Screen.cpp`
+### 색상 적용: `src/visualization/Screen.cpp` ✅
 
 ```cpp
 if (mode == "conservation") {
@@ -423,11 +425,16 @@ if (mode == "conservation") {
 }
 ```
 
-### CLI
+### CLI ✅
 
 ```
 structty protein.pdb --msa alignment.fasta -m conservation
 ```
+
+### [추가] Screen 통합 ✅
+
+- `Screen::apply_msa_conservation(int protein_idx, const std::vector<float>& scores)` 추가
+- `structty.cpp`: `-m conservation` + `--msa <file>` 시 MSAParser 로드 → score 계산 → `screen.apply_msa_conservation(0, scores)` 호출
 
 ---
 
