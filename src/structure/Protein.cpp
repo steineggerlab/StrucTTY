@@ -658,6 +658,86 @@ void Protein::compute_aligned_regions_from_aln(Protein& other,
     other.sync_aligned_to_screen();
 }
 
+// 기능 5: float 필드를 init_atoms → screen_atoms로 전파하는 공통 헬퍼
+// - residue_number >= 0 (coil/junction): residue_number로 직접 매핑
+// - residue_number == -1 (H/S geometry): 인덱스 기준 최근접 coil 원자 값 사용
+static void sync_float_field_to_screen(
+    std::map<std::string, std::vector<Atom>>& screen_atoms,
+    const std::map<std::string, std::vector<Atom>>& init_atoms,
+    float Atom::* field,
+    float default_val = -1.0f)
+{
+    for (auto& [chainID, screen_chain] : screen_atoms) {
+        auto init_it = init_atoms.find(chainID);
+        if (init_it == init_atoms.end()) continue;
+        const std::vector<Atom>& init_chain = init_it->second;
+
+        int n = (int)screen_chain.size();
+
+        struct CoilEntry { int idx; float val; };
+        std::vector<CoilEntry> coil_entries;
+        coil_entries.reserve(n / 2 + 1);
+
+        // 1단계: coil/junction (residue_number >= 0) → init_atoms에서 직접 매핑
+        for (int k = 0; k < n; ++k) {
+            Atom& sa = screen_chain[k];
+            if (sa.residue_number >= 0) {
+                float found_val = default_val;
+                for (const Atom& ia : init_chain) {
+                    if (ia.residue_number == sa.residue_number) {
+                        found_val = ia.*field;
+                        break;
+                    }
+                }
+                sa.*field = found_val;
+                coil_entries.push_back({k, found_val});
+            }
+        }
+
+        // 2단계: H/S geometry (residue_number == -1) → 인덱스 기준 최근접 coil 원자 값
+        if (!coil_entries.empty()) {
+            for (int k = 0; k < n; ++k) {
+                Atom& sa = screen_chain[k];
+                if (sa.residue_number < 0) {
+                    int best_dist = std::numeric_limits<int>::max();
+                    float best_val = default_val;
+                    for (const CoilEntry& ce : coil_entries) {
+                        int d = (k > ce.idx) ? (k - ce.idx) : (ce.idx - k);
+                        if (d < best_dist) {
+                            best_dist = d;
+                            best_val  = ce.val;
+                        }
+                    }
+                    sa.*field = best_val;
+                }
+            }
+        }
+    }
+}
+
+void Protein::sync_conservation_to_screen() {
+    sync_float_field_to_screen(screen_atoms, init_atoms, &Atom::conservation_score, -1.0f);
+}
+
+// 기능 5: 0-based 인덱스 순서로 conservation_score를 init_atoms에 적용 후 screen_atoms에 전파
+// scores 벡터 길이는 init_atoms 전체 잔기 수와 일치해야 정확하다.
+// map 순서(체인 ID 사전순) → 각 체인 내 순서(읽은 순서)로 순회하여 적용한다.
+void Protein::apply_conservation_scores(const std::vector<float>& scores) {
+    int idx = 0;
+    int score_len = (int)scores.size();
+
+    for (auto& [cid, chain] : init_atoms) {
+        for (Atom& a : chain) {
+            if (idx < score_len) {
+                a.conservation_score = scores[idx];
+            }
+            idx++;
+        }
+    }
+
+    sync_conservation_to_screen();
+}
+
 // 공개 진입점: 모든 체인 쌍에 대해 interface를 계산하고 screen_atoms에 반영
 void Protein::compute_interface(float threshold) {
     // 체인 ID 목록 수집

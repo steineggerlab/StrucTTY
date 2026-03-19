@@ -40,6 +40,9 @@ public:
     // 기능 4: 로드된 모든 Protein 쌍에 대해 nearest-neighbor 기반 정렬 잔기를 계산
     void compute_aligned_all(float threshold = 10.0f);
 
+    // 기능 5: 지정 protein에 conservation scores 적용
+    void apply_msa_conservation(int protein_idx, const std::vector<float>& scores);
+
     void draw_screen(bool no_panel);
     void init_color_pairs();
     void assign_colors_to_points(std::vector<RenderPoint>& points, int protein_idx);
