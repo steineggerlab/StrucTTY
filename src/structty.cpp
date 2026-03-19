@@ -7,6 +7,7 @@
 #include "Protein.hpp"
 #include "Parameters.hpp"
 #include "Screen.hpp"
+#include "MSAParser.hpp"
 #include "Benchmark.hpp" 
 
 int main(int argc, char* argv[]) {
@@ -59,6 +60,17 @@ int main(int argc, char* argv[]) {
     // 기능 4: aligned 모드일 때 nearest-neighbor 기반 정렬 잔기 계산 (threshold=10.0Å)
     if (params.get_mode() == "aligned") {
         screen.compute_aligned_all();
+    }
+
+    // 기능 5: conservation 모드일 때 MSA 파일 로드 및 conservation score 계산
+    if (params.get_mode() == "conservation" && !params.get_msa_file().empty()) {
+        MSAParser msa_parser;
+        if (msa_parser.load(params.get_msa_file())) {
+            std::vector<float> scores = msa_parser.compute_conservation();
+            screen.apply_msa_conservation(0, scores);
+        } else {
+            std::cerr << "Warning: Failed to load MSA file: " << params.get_msa_file() << std::endl;
+        }
     }
     
     if (bench) {

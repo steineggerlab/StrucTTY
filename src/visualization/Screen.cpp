@@ -424,6 +424,16 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         for (auto& pt : points) {
             pt.color_id = pt.is_aligned ? 45 : 46;  // 정렬됨(초록) or dim
         }
+    } else if (screen_mode == "conservation") {
+        for (auto& pt : points) {
+            float score = pt.conservation_score;
+            if (score < 0) {
+                pt.color_id = 11;  // 미설정: olive dim
+            } else {
+                int idx = std::max(0, std::min(9, (int)(score * 9.0f)));
+                pt.color_id = 75 + idx;  // conservation gradient pairs 75-84
+            }
+        }
     } else {
         std::cerr << "Unknown mode: " << screen_mode << std::endl;
     }
@@ -1128,6 +1138,13 @@ bool Screen::handle_input(int key){
 void Screen::compute_interface_all(float threshold) {
     for (Protein* p : data) {
         if (p) p->compute_interface(threshold);
+    }
+}
+
+// 기능 5: 지정 protein에 conservation scores 적용
+void Screen::apply_msa_conservation(int protein_idx, const std::vector<float>& scores) {
+    if (protein_idx >= 0 && protein_idx < (int)data.size() && data[protein_idx]) {
+        data[protein_idx]->apply_conservation_scores(scores);
     }
 }
 
