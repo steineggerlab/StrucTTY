@@ -692,7 +692,7 @@ foldseek easy-search query.pdb /path/to/db result.m8 tmp \
 
 ### 자동 다운로드 로직
 
-`--db-path`가 제공되지 않으면, 프로그램 시작 시 결과 파일의 상위 10개 hit을 자동 다운로드한다.
+프로그램 시작 시 결과 파일의 상위 10개 hit을 자동 다운로드한다.
 
 다운로드 디렉토리: `~/.cache/structty/pdb/` (없으면 생성)
 
@@ -726,9 +726,6 @@ popen(download_cmd.c_str(), "r");
 
 다운로드 성공 여부는 파일 존재 및 크기로 확인한다. 실패 시 패널에 "Download failed: {target}" 표시.
 
-**캐시 활용:** `~/.cache/structty/pdb/{target}.pdb`가 이미 존재하면 다운로드를 건너뛴다.
-
-**`--db-path`가 제공된 경우:** 로컬 디렉토리에서만 탐색하고 다운로드는 수행하지 않는다.
 
 ```
 탐색 순서:
@@ -742,7 +739,7 @@ popen(download_cmd.c_str(), "r");
 
 ```
 1. -fs 파일을 파싱하여 hit 목록 로드
-2. --db-path 없으면: 상위 10개 hit을 백그라운드에서 순차 다운로드
+2.  상위 10개 hit을 백그라운드에서 --db-path로 순차 다운로드
    (다운로드 중에는 패널에 "Downloading [3/10]..." 표시)
 3. 첫 번째 hit을 자동으로 로드하여 표시
 ```
@@ -839,7 +836,7 @@ case 'p': case 'P':
 | `src/structure/Atom.hpp` | 수정 | `bfactor`, `is_interface`, `is_aligned`, `conservation_score`, `residue_number`, `residue_name` 필드 추가 |
 | `src/visualization/RenderPoint.hpp` | 수정 | `is_interface`, `is_aligned`, `bfactor`, `conservation_score`, `residue_number`, `residue_name` 필드 추가 |
 | `src/visualization/Palette.hpp` | 수정 | color pair 43-46, 71-74, 75-84 추가 |
-| `src/structure/Parameters.hpp` | 수정 | `-m plddt/interface/conservation/aligned`, `--msa`, `-fs`, `--db-path`(선택) 인수 추가 |
+| `src/structure/Parameters.hpp` | 수정 | `-m plddt/interface/conservation/aligned`, `--msa`, `-fs`, `--db-path` 인수 추가 |
 | `src/structure/Protein.hpp` | 수정 | `compute_interface()`, `compute_aligned_regions_from_aln()`, `compute_aligned_regions_nn()`, `apply_conservation_scores()` 선언 |
 | `src/structure/Protein.cpp` | 수정 | B-factor/residue 정보 로딩, interface/aligned 계산 구현 |
 | `src/structure/StructureMaker.cpp` | 수정 | Helix/Sheet 구간 CA 원자 coil 파이프라인 제외 + **경계 잔기 이중 등록으로 끊김 방지**, coil 3픽셀 크로스로 조정 |
