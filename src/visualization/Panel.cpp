@@ -1,4 +1,6 @@
 #include "Panel.hpp"
+#include <cstring>  // strncpy
+#include <cstdio>   // snprintf
 
 Panel::Panel(int width, const std::string& mode, bool show_structure)
     : panel_width(width), panel_mode(mode), panel_show_structure(show_structure) {}
@@ -17,6 +19,127 @@ void Panel::set_align_method(const std::string& method) {
     align_method = method;
 }
 
+// 기능 6: Residue Info hover -----------------------------------------------
+
+void Panel::set_hover_residue(const std::string& chainID,
+                               const char* residue_name,
+                               int residue_number,
+                               char structure,
+                               float bfactor,
+                               float conservation_score) {
+    hover_valid          = true;
+    hover_chain          = chainID;
+    strncpy(hover_residue_name, residue_name, 3);
+    hover_residue_name[3] = '\0';
+    hover_residue_number  = residue_number;
+    hover_structure       = structure;
+    hover_bfactor         = bfactor;
+    hover_conservation    = conservation_score;
+}
+
+void Panel::clear_hover_residue() {
+    hover_valid = false;
+}
+
+int Panel::get_residue_section_height() const {
+    // 항상 고정: header + chain + res + ss (= 4 기본)
+    // + pLDDT 줄 (plddt 모드일 때) + Cons 줄 (conservation 모드일 때)
+    int h = 4;
+    if (panel_mode == "plddt")        h += 1;
+    if (panel_mode == "conservation") h += 1;
+    return h;
+}
+
+void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
+    // hover_start_row: "Residue Info" 헤더 행 (separator는 이미 draw_panel이 그렸으므로 제외)
+    // 이 함수는 Residue Info 섹션만 다시 그린다 (bottom border 제외)
+    int r = hover_start_row;
+    int right_limit = max_cols - 1;
+
+    auto clear_ln = [&](int rr) {
+        move(rr, 0);
+        clrtoeol();
+        move(rr, 0);
+    };
+
+    auto put_text = [&](int rr, const char* s) {
+        int len = (int)std::strlen(s);
+        int k   = std::min(len, right_limit);
+        if (k > 0) addnstr(s, k);
+    };
+
+    // "Residue Info" 헤더
+    clear_ln(r);
+    put_text(r, "Residue Info");
+    ++r;
+
+    // Chain: X  or  Chain: -
+    clear_ln(r);
+    if (hover_valid) {
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "Chain: %s", hover_chain.empty() ? "-" : hover_chain.c_str());
+        put_text(r, buf);
+    } else {
+        put_text(r, "Chain: -");
+    }
+    ++r;
+
+    // Res: GLU 42  or  Res: -
+    clear_ln(r);
+    if (hover_valid && hover_residue_number >= 0) {
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "Res:   %s %d",
+                      (hover_residue_name[0] ? hover_residue_name : "?"),
+                      hover_residue_number);
+        put_text(r, buf);
+    } else {
+        put_text(r, "Res:   -");
+    }
+    ++r;
+
+    // SS: Helix / Sheet / Coil  or  SS: -
+    clear_ln(r);
+    if (hover_valid) {
+        const char* ss_str = "Coil";
+        if      (hover_structure == 'H') ss_str = "Helix";
+        else if (hover_structure == 'S') ss_str = "Sheet";
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "SS:    %s", ss_str);
+        put_text(r, buf);
+    } else {
+        put_text(r, "SS:    -");
+    }
+    ++r;
+
+    // pLDDT: 87.3  (plddt 모드일 때만)
+    if (panel_mode == "plddt") {
+        clear_ln(r);
+        if (hover_valid) {
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "pLDDT: %.1f", hover_bfactor);
+            put_text(r, buf);
+        } else {
+            put_text(r, "pLDDT: -");
+        }
+        ++r;
+    }
+
+    // Cons: 0.82  (conservation 모드일 때만)
+    if (panel_mode == "conservation") {
+        clear_ln(r);
+        if (hover_valid && hover_conservation >= 0.0f) {
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "Cons:  %.2f", hover_conservation);
+            put_text(r, buf);
+        } else {
+            put_text(r, "Cons:  -");
+        }
+        ++r;
+    }
+}
+
+// 기능 6 끝 -----------------------------------------------------------------
+
 int Panel::get_height() const {
     int lines = 0;
     lines += 3;
@@ -30,7 +153,10 @@ int Panel::get_height() const {
         lines += chain_lines;
         lines += 1;
     }
-    lines += 1;
+    // 기능 6: separator + Residue Info 섹션
+    lines += 1;                             // separator (---)
+    lines += get_residue_section_height();  // 고정 줄 수
+    lines += 1;                             // bottom border
     return lines;
 }
 void Panel::draw_panel(int start_row, int start_col,
@@ -204,6 +330,25 @@ void Panel::draw_panel(int start_row, int start_col,
 
     if (!in_rows(r)) return;
 
+    // 기능 6: Residue Info 섹션 separator
+    clear_line(r);
+    {
+        move(r, left);
+        int w = std::min(panel_width, max_cols);
+        w = std::min(w, max_cols - 1);
+        for (int i = 0; i < w; ++i) addch('-');
+    }
+    ++r;
+    if (!in_rows(r)) return;
+
+    // 기능 6: Residue Info 섹션 (draw_hover_section과 동일한 내용)
+    // draw_panel()은 전체 패널을 그리므로 여기서도 Residue Info를 그린다.
+    // hover가 없을 때는 모두 "-" 표시.
+    draw_hover_section(r, max_cols);
+    r += get_residue_section_height();
+
+    if (!in_rows(r)) return;
+
     // Bottom border
     clear_line(r);
     {
@@ -274,7 +419,10 @@ int Panel::get_height_for_width(int max_cols) const {
         lines += 2;
     }
 
-    lines += 1; // Bottom border
+    // 기능 6: separator + Residue Info 섹션 + bottom border
+    lines += 1;                             // separator (---)
+    lines += get_residue_section_height();  // 고정 줄 수
+    lines += 1;                             // Bottom border
     return lines;
 }
 

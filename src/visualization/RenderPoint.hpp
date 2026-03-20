@@ -24,6 +24,7 @@ struct RenderPoint {
     float       conservation_score = -1.0f;
 
     // 기능 6: 잔기 정보
+    // std::string 금지: RenderPoint는 매 프레임 대량 생성·소멸하므로 heap allocation 방지
     int         residue_number = -1;
-    std::string residue_name;
+    char        residue_name[4] = {};  // 최대 3글자(GLU, ALA 등) + null terminator
 };
