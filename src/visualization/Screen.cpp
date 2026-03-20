@@ -257,6 +257,18 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
 
     depth_calibrated = false;
 
+    // 기능 3: 정규화 파라미터 저장 (hit 탐색 시 동일 스케일 적용)
+    norm_scale = scale;
+    if (!data.empty() && data[0]) {
+        // cx/cy/cz는 set_bounding_box() 이후, do_shift() 이전 값
+        // normalize_proteins() 의 non-UT 경로에서 -p->cx, -p->cy, -p->cz 로 shift
+        // 여기서는 shift 이전의 centroid를 저장해야 하므로 do_shift 전에 저장
+        // 하지만 이미 do_shift가 호출됐으므로 cx,cy,cz는 변경 전 값 그대로 있음
+        norm_cx = data[0]->cx;
+        norm_cy = data[0]->cy;
+        norm_cz = data[0]->cz;
+    }
+
     float radius = compute_scene_radius_from_render_positions(data);
 
     focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
@@ -1225,6 +1237,18 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             // camera->screenshot(screenPixels);
             break;
         }
+        // N, n (next Foldseek hit)
+        case 78:
+        case 110:
+            if (!foldseek_hits.empty()) load_next_hit(+1);
+            break;
+
+        // P, p (prev Foldseek hit)
+        case 80:
+        case 112:
+            if (!foldseek_hits.empty()) load_next_hit(-1);
+            break;
+
         // Q, q
         case 81:
         case 113:
@@ -1292,4 +1316,329 @@ void Screen::compute_aligned_from_aln(const std::string& qaln, const std::string
 // 기능 4: 패널에 정렬 방식 표시 설정
 void Screen::set_align_method(const std::string& method) {
     if (panel) panel->set_align_method(method);
+}
+
+// ── 기능 3: Foldseek hit 탐색 ──────────────────────────────────────────────────
+
+// 3×3 대칭 행렬 Jacobi 고유값 분해
+// a: 입력 (수정됨), d: 고유값, v: 고유벡터 (열 = 고유벡터)
+static void jacobi3_sym(float a[3][3], float d[3], float v[3][3]) {
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) v[i][j] = (i == j) ? 1.f : 0.f;
+    for (int iter = 0; iter < 100; ++iter) {
+        int p = 0, q = 1;
+        float max_val = std::abs(a[0][1]);
+        if (std::abs(a[0][2]) > max_val) { max_val = std::abs(a[0][2]); p = 0; q = 2; }
+        if (std::abs(a[1][2]) > max_val) { max_val = std::abs(a[1][2]); p = 1; q = 2; }
+        if (max_val < 1e-9f) break;
+        float diff = a[q][q] - a[p][p];
+        float t;
+        if (std::abs(diff) < 1e-9f * std::abs(a[p][q])) {
+            t = 1.f;
+        } else {
+            float phi = diff / (2.f * a[p][q]);
+            t = (phi > 0) ? (1.f / (phi + std::sqrt(1.f + phi*phi)))
+                           : (1.f / (phi - std::sqrt(1.f + phi*phi)));
+        }
+        float c = 1.f / std::sqrt(1.f + t*t);
+        float s = t * c;
+        a[p][p] -= t * a[p][q];
+        a[q][q] += t * a[p][q];
+        a[p][q] = a[q][p] = 0.f;
+        int r3 = 3 - p - q;
+        float apr = a[p][r3], aqr = a[q][r3];
+        a[p][r3] = a[r3][p] =  c * apr - s * aqr;
+        a[q][r3] = a[r3][q] =  s * apr + c * aqr;
+        for (int i = 0; i < 3; i++) {
+            float vp = v[i][p], vq = v[i][q];
+            v[i][p] = c * vp - s * vq;
+            v[i][q] = s * vp + c * vq;
+        }
+    }
+    for (int i = 0; i < 3; i++) d[i] = a[i][i];
+}
+
+static float mat3_det_flat(const float m[9]) {
+    return m[0]*(m[4]*m[8]-m[5]*m[7])
+          -m[1]*(m[3]*m[8]-m[5]*m[6])
+          +m[2]*(m[3]*m[7]-m[4]*m[6]);
+}
+
+// Kabsch 알고리즘: U*Q[i]+T ≈ P[i] 최소화
+// P: 참조 좌표 (Nx3 flat), Q: 회전 대상 좌표 (Nx3 flat), N: 쌍 수
+// 결과: U[9] (row-major 3×3), T[3]
+static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
+                   int N, float U[9], float T[3]) {
+    // 단위 행렬로 초기화
+    for (int i = 0; i < 9; i++) U[i] = (i % 4 == 0) ? 1.f : 0.f;
+    T[0] = T[1] = T[2] = 0.f;
+    if (N < 3) return;
+
+    // 무게중심
+    float Pc[3] = {}, Qc[3] = {};
+    for (int i = 0; i < N; i++) {
+        Pc[0] += P[i*3]; Pc[1] += P[i*3+1]; Pc[2] += P[i*3+2];
+        Qc[0] += Q[i*3]; Qc[1] += Q[i*3+1]; Qc[2] += Q[i*3+2];
+    }
+    for (int k = 0; k < 3; k++) { Pc[k] /= N; Qc[k] /= N; }
+
+    // H = Σ (Q[i]-Qc)(P[i]-Pc)^T  [3×3]
+    float H[3][3] = {};
+    for (int i = 0; i < N; i++) {
+        float q[3] = { Q[i*3]-Qc[0], Q[i*3+1]-Qc[1], Q[i*3+2]-Qc[2] };
+        float p[3] = { P[i*3]-Pc[0], P[i*3+1]-Pc[1], P[i*3+2]-Pc[2] };
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++)
+                H[r][c] += q[r] * p[c];
+    }
+
+    // H^T H (대칭) → 고유값 분해로 V (오른쪽 특이벡터) 계산
+    float HtH[3][3] = {};
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++)
+            for (int k = 0; k < 3; k++)
+                HtH[r][c] += H[k][r] * H[k][c];
+
+    float d[3];
+    float Vmat[3][3];
+    jacobi3_sym(HtH, d, Vmat);
+
+    // 고유값 내림차순 정렬
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2-i; j++) {
+            if (d[j] < d[j+1]) {
+                std::swap(d[j], d[j+1]);
+                for (int k = 0; k < 3; k++) std::swap(Vmat[k][j], Vmat[k][j+1]);
+            }
+        }
+    }
+
+    // 특이값
+    float sigma[3];
+    for (int i = 0; i < 3; i++) sigma[i] = (d[i] > 0.f) ? std::sqrt(d[i]) : 0.f;
+
+    // 왼쪽 특이벡터: Umat[:,i] = H * Vmat[:,i] / sigma[i]
+    float Umat[3][3] = {};
+    for (int i = 0; i < 3; i++) {
+        if (sigma[i] < 1e-7f) continue;
+        for (int r = 0; r < 3; r++) {
+            for (int k = 0; k < 3; k++) Umat[r][i] += H[r][k] * Vmat[k][i];
+            Umat[r][i] /= sigma[i];
+        }
+    }
+    // 退화 처리: 세 번째 열 = 교차곱
+    if (sigma[2] < 1e-7f) {
+        Umat[0][2] = Umat[1][0]*Umat[2][1] - Umat[2][0]*Umat[1][1];
+        Umat[1][2] = Umat[2][0]*Umat[0][1] - Umat[0][0]*Umat[2][1];
+        Umat[2][2] = Umat[0][0]*Umat[1][1] - Umat[1][0]*Umat[0][1];
+    }
+
+    // det(V*U^T) 반사 보정
+    float VUt[9];
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++) {
+            VUt[r*3+c] = 0;
+            for (int k = 0; k < 3; k++) VUt[r*3+c] += Vmat[r][k] * Umat[c][k];
+        }
+    float det_sign = (mat3_det_flat(VUt) < 0) ? -1.f : 1.f;
+
+    // R = V * diag(1,1,det_sign) * U^T
+    float diag[3] = {1.f, 1.f, det_sign};
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++) {
+            U[r*3+c] = 0;
+            for (int k = 0; k < 3; k++) U[r*3+c] += Vmat[r][k] * diag[k] * Umat[c][k];
+        }
+
+    // T = Pc - R*Qc
+    for (int r = 0; r < 3; r++) {
+        T[r] = Pc[r];
+        for (int c = 0; c < 3; c++) T[r] -= U[r*3+c] * Qc[c];
+    }
+}
+
+void Screen::set_foldseek_hits(const std::vector<FoldseekHit>& hits) {
+    foldseek_hits = hits;
+    current_hit_idx = -1;
+    // 패널에 총 hit 수 표시
+    if (panel && !hits.empty()) {
+        FoldseekHitInfo fi;
+        fi.valid = true;
+        fi.current_idx = 0;
+        fi.total_hits = (int)hits.size();
+        panel->set_foldseek_hit_info(fi);
+    }
+}
+
+void Screen::set_fs_db_path(const std::string& path) {
+    fs_db_path = path;
+}
+
+void Screen::load_next_hit(int delta) {
+    if (foldseek_hits.empty()) return;
+
+    int new_idx;
+    if (current_hit_idx < 0) {
+        // 초기 로드: delta > 0 이면 0번, delta < 0 이면 마지막
+        new_idx = (delta >= 0) ? 0 : (int)foldseek_hits.size() - 1;
+    } else {
+        new_idx = current_hit_idx + delta;
+        new_idx = std::max(0, std::min((int)foldseek_hits.size() - 1, new_idx));
+        if (new_idx == current_hit_idx) return;
+    }
+    current_hit_idx = new_idx;
+
+    const FoldseekHit& hit = foldseek_hits[current_hit_idx];
+
+    // 파일 경로 결정 (다운로드 포함)
+    std::string status_msg;
+    std::string file_path = PDBDownloader::resolve_target_file(
+        hit.target, fs_db_path, status_msg);
+
+    // 패널 정보 갱신
+    FoldseekHitInfo fs_info;
+    fs_info.valid      = true;
+    fs_info.current_idx = current_hit_idx + 1;  // 1-based
+    fs_info.total_hits  = (int)foldseek_hits.size();
+    fs_info.target      = hit.target;
+    fs_info.evalue      = hit.evalue;
+    fs_info.prob        = hit.prob;
+    fs_info.lddt        = hit.lddt;
+    fs_info.qtmscore    = hit.qtmscore;
+    fs_info.status_msg  = status_msg;
+    if (panel) panel->set_foldseek_hit_info(fs_info);
+
+    if (file_path.empty()) return;
+
+    // 기존 target protein (index 1+) 제거
+    while ((int)data.size() > 1) {
+        delete data.back();
+        data.pop_back();
+        pan_x.pop_back();
+        pan_y.pop_back();
+    }
+    while ((int)chainVec.size() > 1) chainVec.pop_back();
+
+    // 체인 필터 결정
+    DBType db_type = PDBDownloader::detect_db_type(hit.target);
+    std::string chain_filter = PDBDownloader::extract_chain(hit.target, db_type);
+    chainVec.push_back(chain_filter);
+
+    // 새 target protein 로드
+    Protein* target_protein = new Protein(file_path, chain_filter, screen_show_structure);
+    data.push_back(target_protein);
+    pan_x.push_back(0.0f);
+    pan_y.push_back(0.0f);
+
+    float tvec[3] = {0.f, 0.f, 0.f};
+    target_protein->load_data(tvec, false);
+
+    // 패널 entry 갱신
+    if (panel) {
+        panel->update_entry(1, target_protein->get_file_name(),
+                            target_protein->get_chain_length(),
+                            target_protein->get_residue_count());
+    }
+
+    // query와 동일한 norm_scale 로 target 정규화
+    target_protein->set_bounding_box();
+    target_protein->set_scale(norm_scale);
+    float t_cx = target_protein->cx;
+    float t_cy = target_protein->cy;
+    float t_cz = target_protein->cz;
+    float t_shift[3] = { -t_cx, -t_cy, -t_cz };
+    target_protein->do_shift(t_shift);
+    target_protein->do_scale(norm_scale);
+
+    // U/T transform 계산
+    float U[9] = {1,0,0, 0,1,0, 0,0,1};
+    float T[3]  = {0,0,0};
+    bool computed_transform = false;
+    std::string align_method_str;
+
+    if (hit.has_transform) {
+        // 29컬럼 포맷: U/T를 정규화 공간으로 변환
+        // target_norm = (target_orig - t_centroid) * norm_scale
+        // alns_norm   = (alns_orig   - q_centroid) * norm_scale
+        // U_norm      = U_fs (회전은 스케일 불변)
+        // T_norm      = (U_fs*t_centroid + T_fs - q_centroid) * norm_scale
+        const float* Uf = hit.U;
+        const float* Tf = hit.T;
+        float Utc[3] = {
+            Uf[0]*t_cx + Uf[1]*t_cy + Uf[2]*t_cz,
+            Uf[3]*t_cx + Uf[4]*t_cy + Uf[5]*t_cz,
+            Uf[6]*t_cx + Uf[7]*t_cy + Uf[8]*t_cz
+        };
+        for (int i = 0; i < 9; i++) U[i] = Uf[i];
+        T[0] = (Utc[0] + Tf[0] - norm_cx) * norm_scale;
+        T[1] = (Utc[1] + Tf[1] - norm_cy) * norm_scale;
+        T[2] = (Utc[2] + Tf[2] - norm_cz) * norm_scale;
+        computed_transform = true;
+        align_method_str = "aln-string";
+
+    } else if (hit.is_alis_format && !hit.alns.empty() && hit.has_aln) {
+        // alis 21컬럼 포맷: Kabsch SVD로 U/T 역산
+        // alns는 원래 query frame 좌표 → 정규화: (alns - q_centroid) * norm_scale
+        // target CA 좌표는 이미 정규화됨 (do_shift + do_scale 후)
+
+        const auto& atoms_map = target_protein->get_atoms();
+
+        // target CA atom 플랫 리스트 (정규화된 좌표)
+        std::vector<std::array<float,3>> target_cas;
+        for (const auto& [cid, chain] : atoms_map) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                target_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        // taln 순회: 비-갭 위치마다 쌍 수집
+        std::vector<float> P_norm, Q_norm;
+        int aln_idx = 0;  // alns 인덱스 (3 float/잔기)
+        int t_seq_idx = hit.tstart - 1;  // target CA 0-based 인덱스
+
+        for (size_t ai = 0; ai < hit.taln.size(); ai++) {
+            if (hit.taln[ai] == '-') continue;
+            if (t_seq_idx < (int)target_cas.size() &&
+                aln_idx * 3 + 2 < (int)hit.alns.size()) {
+                // 정규화된 alns
+                P_norm.push_back((hit.alns[aln_idx*3]   - norm_cx) * norm_scale);
+                P_norm.push_back((hit.alns[aln_idx*3+1] - norm_cy) * norm_scale);
+                P_norm.push_back((hit.alns[aln_idx*3+2] - norm_cz) * norm_scale);
+                // 정규화된 target CA
+                Q_norm.push_back(target_cas[t_seq_idx][0]);
+                Q_norm.push_back(target_cas[t_seq_idx][1]);
+                Q_norm.push_back(target_cas[t_seq_idx][2]);
+            }
+            aln_idx++;
+            t_seq_idx++;
+        }
+
+        int N = (int)std::min(P_norm.size(), Q_norm.size()) / 3;
+        if (N >= 3) {
+            kabsch(P_norm, Q_norm, N, U, T);
+            computed_transform = true;
+            align_method_str = "kabsch-alns";
+        }
+    }
+
+    if (computed_transform) {
+        apply_foldseek_transform(1, U, T);
+    }
+
+    // 정렬 방식 패널 갱신
+    fs_info.align_method = align_method_str;
+    if (panel) panel->set_foldseek_hit_info(fs_info);
+
+    // aligned 모드일 때 is_aligned 계산
+    if (screen_mode == "aligned") {
+        if (hit.has_aln) {
+            compute_aligned_from_aln(hit.qaln, hit.taln, 5.0f);
+            set_align_method("aln-string");
+        } else {
+            compute_aligned_all();
+        }
+    }
+
+    depth_calibrated = false;
 }

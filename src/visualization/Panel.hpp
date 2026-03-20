@@ -14,6 +14,20 @@ struct Entry {
     std::map<std::string, int> chain_residue_info;
 };
 
+// 기능 3: Foldseek hit 정보 (패널 표시용)
+struct FoldseekHitInfo {
+    bool     valid        = false;
+    int      current_idx  = 0;   // 1-based
+    int      total_hits   = 0;
+    std::string target;
+    float    evalue       = 0.0f;
+    float    prob         = -1.0f;
+    float    lddt         = -1.0f;
+    float    qtmscore     = -1.0f;
+    std::string align_method;   // "aln-string" or "nearest-nbr"
+    std::string status_msg;     // 다운로드 상태 / 오류 메시지
+};
+
 class Panel {
 public:
     Panel(int width, const std::string& mode, bool show_structure = false);
@@ -21,6 +35,11 @@ public:
     void add_panel_info(const std::string& file_name,
                         const std::map<std::string, int>& chain_info,
                         const std::map<std::string, int>& chain_residue_info);
+
+    // 기능 3: 두 번째 항목(target protein) entry 갱신
+    void update_entry(int idx, const std::string& file_name,
+                      const std::map<std::string, int>& chain_info,
+                      const std::map<std::string, int>& chain_residue_info);
 
     int get_height() const;
     int get_height_for_width(int max_cols) const;
@@ -31,8 +50,12 @@ public:
     // 기능 4: 정렬 방식 표시 ("nearest-nbr" or "aln-string")
     void set_align_method(const std::string& method);
 
+    // 기능 3: Foldseek hit info 섹션
+    void set_foldseek_hit_info(const FoldseekHitInfo& info);
+    void clear_foldseek_hit_info();
+    int  get_foldseek_section_height() const;
+
     // 기능 6: 마우스 hover — Residue Info 섹션
-    // chainID, residue_name(char[4]), residue_number, structure, bfactor, conservation_score
     void set_hover_residue(const std::string& chainID,
                            const char* residue_name,
                            int residue_number,
@@ -44,7 +67,7 @@ public:
     // Residue Info 섹션의 줄 수 (항상 고정)
     int get_residue_section_height() const;
 
-    // hover 섹션만 부분 갱신 (hover_start_row = "Residue Info" 헤더 행)
+    // hover 섹션만 부분 갱신
     void draw_hover_section(int hover_start_row, int max_cols) const;
 
 private:
@@ -54,6 +77,9 @@ private:
     std::string panel_mode;
     bool panel_show_structure = false;
     std::string align_method;
+
+    // 기능 3: foldseek hit info 상태
+    FoldseekHitInfo fs_hit_info;
 
     // 기능 6: hover 상태
     bool hover_valid = false;
