@@ -465,10 +465,14 @@ structty protein.pdb --msa alignment.a3m -m conservation
 mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
 mouseinterval(0);
 
-// ncurses의 mousemask()만으로는 마우스 이동 이벤트가 전달되지 않는 터미널이 많다.
-// 이동 이벤트를 실제로 받으려면 터미널에 직접 escape sequence를 전송해야 한다.
+// ※ 중요: escape sequence는 mousemask() 반환값과 무관하게 항상 전송한다.
+// VSCode 내장 터미널, Windows Terminal(SuperShell) 등 많은 현대 터미널은
+// 실제로 xterm-1003 마우스 모드를 지원하지만 terminfo에 올바르게 등록되지 않아
+// mousemask()가 0을 반환한다. 반환값에 따라 escape sequence를 조건부로 전송하면
+// 이런 터미널에서 마우스가 전혀 동작하지 않는다.
 printf("\033[?1003h");  // 모든 마우스 이동 추적 활성화 (xterm 계열)
 fflush(stdout);
+mouse_supported = true;  // escape sequence를 보냈으므로 지원으로 간주
 ```
 
 프로그램 종료 시(소멸자 또는 cleanup 함수)에는 반드시 추적을 해제한다:
@@ -477,7 +481,7 @@ printf("\033[?1003l");  // 마우스 이동 추적 비활성화
 fflush(stdout);
 ```
 
-이 escape sequence 없이는 `KEY_MOUSE` 이벤트가 클릭 시에만 발생하고, 이동 시에는 발생하지 않는다. `mousemask()` 반환값이 0인 경우(마우스 미지원 터미널)에는 escape sequence를 전송하지 않는다.
+이 escape sequence 없이는 `KEY_MOUSE` 이벤트가 클릭 시에만 발생하고, 이동 시에는 발생하지 않는다.
 
 ### 이벤트 처리 방식
 
@@ -485,18 +489,68 @@ fflush(stdout);
 
 ncurses에서 `REPORT_MOUSE_POSITION`을 활성화하면 마우스 이동 시 `KEY_MOUSE` 이벤트가 발생한다. 단, 터미널에 따라 이동 이벤트 지원 여부가 다르다.
 
+**⚠️ `flushinp()` 호출 순서 주의:**
+
+`handle_input(int key)` 내부에서 `flushinp()`를 switch 이전에 일괄 호출하는 패턴은 `KEY_MOUSE` 처리 시 문제를 일으킨다. 일부 ncurses 구현에서 `flushinp()`가 내부 mouse event 큐까지 비워 `getmouse()`가 `ERR`를 반환한다.
+
+따라서 반드시 **`getmouse()`를 먼저 호출하고 그 이후에 `flushinp()`를 호출**하거나, `KEY_MOUSE` 케이스에서는 `flushinp()`를 생략한다:
+
 ```cpp
 case KEY_MOUSE: {
     MEVENT event;
-    if (getmouse(&event) == OK) {
-        // 버튼 이벤트와 이동 이벤트 모두 처리
+    if (getmouse(&event) == OK) {  // ← flushinp() 이전에 호출
         update_hover_info(event.x, event.y);
     }
+    // KEY_MOUSE에서는 flushinp() 호출하지 않음
+    // (또는 getmouse() 이후에 호출)
     break;
 }
 ```
 
-`mousemask()` 반환값이 0이면 마우스 미지원 터미널이므로 패널의 Residue Info 섹션에 "Mouse not supported"를 고정 표시한다.
+`mousemask()` 반환값이 0이어도 escape sequence를 이미 전송했으므로 KEY_MOUSE는 수신될 수 있다. 패널의 Residue Info 섹션은 항상 유효 정보 또는 "-"를 표시한다.
+
+### main loop 설계: 마우스 이벤트 시 전체 재렌더링 생략
+
+**현재 main loop 구조의 문제점:**
+
+```cpp
+while(run) {
+    screen.draw_screen();   // clear() + 전체 재렌더링 (50~100ms)
+    run = screen.handle_input();
+}
+```
+
+`REPORT_MOUSE_POSITION` 모드에서는 마우스 이동 1픽셀마다 `KEY_MOUSE` 이벤트가 발생한다. 위 구조에서는 마우스 이동 시 매번 `draw_screen()` → `clear()` → 전체 구조 재렌더링이 실행되어 극심한 화면 깜빡임이 발생하고, 패널의 잔기 정보가 지속적으로 덮어써진다.
+
+**개선 설계: `handle_input()`에 재렌더링 필요 여부 반환 추가**
+
+`handle_input()`이 "전체 재렌더링이 필요한가"를 caller에게 알릴 수 있어야 한다. 마우스 이벤트는 패널 부분 갱신만 필요하고, 키보드 이벤트(회전·이동·줌)는 전체 재렌더링이 필요하다.
+
+구현 옵션:
+
+```cpp
+// 옵션 A: out 파라미터
+bool Screen::handle_input(bool& needs_redraw);
+
+// 옵션 B: 반환 구조체
+struct InputResult { bool keep_running; bool needs_redraw; };
+InputResult Screen::handle_input();
+```
+
+main loop:
+```cpp
+bool needs_redraw = true;
+while(run) {
+    if (needs_redraw) {
+        screen.draw_screen();
+    }
+    run = screen.handle_input(needs_redraw);
+    // KEY_MOUSE → needs_redraw = false (패널 부분 갱신만 수행)
+    // 키보드   → needs_redraw = true  (전체 재렌더링 필요)
+}
+```
+
+이 구조로 마우스 이동 시 구조가 재렌더링되지 않으므로 깜빡임이 없어지고, `hover_info` 갱신 → 패널 부분 `refresh()`만 수행된다.
 
 ### 패널 Residue Info 섹션 — 고정 크기 유지
 
@@ -536,6 +590,26 @@ screenPixels에서 좌표 (mx, my)에 해당하는 RenderPoint 검색
 helix/sheet geometry atom은 실제 CA atom이 아니므로 기본적으로 `residue_number = -1`이지만, 0-3절에 명시된 대로 `calculate_ss_points()`에서 geometry atom 생성 시 반드시 인접 CA atom의 `residue_number`와 `residue_name`을 설정한다. 이 설정이 올바르게 이루어지면 coil뿐 아니라 helix, sheet 위에서도 hover가 동작한다.
 
 결과적으로 구조가 렌더링된 모든 픽셀에서 `residue_number >= 0`이 보장되어야 한다.
+
+**⚠️ non-braille z-buffer 전체 복사 필수:**
+
+non-braille 모드의 z-buffer resolve 코드에서 `depth`, `pixel`, `color_id`만 복사하고 나머지 필드를 누락하면 `screenPixels`의 `residue_number`가 항상 -1로 남는다:
+
+```cpp
+// ❌ 잘못된 예: residue_number 등이 복사되지 않음
+if (pt.depth < screenPixels[idx].depth) {
+    screenPixels[idx].depth    = pt.depth;
+    screenPixels[idx].pixel    = pt.pixel;
+    screenPixels[idx].color_id = pt.color_id;
+}
+
+// ✅ 올바른 예: 전체 복사
+if (pt.depth < screenPixels[idx].depth) {
+    screenPixels[idx] = pt;  // RenderPoint 전체 복사
+}
+```
+
+braille 경로는 `logicalPixels[idx] = pt` 전체 복사이므로 문제 없으나, non-braille 경로도 반드시 동일하게 처리해야 한다.
 
 ---
 
@@ -813,6 +887,10 @@ structty query.pdb -fs result.m8 -m aligned
 3. **Coil-Helix/Sheet 접합부**: 경계 잔기를 ss_atoms와 screen_atoms 양쪽에 등록하여 끊김을 방지한다. 이중 등록이 의도된 동작이다.
 4. **마우스 hover**: 클릭이 아닌 이동 이벤트(`REPORT_MOUSE_POSITION`)로 잔기 정보를 갱신한다. 패널 Residue Info 섹션은 항상 고정 높이를 유지하여 화면 레이아웃이 변하지 않도록 한다.
 5. **패널 고정 크기**: `Panel::set_hover_residue()` 호출 시 빈 칸으로 패딩하여 항상 동일한 줄 수를 출력한다.
+11. **`\033[?1003h`는 무조건 전송**: `mousemask()` 반환값이 0이어도 escape sequence를 반드시 전송한다. VSCode, Windows Terminal 등 현대 터미널은 terminfo와 무관하게 실제로 xterm-1003 마우스를 지원한다. 반환값으로 조건부 처리하면 주요 환경에서 마우스가 전혀 동작하지 않는다.
+12. **`flushinp()` 위치**: `KEY_MOUSE` 케이스에서는 반드시 `getmouse()`를 `flushinp()` 보다 먼저 호출한다. 일부 ncurses 구현에서 `flushinp()`가 내부 mouse event 큐까지 flush하여 `getmouse()`가 실패한다. `flushinp()`를 switch 진입 전에 일괄 호출하는 패턴은 KEY_MOUSE와 함께 사용 시 반드시 피한다.
+13. **마우스 이벤트 시 전체 재렌더링 금지**: `REPORT_MOUSE_POSITION`은 이동마다 이벤트를 생성한다. main loop에서 모든 이벤트 후 `draw_screen()`(= `clear()` + 전체 재렌더링)을 실행하면 극심한 깜빡임이 발생한다. `handle_input()`이 "재렌더링 필요 여부"를 반환하도록 설계하고, KEY_MOUSE 이벤트 후에는 패널 부분 갱신(`refresh()`)만 수행한다.
+14. **non-braille z-buffer 전체 복사**: non-braille 경로의 z-buffer resolve에서 `depth/pixel/color_id`만 복사하면 `residue_number`가 항상 -1로 남아 hover가 동작하지 않는다. `screenPixels[idx] = pt`로 RenderPoint 전체를 복사해야 한다.
 6. **`-fs`와 `-ut` 상호 배제**: `-fs`가 있으면 hit의 U/T를 자동 사용하고 `-ut` 인수는 무시한다. `-fs` 없이 `-m aligned`를 사용하려면 반드시 `-ut`가 필요하다.
 7. **nearest-neighbor threshold**: `-fs` 없이 `-ut`만 사용하는 경우 10.0Å을 기본값으로 한다. 5.0Å은 alignment 정보 없는 상황에서 지나치게 엄격하다.
 8. **자동 다운로드**: `curl` → `wget` 순으로 시도한다. 둘 다 없으면 패널에 "curl/wget not found" 표시. 네트워크 오류는 파일 크기 0 또는 파일 미생성으로 감지한다.
