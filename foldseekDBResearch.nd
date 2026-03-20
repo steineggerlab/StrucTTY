@@ -1,0 +1,218 @@
+# Foldseek Database Research
+# 목적: m8 결과 파일의 DB별 target ID 패턴 분석 및 구조 파일 다운로드 URL 정리
+
+---
+
+## 현재 코드의 문제
+
+PDBDownloader.cpp의 get_download_url()은 target ID 패턴만 보고 DB를 추정한다.
+그러나 Foldseek 결과 m8 파일에는 query 필드에 사용한 DB 정보가 포함되어 있으며,
+같은 패턴이 여러 DB에 걸쳐 다르게 해석될 수 있다.
+→ DB 이름을 직접 파싱해서 다운로드 전략을 분기해야 한다.
+
+---
+
+## m8 파일에서 DB 정보 위치
+
+Foldseek 결과 파일(m8/alis 포맷)의 query 컬럼(col 0) 값 예시:
+  - 로컬 DB 검색: query 파일 경로 또는 파일명
+  - 웹 서버 검색: 결과 헤더나 파일명에 DB 이름 포함
+
+실제로 DB 이름은 보통 m8 파일 자체의 이름이나 경로에 포함된다.
+예: `foldseek_result_pdb100.m8`, `alis_afdb50.m8`, `result_bfvd.m8`
+
+alis 21-col 포맷에서는 target ID의 패턴 자체로도 DB 추정이 가능하나
+이는 휴리스틱이며 아래 패턴 정리를 참조한다.
+
+---
+
+## DB별 상세 정보
+
+### 1. PDB (PDB100)
+
+- Foldseek CLI 이름: `PDB`
+- 웹 서버 표기: `PDB100` (예: `PDB100 20240101`)
+- Target ID 형식: `{4자리 PDB ID}_{체인}` (소문자)
+  - 예: `1abc_A`, `3a0d_B`
+  - NMR/멀티모델: `1a0n_MODEL_1_B`
+- 구조 파일 다운로드:
+  - CIF: `https://files.rcsb.org/download/{PDBID}.cif`  (PDBID는 대소문자 무관)
+  - PDB: `https://files.rcsb.org/download/{PDBID}.pdb`
+  - 압축 CIF: `https://files.rcsb.org/download/{PDBID}.cif.gz`
+  - ※ RCSB는 단일 체인 제공 안 함. 전체 파일 받고 체인 필터링 필요.
+- Foldseek DB 다운로드: `https://foldseek.steineggerlab.workers.dev/pdb100.tar.gz`
+- 개별 구조 다운로드: 가능
+
+---
+
+### 2. AlphaFold DB - UniProt / UniProt50 / Proteome / Swiss-Prot
+
+- Foldseek CLI 이름:
+  - `Alphafold/UniProt` (~2.14억 구조)
+  - `Alphafold/UniProt50` (~5400만 구조, 50% seq ID 클러스터링)
+  - `Alphafold/Proteome` (~56만 구조, reference proteomes)
+  - `Alphafold/Swiss-Prot` (~54만 구조, curated)
+- Target ID 형식: `AF-{UniProt Accession}-F{fragment 번호}-model_v4`
+  - 예: `AF-P14618-F1-model_v4`, `AF-A0A233SAX3-F1-model_v6`
+  - fragment 번호는 대부분 F1. 긴 단백질은 F2, F3 등으로 분할.
+  - 버전은 v4가 현재 표준 (일부 이전 버전은 v1~v3)
+- 구조 파일 다운로드:
+  - PDB: `https://alphafold.ebi.ac.uk/files/AF-{UniProtID}-F{N}-model_v4.pdb`
+  - CIF: `https://alphafold.ebi.ac.uk/files/AF-{UniProtID}-F{N}-model_v4.cif`
+  - bCIF: `https://alphafold.ebi.ac.uk/files/AF-{UniProtID}-F{N}-model_v4.bcif`
+  - 엔트리 페이지: `https://alphafold.ebi.ac.uk/entry/{UniProtID}`
+- Foldseek DB 다운로드:
+  - `https://foldseek.steineggerlab.workers.dev/afdb.tar.gz`
+  - `https://foldseek.steineggerlab.workers.dev/afdb50.tar.gz`
+  - `https://foldseek.steineggerlab.workers.dev/afdb_proteome.tar.gz`
+  - `https://foldseek.steineggerlab.workers.dev/afdb_swissprot.tar.gz`
+- 개별 구조 다운로드: 가능
+
+---
+
+### 3. ESMAtlas30 (MGnify-ESM30)
+
+- Foldseek CLI 이름: `ESMAtlas30`
+- 웹 서버 API ID: `mgnify_esm30`
+- 웹 서버 표기: `MGnify-ESM30 v1` (~3690만 구조, 30% seq ID 클러스터링)
+- Target ID 형식: `MGYP` + 12자리 제로패딩 숫자
+  - 예: `MGYP000261684433`, `MGYP001234567890`
+- 구조 파일 다운로드:
+  - 구조(PDB): `https://api.esmatlas.com/fetchPredictedStructure/{MGYP_ID}`
+  - 시퀀스: `https://api.esmatlas.com/fetchSequence/{MGYP_ID}`
+  - 신뢰도: `https://api.esmatlas.com/fetchConfidencePrediction/{MGYP_ID}`
+  - MGnify 페이지: `https://www.ebi.ac.uk/metagenomics/proteins/{MGYP_ID}/`
+  - ※ ESMAtlas API는 rate limit 있음 주의
+- Foldseek DB 다운로드: GitHub 파일 목록 경유 (`facebookresearch/esm`)
+- 개별 구조 다운로드: 가능 (API rate limit 주의)
+
+---
+
+### 4. CATH50
+
+- Foldseek CLI 이름: `CATH50`
+- 웹 서버 표기: `CATH50 4.3.0`
+- Target ID 형식: `{4자리 PDB ID}{체인 문자}{2자리 도메인 번호}`
+  - 예: `1kcmA00`, `1e6jH01`, `2xyzB03`
+  - ※ PDB ID + 체인 + 도메인 번호가 붙은 형식. 전체가 도메인 식별자.
+- 구조 파일 다운로드:
+  - REST API: `https://www.cathdb.info/version/v4_3_0/api/rest/id/{domain_id}.pdb`
+  - 엔트리 페이지: `https://www.cathdb.info/version/latest/domain/{domain_id}`
+  - ※ 도메인은 체인의 하위 세그먼트. 모체 구조는 RCSB에서 PDB ID로 가져옴.
+- Foldseek DB 다운로드: `https://foldseek.steineggerlab.workers.dev/cath50.tar.gz`
+- 개별 구조 다운로드: 가능
+
+---
+
+### 5. BFVD (Big Fantastic Virus Database)
+
+- Foldseek CLI 이름: `BFVD`
+- 웹 서버 표기: `BFVD 2023_02`
+- Target ID 형식:
+  - UniRef30 바이러스 클러스터 대표 → UniProt accession 형식
+  - 예: `A0A345AIN9`
+  - 1500 잔기 초과 단백질은 분할: `A0A345AIN9_1`, `A0A345AIN9_2`
+  - ※ 현재 코드는 `_unrelaxed_rank_001_alphafold2` 패턴으로 BFVD를 감지하는데,
+    이는 잘못된 추정임. 실제 BFVD target ID는 UniProt 형식.
+    (ColabFold 결과 파일을 직접 로컬 DB로 쓰는 경우에만 위 패턴이 나타남)
+- 구조 파일 다운로드:
+  - 웹 포털 per-entry: `https://bfvd.foldseek.com/cluster/{UniProtAccession}`
+  - ※ 개별 구조 REST API 없음. 공식 확인된 엔드포인트 없음.
+  - 전체 아카이브: `https://bfvd.steineggerlab.workers.dev/bfvd.tar.gz`
+  - Zenodo: `https://doi.org/10.5281/zenodo.13993144`
+- Foldseek DB 다운로드: `https://bfvd.steineggerlab.workers.dev/bfvd_foldseekdb.tar.gz`
+- 개별 구조 다운로드: **불가 (REST API 없음, 전체 아카이브만 존재)**
+- 참고: Kim et al., NAR 2025 (https://doi.org/10.1093/nar/gkae1119)
+
+---
+
+### 6. BFMD (Big Fantastic Multimer Database)
+
+- Foldseek CLI 이름: `BFMD`
+- 웹 서버 표기: `BFMD 20240623`
+- Target ID 형식: 미공개. ModelArchive, Predictomes, LevyLab, HuIntAF2, ProtVar 등
+  다양한 출처의 멀티머 예측 복합체 식별자 혼재.
+- 구조 파일 다운로드: 개별 다운로드 URL 없음.
+- Foldseek DB 다운로드: `https://foldseek.steineggerlab.workers.dev/bfmd.tar.gz`
+- 개별 구조 다운로드: **불가**
+- 참고: Foldseek-Multimer 웹 서버 전용 (`search.foldseek.com/multimer`)
+
+---
+
+### 7. TED / TED50 (The Encyclopedia of Domains)
+
+- Foldseek CLI 이름: `TED`, `TED50` (AFDB50 하위셋)
+- Target ID 형식: `AF-{UniProtID}-F1-model_v4_TED{도메인번호}`
+  - 예: `AF-A0A1V6M2Y0-F1-model_v4_TED03`
+- 구조 파일 다운로드:
+  - 개별 REST API 없음.
+  - 모체 AlphaFold 구조 다운로드 후 TED 메타데이터의 도메인 경계 적용 필요.
+  - 모체 구조: `https://alphafold.ebi.ac.uk/files/AF-{UniProtID}-F1-model_v4.cif`
+- Foldseek DB 다운로드:
+  - `https://foldseek.steineggerlab.workers.dev/teddb.tar.gz`
+  - `https://foldseek.steineggerlab.workers.dev/teddb_afdb50.tar.gz`
+- 메타데이터: Zenodo 13908086
+- 개별 구조 다운로드: **불가 (부분적으로 AFDB URL 활용 가능하나 도메인 분리 불가)**
+
+---
+
+### 8. GMGCL 2204 (Global Microbial Gene Catalog with Linked structures)
+
+- Foldseek CLI 이름: 없음 (웹 서버 전용)
+- 웹 서버 API ID: `gmgcl_id`
+- 웹 서버 표기: `GMGCL 2204`
+- Target ID 형식: `GMGC10.{숫자_숫자_숫자}.{샘플명}`
+  - 예: `GMGC10.054_598_380.SCLAV_5304`
+- 구조 파일 다운로드: **없음**
+  - GMGC는 시퀀스 카탈로그. Foldseek 버전의 ESMFold 예측 구조는 별도 API 없음.
+- Foldseek DB 다운로드: **불가 (CLI 미지원, 웹 서버 전용)**
+- 개별 구조 다운로드: **불가**
+
+---
+
+## Target ID 패턴 감지 요약
+
+| 패턴 | DB | 다운로드 가능 |
+|------|----|--------------|
+| `^[0-9][a-z0-9]{3}_[A-Za-z0-9]+$` | PDB | O |
+| `^[0-9][a-z0-9]{3}-assembly[0-9]+\.cif\.gz_[A-Z]` | PDB (assembly) | O (assembly 파일) |
+| `^AF-[A-Z0-9]+-F[0-9]+-model_v[0-9]+$` | AlphaFold DB | O |
+| `^MGYP[0-9]{12}$` | ESMAtlas30 | O (rate limit 주의) |
+| `^[0-9][a-z0-9]{3}[A-Za-z][0-9]{2}$` | CATH50 | O |
+| `^[A-Z0-9]{6,10}(_[0-9]+)?$` | BFVD | X (아카이브만) |
+| `^AF-.*-F[0-9]+-model_v[0-9]+_TED[0-9]+$` | TED | X (도메인 분리 불가) |
+| `^GMGC10\.[0-9_]+\..+$` | GMGCL | X |
+
+---
+
+## 현재 코드와의 차이점
+
+현재 PDBDownloader.cpp::get_download_url()의 분기:
+1. `_unrelaxed_rank_001_alphafold2` 포함 → BFVD 추정 (URL 없음)
+2. `AF-` 시작 → AlphaFold DB
+3. 나머지 → PDB
+
+문제점:
+1. `3a0d-assembly1.cif.gz_A Crystal Structure of ...` 형태는
+   PDB assembly 포맷인데 description이 target에 붙어 파싱됨.
+   → 파서에서 target 컬럼 파싱 시 첫 번째 공백/탭 이전 토큰만 써야 함.
+2. CATH50, ESMAtlas, GMGCL, TED 등 다른 DB는 전혀 처리 안 됨.
+3. BFVD 실제 target ID는 UniProt accession 형식 (`A0A345AIN9`)이며
+   현재 감지 패턴(`_unrelaxed_rank_001_alphafold2`)은 로컬 ColabFold 결과를
+   DB로 쓸 때만 나타나는 패턴. 공식 BFVD Foldseek DB와 무관.
+
+---
+
+## 참고 소스
+
+- Foldseek GitHub: https://github.com/steineggerlab/foldseek
+- structdatabases.sh: https://github.com/steineggerlab/foldseek/blob/master/data/structdatabases.sh
+- Foldseek 웹 서버: https://search.foldseek.com
+- BFVD: https://bfvd.foldseek.com / https://doi.org/10.1093/nar/gkae1119
+- AlphaFold DB API: https://alphafold.ebi.ac.uk/api-docs
+- ESMAtlas API: https://esmatlas.com/resources?action=api
+- CATH REST API: https://www.cathdb.info/version/v4_3_0/api/rest/
+- RCSB 파일 다운로드: https://www.rcsb.org/docs/programmatic-access/file-download-services
+- GMGC: https://gmgc.embl.de/
+- TED Zenodo: https://zenodo.org/records/13908086
+- BFMD: https://doi.org/10.1038/s41592-025-02593-7
