@@ -1270,3 +1270,26 @@ void Screen::compute_aligned_all(float threshold) {
     }
     panel->set_align_method("nearest-nbr");
 }
+
+// 기능 4: -fs 기반 — Foldseek hit의 U/T transform을 지정 protein에 적용
+void Screen::apply_foldseek_transform(int protein_idx, const float* U_flat, const float* T) {
+    if (protein_idx < 0 || protein_idx >= (int)data.size() || !data[protein_idx]) return;
+    // screen_atoms에 적용 (시각적 정렬)
+    data[protein_idx]->do_naive_rotation(const_cast<float*>(U_flat));
+    data[protein_idx]->do_shift(const_cast<float*>(T));
+    // init_atoms에 적용 (거리 비교 기준)
+    data[protein_idx]->apply_ut_to_init_atoms(U_flat, T);
+    yesUT = true;
+}
+
+// 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
+void Screen::compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
+                                      float threshold) {
+    if ((int)data.size() < 2 || !data[0] || !data[1]) return;
+    data[0]->compute_aligned_regions_from_aln(*data[1], qaln, taln, threshold);
+}
+
+// 기능 4: 패널에 정렬 방식 표시 설정
+void Screen::set_align_method(const std::string& method) {
+    if (panel) panel->set_align_method(method);
+}
