@@ -11,11 +11,12 @@
 ## 구현 순서
 
 1. **공통 인프라** (Atom.hpp, RenderPoint.hpp, Palette.hpp 확장) - 모든 기능의 전제 조건
-2. **기능 7** - 코일 렌더링 버그 수정
-3. **기능 2** - pLDDT 색상 표시
-4. **기능 1** - Interface region 색상 표시
-5. **기능 4** - UTMatrix 정렬 구조 색상 표시
-6. **기능 5** - MSA Conservation Score 색상 표시
+2. **기능 7** - 코일 렌더링 버그 수정                ✅ **완료**
+3. **기능 2** - pLDDT 색상 표시                     ✅ **완료**
+4. **기능 1** - Interface region 색상 표시          ✅ **완료**
+5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-ut)    ✅ **완료**
+5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)
+6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
 8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색
 
