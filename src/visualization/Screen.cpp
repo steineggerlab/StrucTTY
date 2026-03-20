@@ -1,4 +1,5 @@
 #include "Screen.hpp"
+#include <cstring>  // strncpy, memset
 
 const float FOV = 90.0f;
 const float PI  = 3.14159265359f;
@@ -20,6 +21,15 @@ Screen::Screen(const int& width, const int& height, const bool& show_structure,
 
     camera = new Camera(width, height, mode);
     panel  = new Panel(width, mode, show_structure);
+
+    // 기능 6: 마우스 hover 초기화
+    // mousemask()는 반환값과 무관하게 항상 escape sequence를 전송한다.
+    // VSCode/Windows Terminal 등 terminfo 불일치 터미널 대응.
+    keypad(stdscr, TRUE);
+    mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
+    mouseinterval(0);
+    printf("\033[?1003h");  // xterm-1003: 모든 마우스 이동 추적 활성화
+    fflush(stdout);
 }
 
 Screen::~Screen() {
@@ -27,6 +37,10 @@ Screen::~Screen() {
     data.clear();
     delete camera;
     delete panel;
+
+    // 기능 6: 마우스 이동 추적 비활성화
+    printf("\033[?1003l");
+    fflush(stdout);
 }
 
 static float compute_scene_radius_from_render_positions(const std::vector<Protein*>& data) {
@@ -536,7 +550,8 @@ void Screen::project() {
                             chainPoints[k].is_aligned         = cur_atom.is_aligned;
                             chainPoints[k].conservation_score = cur_atom.conservation_score;
                             chainPoints[k].residue_number     = cur_atom.residue_number;
-                            chainPoints[k].residue_name       = cur_atom.residue_name;
+                            strncpy(chainPoints[k].residue_name, cur_atom.residue_name.c_str(), 3);
+                            chainPoints[k].residue_name[3]    = '\0';
                         }
                     }
 
@@ -547,7 +562,9 @@ void Screen::project() {
                             RenderPoint rp{screenX, screenY, z, pix, 0, chainID, structure};
                             rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
                             rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                            rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                            rp.residue_number = cur_atom.residue_number;
+                            strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
+                            rp.residue_name[3] = '\0';
                             chainPoints.push_back(rp);
                             rp.y = screenY - 1;
                             if (rp.y >= 0) chainPoints.push_back(rp);
@@ -563,7 +580,9 @@ void Screen::project() {
                                         RenderPoint rp{nx, ny, z, pix, 0, chainID, structure};
                                         rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
                                         rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                                        rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                                        rp.residue_number = cur_atom.residue_number;
+                                        strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
+                                        rp.residue_name[3] = '\0';
                                         chainPoints.push_back(rp);
                                     }
                                 }
@@ -670,7 +689,8 @@ void Screen::project() {
                         chainPoints[k].is_aligned         = cur_atom.is_aligned;
                         chainPoints[k].conservation_score = cur_atom.conservation_score;
                         chainPoints[k].residue_number     = cur_atom.residue_number;
-                        chainPoints[k].residue_name       = cur_atom.residue_name;
+                        strncpy(chainPoints[k].residue_name, cur_atom.residue_name.c_str(), 3);
+                        chainPoints[k].residue_name[3]    = '\0';
                     }
                 }
 
@@ -680,7 +700,9 @@ void Screen::project() {
                                    0, chainID, structure};
                     rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
                     rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                    rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                    rp.residue_number = cur_atom.residue_number;
+                    strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
+                    rp.residue_name[3] = '\0';
                     chainPoints.push_back(rp);
                 }
 
@@ -695,15 +717,12 @@ void Screen::project() {
         protein_idx++;
     }
 
-    // z-buffer resolve
+    // z-buffer resolve — 전체 복사 필수: residue_number 등 모든 필드 포함
     for (const auto& pt : finalPoints) {
         if (pt.x < 0 || pt.x >= screen_width || pt.y < 0 || pt.y >= screen_height) continue;
         int idx = pt.y * screen_width + pt.x;
-
         if (pt.depth < screenPixels[idx].depth) {
-            screenPixels[idx].depth = pt.depth;
-            screenPixels[idx].pixel = pt.pixel;
-            screenPixels[idx].color_id = pt.color_id;
+            screenPixels[idx] = pt;  // RenderPoint 전체 복사 (residue_number 포함)
         }
     }
 }
@@ -797,7 +816,8 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
                         chainPoints[k].is_aligned         = cur_atom.is_aligned;
                         chainPoints[k].conservation_score = cur_atom.conservation_score;
                         chainPoints[k].residue_number     = cur_atom.residue_number;
-                        chainPoints[k].residue_name       = cur_atom.residue_name;
+                        strncpy(chainPoints[k].residue_name, cur_atom.residue_name.c_str(), 3);
+                        chainPoints[k].residue_name[3]    = '\0';
                     }
                 }
 
@@ -807,7 +827,9 @@ void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_wid
                                    0, chainID, structure};
                     rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
                     rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                    rp.residue_number = cur_atom.residue_number; rp.residue_name = cur_atom.residue_name;
+                    rp.residue_number = cur_atom.residue_number;
+                    strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
+                    rp.residue_name[3] = '\0';
                     chainPoints.push_back(rp);
                 }
 
@@ -875,6 +897,11 @@ void Screen::draw_screen(bool no_panel) {
     if (!no_panel){
         panel->draw_panel(start_row, 0, panel_h, panel_cols);
     }
+    // 기능 6: 패널 위치 저장 (hover 갱신 시 부분 재렌더링에 사용)
+    last_panel_h         = no_panel ? 0 : panel_h;
+    last_panel_start_row = no_panel ? rows : start_row;
+    last_panel_cols      = panel_cols;
+    last_no_panel        = no_panel;
     refresh();
 
     auto t1 = Benchmark::clock::now();
@@ -999,12 +1026,89 @@ void Screen::set_zoom_level(float zoom){
     }
 }
 
-bool Screen::handle_input() {
-    int key = getch();
-    return handle_input(key);
+// 기능 6: 마우스 커서 위치의 잔기 정보 검색 → 패널 hover 섹션 부분 갱신
+void Screen::update_hover_info(int mx, int my) {
+    // 터미널 좌표 → 스크린 좌표 변환
+    // print_screen() 공식: row = screen_i - (y_offset/2) - 3
+    // 역변환: screen_i = terminal_row + (panel_h/2) + 3
+    int panel_offset = last_panel_h / 2 + 3;
+
+    const RenderPoint* best = nullptr;
+    float best_depth = std::numeric_limits<float>::infinity();
+
+    if (use_braille) {
+        int ty_screen = my + panel_offset;  // 브레일 스크린 행
+        if (ty_screen >= 0 && ty_screen < screen_height && mx >= 0 && mx < screen_width) {
+            const int logical_w = screen_width * 2;
+            const int logical_h = screen_height * 4;
+            for (int sc = 0; sc < 2; ++sc) {
+                for (int sr = 0; sr < 4; ++sr) {
+                    int lx = mx * 2 + sc;
+                    int ly = ty_screen * 4 + sr;
+                    if (lx >= logical_w || ly >= logical_h) continue;
+                    const RenderPoint& lp = logicalPixels[ly * logical_w + lx];
+                    if (lp.residue_number >= 0 && lp.depth < best_depth) {
+                        best_depth = lp.depth;
+                        best = &lp;
+                    }
+                }
+            }
+        }
+    } else {
+        int screen_y = my + panel_offset;
+        int screen_x = mx;
+        if (screen_x >= 0 && screen_x < screen_width && screen_y >= 0 && screen_y < screen_height) {
+            const RenderPoint& px = screenPixels[screen_y * screen_width + screen_x];
+            if (px.residue_number >= 0) {
+                best = &px;
+            }
+        }
+    }
+
+    if (best) {
+        panel->set_hover_residue(best->chainID, best->residue_name,
+                                 best->residue_number, best->structure,
+                                 best->bfactor, best->conservation_score);
+    } else {
+        panel->clear_hover_residue();
+    }
+
+    // 패널이 보이는 경우에만 hover 섹션을 부분 갱신
+    if (!last_no_panel && last_panel_h > 0) {
+        int rsh = panel->get_residue_section_height();
+        // Residue Info 헤더 행 = 패널 하단에서 (rsh + 1) 줄 위 (1=bottom border)
+        int hover_row = last_panel_start_row + last_panel_h - 1 - rsh;
+        if (hover_row >= last_panel_start_row && hover_row + rsh <= last_panel_start_row + last_panel_h - 1) {
+            panel->draw_hover_section(hover_row, last_panel_cols);
+            refresh();
+        }
+    }
 }
 
-bool Screen::handle_input(int key){
+bool Screen::handle_input(bool& needs_redraw) {
+    int key = getch();
+    return handle_input_impl(key, needs_redraw);
+}
+
+bool Screen::handle_input(int key) {
+    bool dummy = true;
+    return handle_input_impl(key, dummy);
+}
+
+bool Screen::handle_input_impl(int key, bool& needs_redraw) {
+    needs_redraw = true;  // 기본: 전체 재렌더링 필요
+
+    // KEY_MOUSE: flushinp() 호출 전에 getmouse()를 먼저 처리
+    // (flushinp()이 내부 mouse event 큐를 비워 getmouse()가 실패하는 것을 방지)
+    if (key == KEY_MOUSE) {
+        MEVENT event;
+        if (getmouse(&event) == OK) {
+            update_hover_info(event.x, event.y);
+        }
+        needs_redraw = false;  // 마우스 이동은 전체 재렌더링 불필요
+        return true;
+    }
+
     bool keep_show = true;
 
     auto pan_step_x = 2.0f * 4.0f / screen_width;
