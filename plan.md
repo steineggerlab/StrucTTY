@@ -16,7 +16,7 @@
 4. **기능 1** - Interface region 색상 표시
 5. **기능 4** - UTMatrix 정렬 구조 색상 표시
 6. **기능 5** - MSA Conservation Score 색상 표시
-7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시
+7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
 8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색
 
 ---
@@ -456,7 +456,15 @@ structty protein.pdb --msa alignment.a3m -m conservation
 
 ---
 
-## 기능 6: 커서(마우스) 기반 잔기 정보 패널 표시
+## 기능 6: 커서(마우스) 기반 잔기 정보 패널 표시 ✅ 완료
+
+### 구현 참고사항 (plan 대비 실제 구현 차이)
+
+- `RenderPoint.residue_name`은 `char[4]`로 구현 (plan과 동일)
+- `handle_input()`은 `handle_input(bool& needs_redraw)` 오버로드로 분리, 내부 구현은 `handle_input_impl(int key, bool& needs_redraw)` private 함수로 공유
+- `keypad(stdscr, TRUE)` 는 Screen 생성자에서 호출 (structty.cpp 아님)
+- `draw_hover_section()` 호출 시 bottom border는 재그리지 않음 (draw_panel이 그린 그대로 유지)
+- hover 좌표 변환 공식: `screen_row = terminal_row + (last_panel_h/2) + 3`
 
 ### ncurses 마우스 활성화: `src/visualization/Screen.cpp`
 
@@ -887,12 +895,12 @@ structty query.pdb -fs result.m8 -m aligned
 3. **Coil-Helix/Sheet 접합부**: 경계 잔기를 ss_atoms와 screen_atoms 양쪽에 등록하여 끊김을 방지한다. 이중 등록이 의도된 동작이다.
 4. **마우스 hover**: 클릭이 아닌 이동 이벤트(`REPORT_MOUSE_POSITION`)로 잔기 정보를 갱신한다. 패널 Residue Info 섹션은 항상 고정 높이를 유지하여 화면 레이아웃이 변하지 않도록 한다.
 5. **패널 고정 크기**: `Panel::set_hover_residue()` 호출 시 빈 칸으로 패딩하여 항상 동일한 줄 수를 출력한다.
-11. **`\033[?1003h`는 무조건 전송**: `mousemask()` 반환값이 0이어도 escape sequence를 반드시 전송한다. VSCode, Windows Terminal 등 현대 터미널은 terminfo와 무관하게 실제로 xterm-1003 마우스를 지원한다. 반환값으로 조건부 처리하면 주요 환경에서 마우스가 전혀 동작하지 않는다.
-12. **`flushinp()` 위치**: `KEY_MOUSE` 케이스에서는 반드시 `getmouse()`를 `flushinp()` 보다 먼저 호출한다. 일부 ncurses 구현에서 `flushinp()`가 내부 mouse event 큐까지 flush하여 `getmouse()`가 실패한다. `flushinp()`를 switch 진입 전에 일괄 호출하는 패턴은 KEY_MOUSE와 함께 사용 시 반드시 피한다.
-13. **마우스 이벤트 시 전체 재렌더링 금지**: `REPORT_MOUSE_POSITION`은 이동마다 이벤트를 생성한다. main loop에서 모든 이벤트 후 `draw_screen()`(= `clear()` + 전체 재렌더링)을 실행하면 극심한 깜빡임이 발생한다. `handle_input()`이 "재렌더링 필요 여부"를 반환하도록 설계하고, KEY_MOUSE 이벤트 후에는 패널 부분 갱신(`refresh()`)만 수행한다.
-14. **non-braille z-buffer 전체 복사**: non-braille 경로의 z-buffer resolve에서 `depth/pixel/color_id`만 복사하면 `residue_number`가 항상 -1로 남아 hover가 동작하지 않는다. `screenPixels[idx] = pt`로 RenderPoint 전체를 복사해야 한다.
 6. **`-fs`와 `-ut` 상호 배제**: `-fs`가 있으면 hit의 U/T를 자동 사용하고 `-ut` 인수는 무시한다. `-fs` 없이 `-m aligned`를 사용하려면 반드시 `-ut`가 필요하다.
 7. **nearest-neighbor threshold**: `-fs` 없이 `-ut`만 사용하는 경우 10.0Å을 기본값으로 한다. 5.0Å은 alignment 정보 없는 상황에서 지나치게 엄격하다.
 8. **자동 다운로드**: `curl` → `wget` 순으로 시도한다. 둘 다 없으면 패널에 "curl/wget not found" 표시. 네트워크 오류는 파일 크기 0 또는 파일 미생성으로 감지한다.
 9. **기존 기능 무결성**: 기존 `-m protein/chain/rainbow` 모드와 `-s` (이차구조 표시)는 변경 없이 동작해야 함.
 10. **Foldseek hit 전환 시 메모리**: 매 hit 전환마다 target Protein 객체를 새로 생성하므로 이전 객체 명시적 해제 필요.
+11. **`\033[?1003h`는 무조건 전송** ✅ 구현 완료: `mousemask()` 반환값이 0이어도 escape sequence를 반드시 전송한다. VSCode, Windows Terminal 등 현대 터미널은 terminfo와 무관하게 실제로 xterm-1003 마우스를 지원한다. 반환값으로 조건부 처리하면 주요 환경에서 마우스가 전혀 동작하지 않는다.
+12. **`flushinp()` 위치** ✅ 구현 완료: `KEY_MOUSE` 케이스에서는 반드시 `getmouse()`를 `flushinp()` 보다 먼저 호출한다. 일부 ncurses 구현에서 `flushinp()`가 내부 mouse event 큐까지 flush하여 `getmouse()`가 실패한다. `flushinp()`를 switch 진입 전에 일괄 호출하는 패턴은 KEY_MOUSE와 함께 사용 시 반드시 피한다.
+13. **마우스 이벤트 시 전체 재렌더링 금지** ✅ 구현 완료: `REPORT_MOUSE_POSITION`은 이동마다 이벤트를 생성한다. main loop에서 모든 이벤트 후 `draw_screen()`(= `clear()` + 전체 재렌더링)을 실행하면 극심한 깜빡임이 발생한다. `handle_input(bool& needs_redraw)` 오버로드를 추가하여 KEY_MOUSE 이벤트 후에는 패널 부분 갱신(`refresh()`)만 수행한다.
+14. **non-braille z-buffer 전체 복사** ✅ 구현 완료: non-braille 경로의 z-buffer resolve에서 `depth/pixel/color_id`만 복사하면 `residue_number`가 항상 -1로 남아 hover가 동작하지 않는다. `screenPixels[idx] = pt`로 RenderPoint 전체를 복사해야 한다.

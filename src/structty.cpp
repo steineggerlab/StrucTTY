@@ -103,9 +103,14 @@ int main(int argc, char* argv[]) {
     }
     else{
         bool run = true;
+        bool needs_redraw = true;
         while(run) {
-            screen.draw_screen(params.get_no_panel());
-            run = screen.handle_input();
+            if (needs_redraw) {
+                screen.draw_screen(params.get_no_panel());
+            }
+            // KEY_MOUSE 이벤트 시 needs_redraw=false: 패널 부분 갱신만 수행
+            // 키보드 이벤트 시 needs_redraw=true: 전체 재렌더링
+            run = screen.handle_input(needs_redraw);
         }
     }
 

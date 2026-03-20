@@ -22,7 +22,9 @@ public:
            const std::string& mode, const std::string& depthcharacter);
     ~Screen();
 
-    bool handle_input();
+    // 기능 6: 마우스 hover — main loop용 (needs_redraw 반환)
+    bool handle_input(bool& needs_redraw);
+    // 벤치마크용: needs_redraw 없이 키 직접 처리
     bool handle_input(int key);
     char get_pixel_char_from_depth(float z, float min_z, float max_z);
 
@@ -44,6 +46,9 @@ public:
     void apply_msa_conservation(int protein_idx, const std::vector<float>& scores);
 
     void draw_screen(bool no_panel);
+
+    // 기능 6: 마우스 hover — 현재 커서 위치의 잔기 정보를 패널에 반영
+    void update_hover_info(int mx, int my);
     void init_color_pairs();
     void assign_colors_to_points(std::vector<RenderPoint>& points, int protein_idx);
 
@@ -102,12 +107,21 @@ private:
     Benchmark* bm = nullptr;
     bool ttff_logged = false;
 
+    // 기능 6: 마우스 hover — 패널 위치 정보 (hover 갱신 시 필요)
+    int last_panel_h = 0;
+    int last_panel_start_row = 0;
+    int last_panel_cols = 0;
+    bool last_no_panel = false;
+
     void calibrate_depth_baseline_first_view();
 
     void project();
     void project(std::vector<RenderPoint>& screenshotPixels, const int proj_width, const int proj_height);
     void clear_screen();
     void print_screen(int panel_lines);
+
+    // 기능 6: handle_input 내부 구현 (두 public 오버로드 공유)
+    bool handle_input_impl(int key, bool& needs_redraw);
 
     int64_t total_len_ca = 0;
 };
