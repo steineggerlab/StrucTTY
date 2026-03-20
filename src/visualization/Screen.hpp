@@ -7,6 +7,8 @@
 #include "Camera.hpp"
 #include "Panel.hpp"
 #include "Benchmark.hpp"
+#include "../structure/FoldseekParser.hpp"
+#include "../structure/PDBDownloader.hpp"
 #include <vector>
 #include <cmath>
 #include <iostream>
@@ -55,6 +57,11 @@ public:
 
     // 기능 4: 패널에 정렬 방식 표시 설정 ("aln-string" or "nearest-nbr")
     void set_align_method(const std::string& method);
+
+    // 기능 3: Foldseek hit 탐색
+    void set_foldseek_hits(const std::vector<FoldseekHit>& hits);
+    void set_fs_db_path(const std::string& path);
+    void load_next_hit(int delta);  // delta=+1: next, delta=-1: prev, delta=0: first
 
     void draw_screen(bool no_panel);
 
@@ -123,6 +130,15 @@ private:
     int last_panel_start_row = 0;
     int last_panel_cols = 0;
     bool last_no_panel = false;
+
+    // 기능 3: Foldseek hit 탐색
+    std::vector<FoldseekHit> foldseek_hits;
+    int current_hit_idx = -1;
+    std::string fs_db_path;
+    float norm_scale = 1.0f;   // normalize_proteins() 에서 저장
+    float norm_cx = 0.0f;      // query protein 정규화 전 centroid
+    float norm_cy = 0.0f;
+    float norm_cz = 0.0f;
 
     void calibrate_depth_baseline_first_view();
 

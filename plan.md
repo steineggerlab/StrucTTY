@@ -18,7 +18,7 @@
 5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)        ✅ **완료**
 6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
-8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ⚠️ **재구현 필요** (alis 21컬럼 포맷 대응)
+8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ✅ **완료** (alis 21컬럼 포맷 + Kabsch SVD 포함)
 
 ---
 
@@ -912,11 +912,15 @@ Kabsch 알고리즘 구현:
 
 ### Screen 통합: `src/visualization/Screen.hpp/cpp`
 
+**✅ 구현 완료:**
+
 **멤버 변수 추가:**
 ```cpp
 std::vector<FoldseekHit> foldseek_hits;
 int current_hit_idx = -1;
-std::string db_path;  // 비어 있으면 자동 다운로드 모드
+std::string fs_db_path;
+float norm_scale;   // normalize_proteins()에서 저장
+float norm_cx, norm_cy, norm_cz;  // query 정규화 전 centroid
 ```
 
 **키 처리:**

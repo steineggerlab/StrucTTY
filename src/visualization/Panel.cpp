@@ -19,6 +19,35 @@ void Panel::set_align_method(const std::string& method) {
     align_method = method;
 }
 
+// 기능 3: entry 갱신 (target protein 교체 시)
+void Panel::update_entry(int idx, const std::string& file_name,
+                          const std::map<std::string, int>& chain_info,
+                          const std::map<std::string, int>& chain_residue_info) {
+    if (idx < 0) return;
+    if (idx < (int)entries.size()) {
+        entries[idx] = Entry{file_name, chain_info, chain_residue_info};
+    } else {
+        while ((int)entries.size() < idx) {
+            entries.push_back(Entry{});
+        }
+        entries.push_back(Entry{file_name, chain_info, chain_residue_info});
+    }
+}
+
+// 기능 3: Foldseek hit info 섹션
+void Panel::set_foldseek_hit_info(const FoldseekHitInfo& info) {
+    fs_hit_info = info;
+}
+
+void Panel::clear_foldseek_hit_info() {
+    fs_hit_info = FoldseekHitInfo{};
+}
+
+int Panel::get_foldseek_section_height() const {
+    if (!fs_hit_info.valid && fs_hit_info.total_hits == 0) return 0;
+    return 8;  // 고정 8줄
+}
+
 // 기능 6: Residue Info hover -----------------------------------------------
 
 void Panel::set_hover_residue(const std::string& chainID,
@@ -152,6 +181,12 @@ int Panel::get_height() const {
         int chain_lines = (n == 0) ? 1 : ((n + 2) / 3); // 3 per line
         lines += chain_lines;
         lines += 1;
+    }
+    // 기능 3: Foldseek hit info 섹션
+    int fs_h = get_foldseek_section_height();
+    if (fs_h > 0) {
+        lines += 1;   // separator
+        lines += fs_h;
     }
     // 기능 6: separator + Residue Info 섹션
     lines += 1;                             // separator (---)
@@ -330,6 +365,118 @@ void Panel::draw_panel(int start_row, int start_col,
 
     if (!in_rows(r)) return;
 
+    // 기능 3: Foldseek hit info 섹션
+    {
+        int fs_h = get_foldseek_section_height();
+        if (fs_h > 0) {
+            // separator
+            clear_line(r);
+            {
+                move(r, left);
+                int w = std::min(panel_width, max_cols);
+                w = std::min(w, max_cols - 1);
+                for (int i = 0; i < w; ++i) addch('-');
+            }
+            ++r;
+            if (!in_rows(r)) return;
+
+            const FoldseekHitInfo& fi = fs_hit_info;
+
+            // Line 1: "Foldseek Hits"
+            clear_line(r);
+            { int x = left; put_cstr(r, x, "Foldseek Hits"); }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 2: "[X / Y]" or hit count
+            clear_line(r);
+            {
+                int x = left;
+                char buf[32];
+                std::snprintf(buf, sizeof(buf), "[%d / %d]", fi.current_idx, fi.total_hits);
+                put_cstr(r, x, buf);
+            }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 3: "Target: ..."
+            clear_line(r);
+            {
+                int x = left;
+                put_cstr(r, x, "Target: ");
+                if (!fi.target.empty()) put_str(r, x, fi.target);
+                else put_cstr(r, x, "-");
+            }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 4: "E-val:  ..."
+            clear_line(r);
+            {
+                int x = left;
+                char buf[32];
+                std::snprintf(buf, sizeof(buf), "E-val:  %.2e", fi.evalue);
+                put_cstr(r, x, buf);
+            }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 5: prob or status_msg
+            clear_line(r);
+            {
+                int x = left;
+                if (!fi.status_msg.empty()) {
+                    put_str(r, x, fi.status_msg);
+                } else if (fi.prob >= 0.0f) {
+                    char buf[32];
+                    std::snprintf(buf, sizeof(buf), "Prob:   %.3f", fi.prob);
+                    put_cstr(r, x, buf);
+                } else if (fi.qtmscore >= 0.0f) {
+                    char buf[32];
+                    std::snprintf(buf, sizeof(buf), "TM:     %.3f", fi.qtmscore);
+                    put_cstr(r, x, buf);
+                } else {
+                    put_cstr(r, x, "-");
+                }
+            }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 6: lDDT or second TM score
+            clear_line(r);
+            {
+                int x = left;
+                if (fi.lddt >= 0.0f) {
+                    char buf[32];
+                    std::snprintf(buf, sizeof(buf), "lDDT:   %.3f", fi.lddt);
+                    put_cstr(r, x, buf);
+                } else if (fi.qtmscore >= 0.0f && fi.prob < 0.0f) {
+                    // 29-col 포맷, TM already shown above only if no prob
+                    put_cstr(r, x, "-");
+                } else {
+                    put_cstr(r, x, "-");
+                }
+            }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 7: Align method
+            clear_line(r);
+            {
+                int x = left;
+                if (!fi.align_method.empty()) {
+                    put_cstr(r, x, "Align:  ");
+                    put_str(r, x, fi.align_method);
+                } else {
+                    put_cstr(r, x, "Align:  -");
+                }
+            }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 8: nav hint
+            clear_line(r);
+            {
+                int x = left;
+                put_cstr(r, x, "[N]ext  [P]rev");
+            }
+            ++r; if (!in_rows(r)) return;
+        }
+    }
+
     // 기능 6: Residue Info 섹션 separator
     clear_line(r);
     {
@@ -419,6 +566,12 @@ int Panel::get_height_for_width(int max_cols) const {
         lines += 2;
     }
 
+    // 기능 3: Foldseek hit info 섹션
+    int fs_h = get_foldseek_section_height();
+    if (fs_h > 0) {
+        lines += 1;   // separator
+        lines += fs_h;
+    }
     // 기능 6: separator + Residue Info 섹션 + bottom border
     lines += 1;                             // separator (---)
     lines += get_residue_section_height();  // 고정 줄 수
