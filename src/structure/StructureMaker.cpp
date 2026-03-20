@@ -199,6 +199,14 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                             geom.is_interface       = segment.front().is_interface;
                             geom.is_aligned         = segment.front().is_aligned;
                             geom.conservation_score = segment.front().conservation_score + t * (segment.back().conservation_score - segment.front().conservation_score);
+                            // 기능 6: 가장 가까운 CA 원자의 잔기 정보 사용 (plan 0-3)
+                            {
+                                int ca_idx = std::min(
+                                    (int)std::round(t * (float)(segment.size() - 1)),
+                                    (int)segment.size() - 1);
+                                geom.residue_number = segment[ca_idx].residue_number;
+                                geom.residue_name   = segment[ca_idx].residue_name;
+                            }
                             output.push_back(geom);
                         }
                     }
@@ -289,6 +297,9 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                             geom.is_interface       = pa.is_interface;
                             geom.is_aligned         = pa.is_aligned;
                             geom.conservation_score = pa.conservation_score + f * (pb.conservation_score - pa.conservation_score);
+                            // 기능 6: pa atom의 잔기 정보 사용 (plan 0-3)
+                            geom.residue_number = pa.residue_number;
+                            geom.residue_name   = pa.residue_name;
                             output.push_back(geom);
                         }
                     }
