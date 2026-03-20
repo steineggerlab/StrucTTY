@@ -18,7 +18,7 @@
 5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)        ✅ **완료**
 6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
-8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색
+8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ⚠️ **재구현 필요** (alis 21컬럼 포맷 대응)
 
 ---
 
@@ -643,20 +643,20 @@ braille 경로는 `logicalPixels[idx] = pt` 전체 복사이므로 문제 없으
 
 ### 입력 파일 형식 명세
 
-**Foldseek 실행 명령어 (사용자가 미리 실행해야 함):**
+#### ✅ 실제 확인된 "alis" 포맷 (21컬럼) — BFVD 등 Foldseek easy-search 기본 출력
 
-```bash
-foldseek easy-search query.pdb /path/to/db result.m8 tmp \
-  --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,u,t,qaln,taln"
+실제 `alis_BFVD.m8` 샘플 한 줄:
+```
+job_A   L7RCY6_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000   38.400  104  57  4  1  98  71  173  1.000  7.316E-09  380  109  187  VNSLS--SPNSL...  TNQLTS...  45.438,6.879,-23.812,...  MQMQNN...  1269028  Acanthamoeba polyphaga moumouvirus
 ```
 
-**컬럼 구성 (탭 구분, 헤더 없음):**
+**컬럼 구성 (탭 구분, 헤더 없음, 0-indexed):**
 
 | 인덱스 | 컬럼명 | 설명 |
 |--------|--------|------|
 | 0 | query | 쿼리 파일명 또는 ID |
-| 1 | target | 타겟 ID (예: `2xyz_B`, `AF-P12345-F1-model_v4`) |
-| 2 | fident | 서열 동일성 (0.0~1.0) |
+| 1 | target | 타겟 ID (예: `L7RCY6_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000`) |
+| 2 | fident | 서열 동일성 (0.0~100.0, 100 기준) |
 | 3 | alnlen | alignment 길이 |
 | 4 | mismatch | mismatch 수 |
 | 5 | gapopen | gap open 수 |
@@ -664,24 +664,33 @@ foldseek easy-search query.pdb /path/to/db result.m8 tmp \
 | 7 | qend | 쿼리 끝 잔기 |
 | 8 | tstart | 타겟 시작 잔기 |
 | 9 | tend | 타겟 끝 잔기 |
-| 10 | evalue | E-value |
-| 11 | bits | bitscore |
-| 12 | lddt | lDDT 점수 |
-| 13 | qtmscore | query 기준 TM-score |
-| 14 | ttmscore | target 기준 TM-score |
-| 15~23 | u | 3x3 rotation matrix (9개 값, 탭 구분) |
-| 24~26 | t | translation vector (3개 값, 탭 구분) |
-| 27 | qaln | 쿼리 alignment 문자열 |
-| 28 | taln | 타겟 alignment 문자열 |
+| **10** | **prob** | **구조 유사도 확률 (0.0~1.0) ← evalue가 아님!** |
+| **11** | **evalue** | **E-value** |
+| 12 | bits | bitscore |
+| 13 | qlength | 쿼리 전체 길이 |
+| 14 | tlength | 타겟 전체 길이 |
+| 15 | qaln | 쿼리 alignment 문자열 (gap=`-`) |
+| 16 | taln | 타겟 alignment 문자열 (gap=`-`) |
+| **17** | **alns** | **정렬된 타겟 CA 좌표 (comma-separated x,y,z 연속, Foldseek 회전 적용 후 query frame 기준)** |
+| 18 | tseq | 타겟 전체 서열 |
+| 19 | taxid | taxonomy ID |
+| 20 | taxname | taxonomy 이름 (내부 공백 포함 가능) |
 
-**U matrix와 T vector 파싱 주의사항:**
-- `u` 필드는 9개의 탭 구분 값으로 확장된다 (단일 컬럼이 아님)
-- `t` 필드는 3개의 탭 구분 값으로 확장된다
-- 전체 컬럼 수: 29개
+**⚠️ 기존 계획과의 핵심 차이점:**
+- col[10] = **prob** (확률), col[11] = **evalue** ← 기존 계획은 col[10]=evalue로 잘못 명세됨
+- **lddt, qtmscore, ttmscore 없음** (이 포맷에는 포함되지 않음)
+- **U matrix, T vector 없음** — 대신 `alns` (정렬 후 타겟 CA 좌표)로 U/T를 역산해야 함
+- 전체 컬럼 수: **21** (기존 계획의 12/17/29와 다름 → FoldseekParser가 전부 실패했던 이유)
 
-**컬럼 수 기반 자동 포맷 감지:**
+**`alns` 필드 상세:**
+- taln에서 gap(`-`)이 아닌 잔기 N개 × 3개(x,y,z) = 3N개 comma-separated float
+- 이 좌표들은 Foldseek가 내부적으로 산출한 U/T transform을 이미 적용한 값 (query frame 기준)
+- U/T matrix 역산 방법: 타겟 PDB 로드 → taln으로 잔기 번호 매핑 → 원래 CA 좌표와 alns 좌표 사이 Kabsch/SVD 최소제곱 superposition
+
+**컬럼 수 기반 자동 포맷 감지 (수정):**
 
 ```
+컬럼 수 == 21: alis 포맷 (alns, tseq, taxid, taxname 포함, U/T 없음) ← 신규 추가
 컬럼 수 == 29: 전체 형식 (U, T, qaln, taln 포함)
 컬럼 수 == 17: 축소 형식 (qaln, taln 포함, U/T 없음)
 컬럼 수 == 12: 기본 m8 형식 (qaln, taln, U, T 모두 없음)
@@ -689,6 +698,26 @@ foldseek easy-search query.pdb /path/to/db result.m8 tmp \
 ```
 
 헤더 행은 지원하지 않는다. Foldseek의 기본 출력에는 헤더가 없다.
+
+#### 구 계획 포맷 (29컬럼) — `--format-output "...,u,t,..."` 명시 시에만 생성
+
+```bash
+foldseek easy-search query.pdb /path/to/db result.m8 tmp \
+  --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,u,t,qaln,taln"
+```
+
+| 인덱스 | 컬럼명 |
+|--------|--------|
+| 0~9 | 동일 |
+| 10 | evalue |
+| 11 | bits |
+| 12 | lddt |
+| 13 | qtmscore |
+| 14 | ttmscore |
+| 15~23 | u (9개 값) |
+| 24~26 | t (3개 값) |
+| 27 | qaln |
+| 28 | taln |
 
 ### 자동 다운로드 로직
 
@@ -702,17 +731,30 @@ foldseek easy-search query.pdb /path/to/db result.m8 tmp \
 패턴 1: 숫자+문자 4글자 + 언더스코어 + 체인 (예: 2xyz_B)
   → PDB ID = "2xyz", chain = "B"
   → URL: https://files.rcsb.org/download/2xyz.pdb
-  → 저장: ~/.cache/structty/pdb/2xyz_B.pdb
+  → 저장: {db_path}/2xyz_B.pdb
   → 로드 시 체인 B만 추출
 
 패턴 2: AF- 로 시작 (예: AF-P12345-F1-model_v4)
   → UniProt ID = "P12345"
   → URL: https://alphafold.ebi.ac.uk/files/AF-P12345-F1-model_v4.pdb
-  → 저장: ~/.cache/structty/pdb/AF-P12345-F1-model_v4.pdb
+  → 저장: {db_path}/AF-P12345-F1-model_v4.pdb
 
-패턴 3: 그 외
-  → 다운로드 시도하지 않음, 패널에 "Unknown target format" 표시
+패턴 4 (신규): BFVD 형식 — {6~10자 UniProt ID}_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000
+  예: L7RCY6_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000
+  → 다운로드 URL 없음 (BFVD는 공개 URL이 없는 자체 데이터베이스)
+  → db_path에서 직접 탐색: {db_path}/{target}.pdb / {target}.cif
+    (Foldseek 검색 시 db_path = BFVD 데이터베이스 디렉토리이므로 파일이 이미 존재해야 함)
+  → 탐지 조건: _unrelaxed_rank_001_alphafold2 포함
+  → chain_filter = "-" (전체 체인)
+
+패턴 3 (기존 패턴 3): 그 외
+  → 다운로드 시도하지 않음
+  → db_path에서 탐색만 시도: {db_path}/{target}.pdb / .cif / 소문자 변환
+  → 파일 없으면 패널에 "File not found: {target}" 표시
 ```
+
+**⚠️ 중요: BFVD 사용 시 --db-path는 BFVD 데이터베이스 파일들이 있는 디렉토리여야 함**
+Foldseek 검색 시 사용한 DB 디렉토리와 동일하게 지정해야 파일을 찾을 수 있다.
 
 **다운로드 실행:**
 
@@ -746,23 +788,33 @@ popen(download_cmd.c_str(), "r");
 
 ### 데이터 구조: `src/structure/FoldseekParser.hpp` (신규)
 
+**FoldseekHit 구조체 수정 필요 (alis 21컬럼 포맷 대응):**
+
 ```cpp
 struct FoldseekHit {
     std::string query;
     std::string target;
     float fident;
     int alnlen;
-    float evalue;
+    float prob  = -1.0f;  // alis 포맷: col[10] = prob (21컬럼)
+    float evalue;          // alis 포맷: col[11], 29컬럼: col[10]
     float bits;
-    float lddt = -1.0f;
-    float qtmscore = -1.0f;
-    float ttmscore = -1.0f;
-    float U[3][3] = {};
-    float T[3] = {};
+    int   qlength = 0;    // alis 포맷: col[13]
+    int   tlength = 0;    // alis 포맷: col[14]
+    float lddt      = -1.0f;  // 29컬럼 포맷만 유효
+    float qtmscore  = -1.0f;  // 29컬럼 포맷만 유효
+    float ttmscore  = -1.0f;  // 29컬럼 포맷만 유효
+    float U[9] = {};          // 29컬럼 포맷: has_transform=true 시 유효
+                               // alis 포맷: alns로부터 SVD 역산 후 채워짐
+    float T[3] = {};           // 동일
     bool has_transform = false;
     std::string qaln;
     std::string taln;
     bool has_aln = false;
+    std::vector<float> alns;  // alis 포맷: 정렬된 타겟 CA 좌표 (3N floats)
+    std::string tseq;         // alis 포맷: 타겟 전체 서열
+    std::string taxid;        // alis 포맷: taxonomy ID
+    std::string taxname;      // alis 포맷: taxonomy 이름
 };
 
 class FoldseekParser {
@@ -773,10 +825,43 @@ public:
 
 private:
     std::vector<FoldseekHit> hits;
-    int detected_format = 0;  // 12, 17, 29
-    bool parse_line(const std::string& line, FoldseekHit& hit);
+    int detected_format = 0;  // 12, 17, 21, 29
+    bool parse_line(const std::vector<std::string>& cols, FoldseekHit& hit, int fmt);
 };
 ```
+
+**파싱 로직 수정:**
+- `fmt == 21` 분기 추가
+- alis 21컬럼 파싱: col[10]=prob, col[11]=evalue, col[13]=qlength, col[14]=tlength, col[17]=alns(comma split), col[18]=tseq, col[19]=taxid, col[20]=taxname
+- alns 파싱: `"45.438,6.879,-23.812,..."` → `,` 기준 split → `std::vector<float>`
+- alns에서 U/T 역산: 아래 "U/T 역산 방법" 참조
+
+**U/T 역산 방법 (alis 포맷용):**
+
+alns는 Foldseek가 내부 superposition 적용 후의 타겟 CA 좌표 (query frame). 타겟 PDB를 로드하면 원래 CA 좌표를 알 수 있으므로 Kabsch 알고리즘(SVD)으로 U/T를 역산한다.
+
+```
+입력:
+  P[i] = alns에서 추출한 i번째 정렬 잔기의 CA 좌표 (query frame, 이미 회전 적용됨)
+  Q[i] = 타겟 PDB에서 taln으로 매핑한 i번째 정렬 잔기의 원래 CA 좌표
+최소화: Σ ||U*Q[i] + T - P[i]||²
+결과: U (3x3), T (3)
+```
+
+Kabsch 알고리즘 구현:
+1. centroid 계산: P_c = mean(P), Q_c = mean(Q)
+2. centered 좌표: p[i] = P[i] - P_c, q[i] = Q[i] - Q_c
+3. H = Σ q[i] * p[i]^T (3x3)
+4. SVD: H = V * S * W^T
+5. d = sign(det(W * V^T)) (반사 보정)
+6. U = W * diag(1,1,d) * V^T
+7. T = P_c - U * Q_c
+
+→ 계산된 U, T를 FoldseekHit.U, T에 저장하고 has_transform = true로 설정
+
+**타겟 잔기 매핑 (taln → 타겟 PDB 잔기 번호):**
+- taln 순회 시 gap(`-`)이면 건너뜀, non-gap이면 tstart부터 1씩 증가하는 잔기 번호에 대응
+- 타겟 PDB에서 해당 잔기 번호(residue_number)와 일치하는 CA 원자 좌표 추출
 
 ### Screen 통합: `src/visualization/Screen.hpp/cpp`
 
