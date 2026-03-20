@@ -727,34 +727,81 @@ foldseek easy-search query.pdb /path/to/db result.m8 tmp \
 
 **target ID 형식 분류 및 다운로드 URL:**
 
+아래 패턴은 target 컬럼의 **첫 번째 공백 이전 토큰**을 대상으로 적용한다.
+PDB m8 결과의 target 컬럼에는 `3a0d-assembly1.cif.gz_A Crystal Structure of...` 형태로
+description이 붙는 경우가 있으므로 파서에서 반드시 첫 토큰만 추출해야 한다.
+
 ```
-패턴 1: 숫자+문자 4글자 + 언더스코어 + 체인 (예: 2xyz_B)
-  → PDB ID = "2xyz", chain = "B"
-  → URL: https://files.rcsb.org/download/2xyz.pdb
-  → 저장: {db_path}/2xyz_B.pdb
-  → 로드 시 체인 B만 추출
+패턴 1: PDB — ^[0-9][a-z0-9]{3}_[A-Za-z0-9]+$
+  예: 2xyz_B, 1abc_A, 1a0n_MODEL_1_B
+  → PDB ID = 언더스코어 앞 4글자 (소문자)
+  → 체인 = 언더스코어 뒤 첫 번째 토큰 (MODEL_N_X 형태면 체인=마지막 글자)
+  → 다운로드 URL: https://files.rcsb.org/download/{PDBID}.cif
+    (RCSB는 단일 체인 제공 안 함 → 전체 파일 받고 로드 시 체인 필터링)
+  → 저장: ~/.cache/structty/pdb/{pdbid}.cif
+  → chain_filter = 추출한 체인 ID
 
-패턴 2: AF- 로 시작 (예: AF-P12345-F1-model_v4)
-  → UniProt ID = "P12345"
-  → URL: https://alphafold.ebi.ac.uk/files/AF-P12345-F1-model_v4.pdb
-  → 저장: {db_path}/AF-P12345-F1-model_v4.pdb
+패턴 2: AlphaFold DB — ^AF-[A-Z0-9]+-F[0-9]+-model_v[0-9]+$
+  예: AF-P14618-F1-model_v4, AF-A0A233SAX3-F2-model_v4
+  → 파일명 그대로 다운로드
+  → URL: https://alphafold.ebi.ac.uk/files/{target}.cif
+  → 저장: ~/.cache/structty/pdb/{target}.cif
+  → chain_filter = "-" (단일 체인이므로 필터링 불필요)
+  → 대상 DB: Alphafold/UniProt, UniProt50, Proteome, Swiss-Prot 모두 동일 URL 패턴
 
-패턴 4 (신규): BFVD 형식 — {6~10자 UniProt ID}_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000
+패턴 3: ESMAtlas30 — ^MGYP[0-9]{12}$
+  예: MGYP000261684433
+  → URL: https://api.esmatlas.com/fetchPredictedStructure/{target}
+    (응답 형식: PDB text)
+  → 저장: ~/.cache/structty/pdb/{target}.pdb
+  → chain_filter = "-"
+  → ⚠️ ESMAtlas API는 rate limit 있음. 연속 다운로드 시 실패 가능.
+    실패 시 패널에 "ESMAtlas API rate limit, retry later" 표시.
+
+패턴 4: CATH50 — ^[0-9][a-z0-9]{3}[A-Za-z][0-9]{2}$
+  예: 1kcmA00, 1e6jH01
+  → CATH 도메인 ID (PDB ID + 체인 + 도메인번호)
+  → URL: https://www.cathdb.info/version/v4_3_0/api/rest/id/{target}.pdb
+  → 저장: ~/.cache/structty/pdb/{target}.pdb
+  → chain_filter = "-" (이미 도메인 단위로 잘린 파일)
+
+패턴 5: BFVD (로컬 ColabFold 결과를 DB로 쓴 경우) — _unrelaxed_rank_001_alphafold2 포함
   예: L7RCY6_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000
-  → 다운로드 URL 없음 (BFVD는 공개 URL이 없는 자체 데이터베이스)
-  → db_path에서 직접 탐색: {db_path}/{target}.pdb / {target}.cif
-    (Foldseek 검색 시 db_path = BFVD 데이터베이스 디렉토리이므로 파일이 이미 존재해야 함)
-  → 탐지 조건: _unrelaxed_rank_001_alphafold2 포함
-  → chain_filter = "-" (전체 체인)
+  → 공식 BFVD Foldseek DB가 아닌, 사용자가 자체 ColabFold 예측물을 DB로 쓴 경우
+  → 다운로드 URL 없음
+  → --db-path 에서 직접 탐색: {db_path}/{target}.pdb / {target}.cif
+  → chain_filter = "-"
 
-패턴 3 (기존 패턴 3): 그 외
+패턴 6: BFVD (공식 Foldseek DB) — ^[A-Z0-9]{6,10}(_[0-9]+)?$
+  예: A0A345AIN9, A0A345AIN9_1
+  → 공식 BFVD Foldseek DB의 target ID는 UniProt accession 형식
+  → 개별 구조 다운로드 REST API 없음 (공식 확인됨)
+  → --db-path 에서 직접 탐색: {db_path}/{target}.pdb / {target}.cif
+  → 파일 없으면 패널에 "BFVD: no individual download URL. Use --db-path." 표시
+  → ⚠️ 이 패턴은 AlphaFold/UniProt target ID와 형태가 유사하므로
+    m8 파일명 또는 --db 인수로 DB 종류를 구분해야 함
+
+패턴 7: GMGCL — ^GMGC10\.[0-9_]+\..+$
+  예: GMGC10.054_598_380.SCLAV_5304
+  → 웹 서버 전용 DB, 개별 구조 다운로드 URL 없음
+  → --db-path 에서 탐색만 시도
+  → 파일 없으면 패널에 "GMGCL: no download URL available." 표시
+
+패턴 8: TED — ^AF-.*_TED[0-9]+$
+  예: AF-A0A1V6M2Y0-F1-model_v4_TED03
+  → 개별 도메인 다운로드 URL 없음 (모체 AFDB 구조 + 도메인 경계 메타데이터 필요)
+  → 모체 구조(AF-... 부분)를 AFDB에서 다운로드한 뒤 TED 도메인 잔기 범위 적용은 미지원
+  → 패널에 "TED domain: load parent AFDB structure manually." 표시
+
+패턴 9 (기타): 그 외 모든 패턴
   → 다운로드 시도하지 않음
-  → db_path에서 탐색만 시도: {db_path}/{target}.pdb / .cif / 소문자 변환
+  → --db-path 에서 탐색만 시도: {db_path}/{target}.pdb / .cif / 소문자 변환
   → 파일 없으면 패널에 "File not found: {target}" 표시
 ```
 
-**⚠️ 중요: BFVD 사용 시 --db-path는 BFVD 데이터베이스 파일들이 있는 디렉토리여야 함**
-Foldseek 검색 시 사용한 DB 디렉토리와 동일하게 지정해야 파일을 찾을 수 있다.
+**⚠️ BFVD/BFMD/TED/GMGCL 사용 시 --db-path 필수**
+이 DB들은 개별 구조 다운로드 URL이 없다. 반드시 `--db-path`로
+Foldseek 검색 시 사용한 DB 디렉토리(또는 전체 아카이브를 압축 해제한 경로)를 지정해야 한다.
 
 **다운로드 실행:**
 
@@ -933,8 +980,8 @@ case 'p': case 'P':
 | `src/structure/MSAParser.cpp` | **신규** | FASTA/A3M 파싱, Shannon entropy 계산 구현 |
 | `src/structure/FoldseekParser.hpp` | **신규** | FoldseekHit 구조체, FoldseekParser 클래스 선언 |
 | `src/structure/FoldseekParser.cpp` | **신규** | 컬럼 수 기반 포맷 자동 감지, 파싱 구현 |
-| `src/structure/PDBDownloader.hpp` | **신규** | target ID 형식 분류, 다운로드 URL 생성, 캐시 관리 |
-| `src/structure/PDBDownloader.cpp` | **신규** | curl/wget popen 기반 다운로드 구현 |
+| `src/structure/PDBDownloader.hpp` | **신규** | target ID 형식 분류(PDB/AFDB/ESMAtlas/CATH/BFVD/GMGCL/TED 9패턴), 다운로드 URL 생성, 캐시 관리 |
+| `src/structure/PDBDownloader.cpp` | **신규** | curl/wget popen 기반 다운로드 구현. BFVD·BFMD·TED·GMGCL은 --db-path 탐색만 수행(URL 없음) |
 | `src/structty.cpp` | 수정 | 신규 인수 처리, MSAParser/FoldseekParser/PDBDownloader 초기화 연결 |
 
 ---
@@ -988,7 +1035,7 @@ structty query.pdb -fs result.m8 -m aligned
 5. **패널 고정 크기**: `Panel::set_hover_residue()` 호출 시 빈 칸으로 패딩하여 항상 동일한 줄 수를 출력한다.
 6. **`-fs`와 `-ut` 상호 배제**: `-fs`가 있으면 hit의 U/T를 자동 사용하고 `-ut` 인수는 무시한다. `-fs` 없이 `-m aligned`를 사용하려면 반드시 `-ut`가 필요하다.
 7. **nearest-neighbor threshold**: `-fs` 없이 `-ut`만 사용하는 경우 10.0Å을 기본값으로 한다. 5.0Å은 alignment 정보 없는 상황에서 지나치게 엄격하다.
-8. **자동 다운로드**: `curl` → `wget` 순으로 시도한다. 둘 다 없으면 패널에 "curl/wget not found" 표시. 네트워크 오류는 파일 크기 0 또는 파일 미생성으로 감지한다.
+8. **자동 다운로드**: `curl` → `wget` 순으로 시도한다. 둘 다 없으면 패널에 "curl/wget not found" 표시. 네트워크 오류는 파일 크기 0 또는 파일 미생성으로 감지한다. BFVD(공식), BFMD, TED, GMGCL은 개별 구조 다운로드 URL이 없으므로 `--db-path` 필수.
 9. **기존 기능 무결성**: 기존 `-m protein/chain/rainbow` 모드와 `-s` (이차구조 표시)는 변경 없이 동작해야 함.
 10. **Foldseek hit 전환 시 메모리**: 매 hit 전환마다 target Protein 객체를 새로 생성하므로 이전 객체 명시적 해제 필요.
 11. **`\033[?1003h`는 무조건 전송** ✅ 구현 완료: `mousemask()` 반환값이 0이어도 escape sequence를 반드시 전송한다. VSCode, Windows Terminal 등 현대 터미널은 terminfo와 무관하게 실제로 xterm-1003 마우스를 지원한다. 반환값으로 조건부 처리하면 주요 환경에서 마우스가 전혀 동작하지 않는다.
