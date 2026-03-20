@@ -86,6 +86,20 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // 기능 3: Foldseek hit 탐색 설정 (-fs 파일이 있을 때)
+    // aligned 모드의 첫 hit 로드와 별개로, hit 목록 전체를 Screen에 전달
+    if (!params.get_foldseek_file().empty()) {
+        FoldseekParser fs_nav_parser;
+        if (fs_nav_parser.load(params.get_foldseek_file()) && fs_nav_parser.hit_count() > 0) {
+            screen.set_foldseek_hits(fs_nav_parser.get_hits());
+            screen.set_fs_db_path(params.get_db_path());
+            // 첫 번째 hit 자동 로드 (입력 파일이 1개일 때만 — 이미 target이 로드된 경우 제외)
+            if ((int)params.get_in_file().size() <= 1) {
+                screen.load_next_hit(+1);
+            }
+        }
+    }
+
     // 기능 5: conservation 모드일 때 MSA 파일 로드 및 conservation score 계산
     if (params.get_mode() == "conservation" && !params.get_msa_file().empty()) {
         MSAParser msa_parser;
