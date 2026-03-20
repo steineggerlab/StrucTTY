@@ -8,6 +8,7 @@
 #include "Parameters.hpp"
 #include "Screen.hpp"
 #include "MSAParser.hpp"
+#include "FoldseekParser.hpp"
 #include "Benchmark.hpp" 
 
 int main(int argc, char* argv[]) {
@@ -57,9 +58,32 @@ int main(int argc, char* argv[]) {
         screen.compute_interface_all();
     }
 
-    // 기능 4: aligned 모드일 때 nearest-neighbor 기반 정렬 잔기 계산 (threshold=10.0Å)
+    // 기능 4: aligned 모드
+    // -fs 있으면 alignment string 기반, 없으면 nearest-neighbor 기반
     if (params.get_mode() == "aligned") {
-        screen.compute_aligned_all();
+        bool handled_by_fs = false;
+        if (!params.get_foldseek_file().empty()) {
+            FoldseekParser fs_parser;
+            if (fs_parser.load(params.get_foldseek_file()) && fs_parser.hit_count() > 0) {
+                const FoldseekHit& hit = fs_parser.get_hits()[0];
+                // hit의 U/T transform을 protein1(target)에 적용
+                if (hit.has_transform) {
+                    screen.apply_foldseek_transform(1, hit.U, hit.T);
+                }
+                if (hit.has_aln) {
+                    screen.compute_aligned_from_aln(hit.qaln, hit.taln, 5.0f);
+                    screen.set_align_method("aln-string");
+                } else {
+                    screen.compute_aligned_all();
+                    screen.set_align_method("nearest-nbr");
+                }
+                handled_by_fs = true;
+            }
+        }
+        if (!handled_by_fs) {
+            screen.compute_aligned_all();
+            // compute_aligned_all() 내부에서 "nearest-nbr" 설정
+        }
     }
 
     // 기능 5: conservation 모드일 때 MSA 파일 로드 및 conservation score 계산
