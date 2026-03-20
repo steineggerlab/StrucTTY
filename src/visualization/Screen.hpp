@@ -45,6 +45,17 @@ public:
     // 기능 5: 지정 protein에 conservation scores 적용
     void apply_msa_conservation(int protein_idx, const std::vector<float>& scores);
 
+    // 기능 4: -fs 기반 — Foldseek hit의 U/T transform을 지정 protein에 적용
+    // U_flat: row-major 3x3 (9 elements), T: translation (3 elements)
+    void apply_foldseek_transform(int protein_idx, const float* U_flat, const float* T);
+
+    // 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
+    void compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
+                                  float threshold = 5.0f);
+
+    // 기능 4: 패널에 정렬 방식 표시 설정 ("aln-string" or "nearest-nbr")
+    void set_align_method(const std::string& method);
+
     void draw_screen(bool no_panel);
 
     // 기능 6: 마우스 hover — 현재 커서 위치의 잔기 정보를 패널에 반영

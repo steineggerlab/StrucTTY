@@ -15,7 +15,7 @@
 3. **기능 2** - pLDDT 색상 표시                     ✅ **완료**
 4. **기능 1** - Interface region 색상 표시          ✅ **완료**
 5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-ut)    ✅ **완료**
-5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)
+5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)        ✅ **완료**
 6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
 8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색
@@ -349,6 +349,15 @@ structty query.pdb -fs result.m8 -m aligned
 # -ut 단독 사용 (nearest-neighbor fallback, threshold=10Å)
 structty query.pdb target.pdb -ut matrix.tsv -m aligned
 ```
+
+### 구현 완료 내역 (기능 4 -fs 변형)
+
+- `src/structure/FoldseekParser.hpp/cpp` 신규 생성: 컬럼 수 기반 포맷 자동 감지(12/17/29), U/T matrix + qaln/taln 파싱
+- `Screen::apply_foldseek_transform(protein_idx, U_flat, T)`: 지정 protein의 screen_atoms + init_atoms에 Foldseek U/T 적용
+- `Screen::compute_aligned_from_aln(qaln, taln, threshold)`: alignment string 기반 정렬 잔기 계산 (protein0 vs protein1)
+- `Screen::set_align_method(method)`: 패널 "Align: aln-string" / "Align: nearest-nbr" 표시 설정
+- `structty.cpp`: `-fs` 파일 있으면 첫 번째 hit의 U/T + alignment string 사용; `-fs` 없으면 기존 nearest-nbr fallback
+- Panel은 기존 `set_align_method()` + `draw_panel()` aligned 모드 분기로 표시 (이미 구현 완료)
 
 ---
 
