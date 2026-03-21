@@ -18,8 +18,8 @@
 5b. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)   ✅ **완료**
 6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
-8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ✅ **완료** (BUG-A 2단계 수정, BUG-B BFMD 추가)
-9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화  ✅ **완료** (BUG-A 2단계 동일 수정 적용)
+8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ✅ **모드 A 완료** / ⚠️ **모드 B 미구현** (다중 입력 파일 + -fs superposition)
+9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화  ✅ **단일/2파일 완료** / ⚠️ **모드 B 미구현** (다중 입력 파일 + --foldmason)
 
 ---
 
@@ -731,6 +731,78 @@ braille 경로는 `logicalPixels[idx] = pt` 전체 복사이므로 문제 없으
 
 자동 다운로드는 시스템에 설치된 `curl` 또는 `wget`을 `popen()`으로 호출하여 수행한다. 별도 라이브러리를 추가하지 않는다.
 
+**핵심 목적: 구조 superposition.** `-fs` 파일에는 Foldseek이 계산한 U/T 변환행렬(또는 alns 좌표에서 역산 가능)이 포함되어 있다. 이를 사용하여 query 구조와 target 구조를 `-ut`와 동일한 방식으로 superpose하여 표시한다.
+
+### 입력 파일 수에 따른 동작 분기
+
+**이 분기가 기능 3의 핵심 동작 방식을 결정한다.**
+
+#### 모드 A: 단일 입력 파일 + `-fs` (hit 탐색 모드)
+
+```
+structty query.pdb -fs result.m8
+```
+
+- query.pdb를 query로 고정
+- N/P 키로 hit을 순서대로 탐색 (lazy load)
+- 각 hit 전환 시: target 파일 결정(탐색/다운로드) → 로드 → superposition 적용
+- 패널에 hit 번호/target/E-val 표시
+
+#### 모드 B: 다중 입력 파일 + `-fs` (지정 파일 superposition 모드)
+
+```
+structty query.pdb target1.pdb target2.pdb ... -fs result.m8
+```
+
+- **첫 번째 파일(query.pdb)을 query로 고정**
+- **나머지 파일(target1.pdb, target2.pdb 등)을 target으로 사용** — hit 다운로드 없음
+- N/P 키로 target 파일 간 전환 (hit 목록이 아닌 입력 파일 목록 기준)
+- 각 target 파일 전환 시:
+  1. target 파일명(확장자 제외, basename)을 `-fs` hit 목록의 `target` 컬럼과 매칭 시도
+  2. **매칭 성공**: 해당 hit의 U/T 변환 정보로 superposition 적용 → `-ut`와 동일 결과
+  3. **매칭 실패**: 패널에 `"Not in search results: {filename}"` 표시, superposition 미적용
+- **다운로드 없음**: 모든 파일은 이미 로컬에 있는 입력 파일이므로 다운로드 시도 안 함
+
+**파일명 매칭 규칙:**
+
+```
+target 파일 basename (확장자 제거) ← 비교 → hit.target (첫 공백 이전 토큰)
+예: "target1.pdb" basename → "target1"
+    hit.target = "target1_unrelaxed_rank_001_..." → 첫 '_' 이전 = "target1" (BFVD 패턴)
+    또는 hit.target = "target1" → 직접 매칭
+    또는 hit.target에 "target1" 이 substring으로 포함 → substring 매칭 fallback
+```
+
+매칭 우선순위:
+1. 완전 일치 (basename == hit.target 전체)
+2. basename이 hit.target의 앞부분과 일치 (hit.target이 `{basename}_...` 형태)
+3. hit.target에 basename이 포함 (substring)
+
+**structty.cpp 처리 흐름 (모드 B):**
+
+```cpp
+if (!params.get_foldseek_file().empty() && params.get_in_file().size() >= 2) {
+    // 모드 B: 다중 입력 파일 + -fs
+    // 첫 번째 파일은 이미 query로 로드됨
+    // 나머지 파일들은 target으로 순차 처리 대기 (현재 인덱스만 표시)
+    // N/P 키: load_next_input_file(delta) 호출
+    //   → screen에 등록된 input file list에서 다음/이전 파일 선택
+    //   → 해당 파일 basename으로 foldseek_hits 검색
+    //   → hit 있으면 apply U/T superposition, 없으면 패널에 메시지
+}
+```
+
+**모드 A/B 판별:**
+```cpp
+bool fs_multi_mode = !params.get_foldseek_file().empty() && params.get_in_file().size() >= 2;
+bool fs_hit_mode   = !params.get_foldseek_file().empty() && params.get_in_file().size() <= 1;
+```
+
+**구현 위치 변경 필요 (⚠️ 미구현):**
+- `Screen::load_next_hit()`: 현재 모드 A만 지원
+- 모드 B 지원을 위한 `Screen::load_next_input_target(int delta)` 신규 또는 모드 분기 추가
+- `structty.cpp`: 모드 B 분기 추가 (현재 `params.get_in_file().size() <= 1`일 때만 `load_next_hit(+1)`)
+
 ### 입력 파일 형식 명세
 
 #### ✅ 실제 확인된 "alis" 포맷 (21컬럼) — BFVD 등 Foldseek easy-search 기본 출력
@@ -927,10 +999,21 @@ popen(download_cmd.c_str(), "r");
 
 ### 프로그램 시작 시 동작
 
+**모드 A (단일 입력 + -fs):**
 ```
 1. -fs 파일을 파싱하여 hit 목록 로드
 2. 첫 번째 hit을 자동으로 로드하여 표시 (lazy load: 이 시점에만 파일 탐색/다운로드 수행)
 3. N/P 키 입력 시 해당 hit을 그때그때 resolve (사전 다운로드 없음)
+```
+
+**모드 B (다중 입력 + -fs):**
+```
+1. -fs 파일을 파싱하여 hit 목록 로드 (superposition 정보 목적)
+2. 두 번째 입력 파일을 자동으로 로드하여 표시:
+   - basename으로 hit 목록 검색
+   - hit 있으면: 해당 hit의 U/T로 superposition 적용 (= -ut 동작과 동일)
+   - hit 없으면: 그냥 로드 후 패널에 "Not in search results: {filename}" 표시
+3. N/P 키 입력 시 입력 파일 목록에서 다음/이전 파일로 전환 (다운로드 없음)
 ```
 
 ### 데이터 구조: `src/structure/FoldseekParser.hpp` (신규)
@@ -1054,8 +1137,24 @@ case 'p': case 'P':
 9. 패널 hit 정보 업데이트
 ```
 
-**⚠️ structty.cpp에서의 중복 처리 제거:**
-기존 `structty.cpp`의 `-m aligned` 전처리 블록(FoldseekParser 로드 → U/T 적용 → compute_aligned_from_aln 호출)은 `load_next_hit()` 호출 시점보다 앞서 실행되어 protein1이 존재하지 않는 상태에서 계산을 시도한다(BUG-A). 이 블록을 완전히 제거하고 모든 처리는 `load_next_hit()` 내부에서 일관되게 수행한다.
+**✅ structty.cpp에서의 중복 처리 제거 완료:**
+기존 `-m aligned` 전처리 블록 제거 완료(BUG-A 1단계). 모든 처리는 `load_next_hit()` 내부에서 수행.
+
+**⚠️ 모드 B 미구현 (structty.cpp):**
+현재 `structty.cpp`은 `params.get_in_file().size() <= 1`일 때만 `load_next_hit(+1)` 호출.
+다중 입력 파일인 경우(모드 B) 처리 로직이 없음. 구현 필요:
+```cpp
+// 현재 (모드 A만 처리)
+if ((int)params.get_in_file().size() <= 1) {
+    screen.load_next_hit(+1);  // 첫 번째 hit 자동 로드
+}
+// 추가 필요 (모드 B)
+else {
+    // 두 번째~마지막 input file을 target으로 등록
+    // screen.set_input_targets(file_list_from_index_1);
+    // screen.load_next_input_target(+1);  // 두 번째 파일 자동 표시
+}
+```
 
 **Panel hit 정보 표시:**
 ```
@@ -1190,6 +1289,18 @@ private:
 
 단일 PDB만 제공된 경우(`structty query.pdb --foldmason result.json`):
 - superposition 없이 conservation 색상 표시만 수행
+
+**다중 입력 파일 + `--foldmason` (⚠️ 미구현):**
+```
+structty query.pdb target1.pdb target2.pdb ... --foldmason result.json
+```
+- 기능 3 모드 B와 동일한 구조: 첫 번째 파일 = query, 나머지 = target
+- N/P 키로 target 파일 간 전환
+- 각 target 전환 시:
+  1. target 파일 basename으로 FoldMason entries에서 매칭 entry 탐색
+  2. 매칭 성공: build_aligned_pairs → Kabsch → superposition 적용
+  3. 매칭 실패: 패널에 "Not in MSA entries: {filename}" 표시, superposition 미적용
+- 다운로드 없음 (로컬 입력 파일만 사용)
 
 ### `-m aligned` 색상 표시 (기능 4와 동일한 방식)
 
@@ -1389,8 +1500,8 @@ structty query.pdb target.pdb --foldmason result_aa.fa -m aligned
 
 | 키 | 기능 |
 |---|---|
-| `N` / `n` | 다음 Foldseek hit 로드 (기능 3) |
-| `P` / `p` | 이전 Foldseek hit 로드 (기능 3) |
+| `N` / `n` | 다음 hit 로드 (기능 3 모드 A) / 다음 입력 파일 target 표시 (기능 3 모드 B) |
+| `P` / `p` | 이전 hit 로드 (기능 3 모드 A) / 이전 입력 파일 target 표시 (기능 3 모드 B) |
 | 마우스 이동 | 커서 위치 잔기 정보 패널 표시 (기능 6) |
 
 ---
