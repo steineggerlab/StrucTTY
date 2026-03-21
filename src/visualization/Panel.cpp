@@ -48,6 +48,21 @@ int Panel::get_foldseek_section_height() const {
     return 8;  // 고정 8줄
 }
 
+// 기능 8: FoldMason MSA 섹션 ------------------------------------------------
+
+void Panel::set_foldmason_info(const FoldMasonInfo& info) {
+    fm_info = info;
+}
+
+void Panel::clear_foldmason_info() {
+    fm_info = FoldMasonInfo{};
+}
+
+int Panel::get_foldmason_section_height() const {
+    if (!fm_info.valid) return 0;
+    return 3;  // "FoldMason MSA" + "Entries: N" + "Align: X"
+}
+
 // 기능 6: Residue Info hover -----------------------------------------------
 
 void Panel::set_hover_residue(const std::string& chainID,
@@ -187,6 +202,12 @@ int Panel::get_height() const {
     if (fs_h > 0) {
         lines += 1;   // separator
         lines += fs_h;
+    }
+    // 기능 8: FoldMason MSA 섹션
+    int fm_h = get_foldmason_section_height();
+    if (fm_h > 0) {
+        lines += 1;   // separator
+        lines += fm_h;
     }
     // 기능 6: separator + Residue Info 섹션
     lines += 1;                             // separator (---)
@@ -477,6 +498,52 @@ void Panel::draw_panel(int start_row, int start_col,
         }
     }
 
+    // 기능 8: FoldMason MSA 섹션
+    {
+        int fm_h = get_foldmason_section_height();
+        if (fm_h > 0) {
+            // separator
+            clear_line(r);
+            {
+                move(r, left);
+                int w = std::min(panel_width, max_cols);
+                w = std::min(w, max_cols - 1);
+                for (int i = 0; i < w; ++i) addch('-');
+            }
+            ++r; if (!in_rows(r)) return;
+
+            const FoldMasonInfo& fi = fm_info;
+
+            // Line 1: "FoldMason MSA"
+            clear_line(r);
+            { int x = left; put_cstr(r, x, "FoldMason MSA"); }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 2: "Entries: N"
+            clear_line(r);
+            {
+                int x = left;
+                char buf[32];
+                std::snprintf(buf, sizeof(buf), "Entries: %d", fi.entry_count);
+                put_cstr(r, x, buf);
+            }
+            ++r; if (!in_rows(r)) return;
+
+            // Line 3: "Align: msa-col" or "Align: -"
+            clear_line(r);
+            {
+                int x = left;
+                put_cstr(r, x, "Align: ");
+                if (!fi.align_method.empty()) {
+                    put_str(r, x, fi.align_method);
+                } else {
+                    put_cstr(r, x, "-");
+                }
+            }
+            ++r; if (!in_rows(r)) return;
+        }
+    }
+
     // 기능 6: Residue Info 섹션 separator
     clear_line(r);
     {
@@ -571,6 +638,12 @@ int Panel::get_height_for_width(int max_cols) const {
     if (fs_h > 0) {
         lines += 1;   // separator
         lines += fs_h;
+    }
+    // 기능 8: FoldMason MSA 섹션
+    int fm_h = get_foldmason_section_height();
+    if (fm_h > 0) {
+        lines += 1;   // separator
+        lines += fm_h;
     }
     // 기능 6: separator + Residue Info 섹션 + bottom border
     lines += 1;                             // separator (---)

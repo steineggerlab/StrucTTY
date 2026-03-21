@@ -9,6 +9,7 @@
 #include "Benchmark.hpp"
 #include "../structure/FoldseekParser.hpp"
 #include "../structure/PDBDownloader.hpp"
+#include "../structure/FoldMasonParser.hpp"
 #include <vector>
 #include <cmath>
 #include <iostream>
@@ -16,6 +17,7 @@
 #include <cstdlib>
 #include <algorithm>   // clamp, max
 #include <limits>      // numeric_limits
+#include <memory>
 #include <string>
 
 class Screen {
@@ -62,6 +64,12 @@ public:
     void set_foldseek_hits(const std::vector<FoldseekHit>& hits);
     void set_fs_db_path(const std::string& path);
     void load_next_hit(int delta);  // delta=+1: next, delta=-1: prev, delta=0: first
+
+    // 기능 8: FoldMason MSA 기반 superposition + aligned region 설정
+    void set_foldmason(std::unique_ptr<FoldMasonParser> parser);
+    void apply_foldmason_superposition(int query_protein_idx, int target_protein_idx,
+                                       int fm_query_entry_idx, int fm_target_entry_idx);
+    void set_foldmason_panel_info(const FoldMasonInfo& info);
 
     void draw_screen(bool no_panel);
 
@@ -135,6 +143,9 @@ private:
     std::vector<FoldseekHit> foldseek_hits;
     int current_hit_idx = -1;
     std::string fs_db_path;
+
+    // 기능 8: FoldMason MSA
+    std::unique_ptr<FoldMasonParser> foldmason_parser;
     float norm_scale = 1.0f;   // normalize_proteins() 에서 저장
     float norm_cx = 0.0f;      // query protein 정규화 전 centroid
     float norm_cy = 0.0f;
