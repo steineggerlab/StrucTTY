@@ -18,8 +18,61 @@
 5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)        ✅ **완료**
 6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
-8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ✅ **완료** (alis 21컬럼 포맷 + Kabsch SVD 포함)
-9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화
+8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ⚠️ **수정 필요** (아래 버그 수정 항목 참조)
+9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화  ⚠️ **재설계** (아래 기능 8 섹션 참조)
+
+---
+
+## ⚠️ 버그 수정 및 재설계 목록
+
+### BUG-A: `-fs -m aligned` 구조 정렬 색상이 동작하지 않음
+
+**증상:** `structty query.pdb -fs result.m8 -m aligned` 실행 시 aligned/non-aligned 색상이 전혀 표시되지 않음.
+
+**원인 분석:**
+현재 `structty.cpp` 구조:
+```
+① -m aligned 처리 블록 (line ~65-88):
+   FoldseekParser 로드 → protein1에 U/T 적용 → compute_aligned_from_aln() 호출
+   → 이 시점에서 protein1은 아직 Screen에 로드되지 않은 상태이므로 aligned 계산 실패
+
+② Foldseek hit 탐색 블록 (line ~91-103):
+   load_next_hit(+1) 호출 → protein1 로드 + U/T 적용
+   → 하지만 aligned region 계산은 다시 수행하지 않음
+```
+결과적으로 protein1이 로드된 이후 aligned region 계산이 한 번도 올바르게 실행되지 않는다.
+
+**수정 방향:**
+- `structty.cpp`에서 `-m aligned` 전처리 블록 전체 제거
+- `Screen::load_next_hit()` 내부에서 항상 다음을 순서대로 수행:
+  1. 타겟 protein 로드
+  2. `has_transform`이면 U/T 적용
+  3. mode == "aligned"이고 `has_aln`이면 `compute_aligned_from_aln()` 호출
+  4. mode == "aligned"이고 `has_aln`이 false이면 `compute_aligned_all(threshold=10Å)` fallback
+- `structty.cpp`에서는 `set_foldseek_hits()`, `set_fs_db_path()`, `load_next_hit(+1)` 호출만 남김
+- 정렬 방식 표시(`set_align_method`)도 `load_next_hit()` 내부에서 처리
+
+**영향 범위:** `src/structty.cpp`, `src/visualization/Screen.cpp`
+
+---
+
+### BUG-B (기능 3 보완): N/P 탐색 시 superposition 미적용 + 다운로드 불가 문구 누락
+
+**증상:**
+1. N/P 키로 다음 hit으로 이동 시 두 구조가 aligned 되지 않은 상태로 표시됨
+2. 자동 다운로드가 불가능한 DB(GMGCL 등)이거나 다운로드 실패 시 패널에 아무런 메시지가 없음
+
+**수정 방향:**
+1. `load_next_hit()` 내부에서 항상 superposition 적용 (BUG-A 수정과 동일한 흐름)
+2. 다운로드 불가/실패 상황별 패널 메시지:
+   - `GMGCL` 패턴: "GMGCL: local --db-path required"
+   - `--db-path` 지정 없고 캐시에도 없음: "No --db-path: cannot locate {target}"
+   - 다운로드 실패 (curl/wget 오류): "Download failed: {target}"
+   - curl/wget 모두 없음: "curl/wget not found"
+   - 파일 로드 실패 (PDB 파싱 오류): "Load failed: {target}"
+   - 위 모든 메시지는 `FoldseekHitInfo.status_msg`에 저장하여 패널에 표시
+
+**영향 범위:** `src/visualization/Screen.cpp` (`load_next_hit()` 내부)
 
 ---
 
@@ -948,21 +1001,29 @@ case 'p': case 'P':
     break;
 ```
 
-**`Screen::load_next_hit(int delta)` 함수:**
+**`Screen::load_next_hit(int delta)` 함수 (BUG-A/B 수정 반영):**
 ```
 1. current_hit_idx += delta (범위 클램핑)
 2. FoldseekHit& hit = foldseek_hits[current_hit_idx]
 3. 구조 파일 경로 결정:
-   - db_path 있음: 로컬 탐색
-   - db_path 없음: ~/.cache/structty/pdb/{target}.pdb 확인
-4. 파일 없으면 패널에 "File not found: {target}" 표시 후 return
-5. 두 번째 Protein 객체 로드
-6. hit.has_transform이면 해당 hit의 U, T를 자동 적용 (-ut 파일 불필요)
-7. -m aligned이고 hit.has_aln이면 compute_aligned_regions_from_aln() 호출
-   hit.has_aln이 false이면 compute_aligned_regions_nn(threshold=10.0f) 호출
+   a. db_path 있음: 로컬 탐색 ({db_path}/{target}.pdb/cif 등)
+   b. db_path 없음: ~/.cache/structty/pdb/ 에서 캐시 탐색
+   c. 캐시도 없음 → PDBDownloader::download() 시도
+   d. GMGCL 패턴이거나 다운로드 불가 패턴 → 패널에 상황별 메시지 표시 후 return
+   e. 다운로드 실패 → 패널에 "Download failed: {target}" 후 return
+4. 두 번째 Protein 객체 로드 (실패 시 패널에 "Load failed: {target}" 후 return)
+5. 항상 superposition 적용:
+   hit.has_transform이면 해당 hit의 U, T를 자동 적용 (-ut 파일 불필요)
+6. aligned region 계산 (mode 무관하게 계산, 렌더링 시 mode에 따라 색상 결정):
+   hit.has_aln이면 compute_aligned_from_aln(qaln, taln, threshold=5.0f) 호출
+   hit.has_aln이 false이면 compute_aligned_all(threshold=10.0f) fallback 호출
+7. set_align_method("aln-string") 또는 set_align_method("nearest-nbr") 설정
 8. 재렌더링 트리거
 9. 패널 hit 정보 업데이트
 ```
+
+**⚠️ structty.cpp에서의 중복 처리 제거:**
+기존 `structty.cpp`의 `-m aligned` 전처리 블록(FoldseekParser 로드 → U/T 적용 → compute_aligned_from_aln 호출)은 `load_next_hit()` 호출 시점보다 앞서 실행되어 protein1이 존재하지 않는 상태에서 계산을 시도한다(BUG-A). 이 블록을 완전히 제거하고 모든 처리는 `load_next_hit()` 내부에서 일관되게 수행한다.
 
 **Panel hit 정보 표시:**
 ```
@@ -980,16 +1041,16 @@ case 'p': case 'P':
 
 ---
 
-## 기능 8: FoldMason 다중 구조 정렬 결과 시각화
+## 기능 8: FoldMason 다중 구조 정렬 결과 시각화 (재설계)
 
 ### 개요
 
-FoldMason은 구조 정렬(MSTA) 도구다. StrucTTY에서 FoldMason 결과를 활용하는 핵심 목적은 `-ut`처럼 **두 구조를 MSA 정렬 정보 기반으로 중첩(superposition) 표시**하는 것이다.
+FoldMason은 다중 구조 정렬(MSTA) 도구다. StrucTTY에서 제공하는 두 가지 핵심 기능:
 
-- `-ut`: UT 변환행렬 파일을 받아 superposition
-- `--foldmason`, `-fm`: FoldMason MSA 출력(`result.json` 또는 `result_aa.fa`)에서 공통 정렬 잔기를 추출 → Kabsch SVD로 superposition
+1. **구조 중첩(Superposition)**: FoldMason MSA의 gap-free 공통 잔기를 기반으로 Kabsch SVD로 query↔target 중첩 표시. `-ut`와 동일한 방식. `-m aligned`로 정렬/비정렬 잔기 색상 표시 가능.
+2. **구조적 보존 영역 표시**: MSA entries의 aa 서열에서 Shannon entropy로 conservation을 계산하여 query protein에 적용. `-m conservation`으로 시각화.
 
-JSON의 `scores`가 있으면 per-column LDDT 색상(`-m lddt`) 적용 가능. FASTA만 있으면 Shannon entropy 기반 색상(`-m conservation`).
+**❌ 제거: `-m lddt` (per-column LDDT 색상)** — 불필요한 복잡성 추가 대비 실용성이 낮음.
 
 ### 입력 파일 형식
 
@@ -998,7 +1059,7 @@ JSON의 `scores`가 있으면 per-column LDDT 색상(`-m lddt`) 적용 가능. F
 foldmason easy-msa *.pdb result tmpFolder --report-mode 2
 → result.json
 
-# FASTA: aa MSA만 (LDDT scores 없음)
+# FASTA: aa MSA만
 foldmason easy-msa *.pdb result tmpFolder
 → result_aa.fa, result_3di.fa
 ```
@@ -1096,47 +1157,53 @@ private:
 - 쿼리 잔기 수 == entries[0].aa에서 '-'를 제외한 문자 수 == Protein CA atom 수가 일치해야 함; 불일치 시 경고 출력 후 가능한 범위만 매핑
 
 단일 PDB만 제공된 경우(`structty query.pdb --foldmason result.json`):
-- superposition 없이 LDDT/entropy 색상 표시만 수행
+- superposition 없이 conservation 색상 표시만 수행
 
-### per-column LDDT 색상 표시 (`-m lddt`)
+### `-m aligned` 색상 표시 (기능 4와 동일한 방식)
+
+두 구조가 제공된 경우, superposition 후 정렬 잔기(aligned)와 비정렬 잔기(non-aligned)를 색상으로 구분:
 
 ```
-1. build_query_col_map(ref_idx) 으로 잔기 인덱스 → MSA 열 매핑 생성
-2. Protein::apply_foldmason_scores() 호출:
-   잔기 j에 대해 col = map[j] → atom.conservation_score = scores[col]
-3. 색상 적용:
-   if (mode == "lddt") {
-       float score = point.conservation_score;
-       if (score < 0) { color_id = 11; }
-       else {
-           int idx = std::max(0, std::min(9, (int)(score * 9.0f)));
-           color_id = 85 + idx;  // 85=빨강(낮은 LDDT), 94=파랑(높은 LDDT)
-       }
-   }
+aligned region 계산:
+  build_aligned_pairs(fm_query_entry_idx, fm_target_entry_idx) 로 공통 열 잔기 쌍 추출
+  query protein의 각 잔기: pairs에 존재 → Atom.is_aligned = true
+  target protein도 동일하게 처리
+
+색상 적용 (Screen.cpp, assign_colors_to_points):
+  if (mode == "aligned") {
+      color_id = point.is_aligned ? 45 : 46;  // 정렬됨: 밝은 초록 / 비정렬: dim
+  }
 ```
 
-FASTA 로드 시(`scores` 없음): `-m conservation` 사용. Shannon entropy로 계산하여 기존 75-84 그래디언트로 표시.
+`apply_foldmason_superposition()` 실행 후 aligned region 설정 순서:
+1. `build_aligned_pairs()` 로 공통 열 잔기 쌍 추출
+2. query protein의 init_atoms를 순회 → pairs에 있는 잔기 `is_aligned = true`
+3. target protein도 동일하게 처리
+4. 변경된 Atom.is_aligned가 `project()` → RenderPoint로 전파되어 색상 반영
 
-### 관련 신규 함수: `Protein::apply_foldmason_scores()`
+### conservation 색상 표시 (`-m conservation`)
 
-```cpp
-void apply_foldmason_scores(const std::vector<float>& scores);
+```
+1. FoldMasonParser::compute_column_entropy(false) 로 aa MSA 기반 entropy 계산
+   (JSON이면 entries[].aa 사용, FASTA도 동일)
+2. build_query_col_map(fm_query_idx) 로 잔기 인덱스 → MSA 열 매핑 생성
+3. Protein::apply_conservation_scores() 호출 (apply_foldmason_scores 별도 추가 불필요)
+4. 색상 적용: 기존 conservation 모드와 동일 (color pairs 75-84)
 ```
 
-구현: `apply_conservation_scores()`와 동일한 방식 (0-based 잔기 순서 매핑).
-
-### Panel FoldMason 섹션
+### Panel FoldMason 섹션 (수정)
 
 ```
 ┌─────────────────────┐
 │ FoldMason MSA       │
 │ Entries: 15         │
-│ MSA LDDT: 0.847     │
-│ Align: msa-col      │   ← superposition 방식
+│ Align: msa-col      │   ← superposition 방식 (단일 구조면 "-")
 └─────────────────────┘
 ```
 
-단일 구조만 제공된 경우 "Align: -" 표시.
+**❌ 제거: "MSA LDDT" 줄** — `-m lddt` 삭제에 따라 함께 제거.
+`get_foldmason_section_height()` 반환값을 4→3으로 수정.
+Panel.cpp의 `draw_panel()` FoldMason 섹션에서 MSA LDDT 줄 제거.
 
 ### Screen 멤버 변수 추가
 
@@ -1145,17 +1212,67 @@ void apply_foldmason_scores(const std::vector<float>& scores);
 std::unique_ptr<FoldMasonParser> foldmason_parser;
 ```
 
+(기존 계획과 동일, 추가 없음)
+
+### structty.cpp 처리 흐름 (재설계)
+
+```cpp
+if (!params.get_foldmason_file().empty()) {
+    // 1. 파일 로드
+    auto fm_parser = std::make_unique<FoldMasonParser>();
+    // 확장자 판별 → load_json() / load_fasta()
+
+    // 2. conservation 색상 (단일/다중 구조 모두)
+    if (params.get_mode() == "conservation") {
+        std::vector<float> entropy = fm_parser->compute_column_entropy(false);
+        auto col_map = fm_parser->build_query_col_map(fm_query_idx);
+        // col_map으로 잔기 매핑 → apply_conservation_scores(0, mapped)
+    }
+
+    // 3. 두 구조 superposition (두 번째 PDB 있을 때만)
+    if (in_file_count >= 2 && fm_parser->entry_count() >= 2) {
+        screen.apply_foldmason_superposition(0, 1, fm_query_idx, fm_target_idx);
+        // apply_foldmason_superposition 내부에서:
+        //   - Kabsch SVD superposition 적용
+        //   - mode == "aligned"이면 is_aligned 잔기 계산도 함께 수행
+    }
+
+    // 4. 패널 FoldMason 섹션 설정
+    // set_foldmason_panel_info() 호출
+    // set_align_method("msa-col") 또는 set_align_method("-")
+
+    // ❌ -m lddt 분기 제거
+}
+```
+
+### apply_foldmason_superposition 내부 수정
+
+`apply_foldmason_superposition(query_protein_idx, target_protein_idx, fm_query_entry_idx, fm_target_entry_idx)`:
+1. `build_aligned_pairs(fm_query_entry_idx, fm_target_entry_idx)` → 공통 정렬 잔기 쌍
+2. Kabsch SVD로 target → query frame superposition (기존과 동일)
+3. `apply_foldseek_transform(target_protein_idx, U, T)` 적용
+4. `screen_mode == "aligned"` 이면:
+   - query protein의 공통 열 잔기들에 `is_aligned = true` 설정
+   - target protein의 공통 열 잔기들에 `is_aligned = true` 설정
+   - `set_align_method("msa-col")` 호출
+
 ### CLI
 
 ```bash
-# 두 구조를 FoldMason MSA 기반으로 중첩 표시 + LDDT 색상 (JSON, 권장)
-structty query.pdb target.pdb --foldmason result.json -m lddt
+# 두 구조를 FoldMason MSA 기반으로 중첩 표시 + 정렬 색상 (JSON)
+structty query.pdb target.pdb --foldmason result.json -m aligned
 
-# LDDT 색상만 (단일 구조, superposition 없음)
-structty query.pdb --foldmason result.json -m lddt
+# conservation 색상 (단일 구조, MSA entropy 기반)
+structty query.pdb --foldmason result.json -m conservation
 
-# FASTA 입력: MSA 기반 superposition + entropy conservation 색상
+# conservation 색상 + superposition (다중 구조)
 structty query.pdb target.pdb --foldmason result_aa.fa -m conservation
+```
+
+**❌ 제거된 CLI:**
+```bash
+# 삭제: -m lddt 는 지원하지 않음
+# structty query.pdb target.pdb --foldmason result.json -m lddt
 ```
 
 ---
@@ -1182,16 +1299,13 @@ structty query.pdb target.pdb --foldmason result_aa.fa -m conservation
 | `src/structure/PDBDownloader.hpp` | **신규** | target ID 형식 분류(PDB/AFDB/ESMAtlas/CATH/BFVD/GMGCL/TED 9패턴), 다운로드 URL 생성, 캐시 관리 |
 | `src/structure/PDBDownloader.cpp` | **신규** | curl/wget popen 기반 다운로드 구현. BFVD·BFMD·TED·GMGCL은 --db-path 탐색만 수행(URL 없음) |
 | `src/structure/FoldMasonParser.hpp` | **신규** | FoldMasonEntry 구조체, FoldMasonParser 클래스 선언 (`build_aligned_pairs()` 포함) |
-| `src/structure/FoldMasonParser.cpp` | **신규** | JSON 파싱(entries/scores/tree/statistics), FASTA MSA 파싱, query-col 매핑, aligned pair 추출, Shannon entropy 계산 |
-| `src/structure/Protein.hpp` | 수정 | `apply_foldmason_scores()` 선언 추가 |
-| `src/structure/Protein.cpp` | 수정 | `apply_foldmason_scores()` 구현 (0-based 잔기 순서 매핑) |
-| `src/visualization/Palette.hpp` | 수정 | color pair 85-94 (FoldMason LDDT 10단계 그래디언트, 빨강→파랑) 추가 |
-| `src/structure/Parameters.hpp` | 수정 | `--foldmason` and `-fm`, `-m lddt` 인수 추가 |
+| `src/structure/FoldMasonParser.cpp` | **신규** | JSON 파싱(entries/aa/ss/ca), FASTA MSA 파싱, query-col 매핑, aligned pair 추출, Shannon entropy 계산 |
+| `src/structure/Parameters.hpp` | 수정 | `--foldmason`/`-fm` 인수 추가. `-m lddt` **추가하지 않음** (제거됨) |
 | `src/visualization/Screen.hpp` | 수정 | `foldmason_parser` 멤버 추가 |
-| `src/visualization/Screen.cpp` | 수정 | MSA 기반 Kabsch superposition 호출, `assign_colors_to_points()`에 `lddt` 모드 추가 |
-| `src/visualization/Panel.hpp` | 수정 | `set_foldmason_info()` 선언, FoldMason 섹션 상수 정의 |
-| `src/visualization/Panel.cpp` | 수정 | FoldMason MSA 섹션 렌더링 추가 |
-| `src/structty.cpp` | 수정 | 신규 인수 처리, MSAParser/FoldseekParser/PDBDownloader/FoldMasonParser 초기화 연결 |
+| `src/visualization/Screen.cpp` | 수정 | `apply_foldmason_superposition()`: Kabsch superposition + mode=="aligned"일 때 is_aligned 잔기 설정 통합. `assign_colors_to_points()`에 `lddt` 모드 **추가하지 않음** (제거됨). BUG-A 수정: `load_next_hit()` 내부에서 aligned region 계산 포함 |
+| `src/visualization/Panel.hpp` | 수정 | `set_foldmason_info()` 선언, FoldMason 섹션 상수 정의 (MSA LDDT 줄 제거 → 높이 3) |
+| `src/visualization/Panel.cpp` | 수정 | FoldMason MSA 섹션 렌더링 추가 (MSA LDDT 줄 제거) |
+| `src/structty.cpp` | 수정 | BUG-A 수정: `-m aligned` 전처리 블록 제거. FoldMasonParser 초기화 연결 (conservation + superposition, lddt 분기 제거) |
 
 ---
 
@@ -1222,14 +1336,17 @@ structty protein.pdb
 # 복합 사용
 structty query.pdb -fs result.m8 -m aligned
 
-# 기능 8: FoldMason MSA 기반 superposition + LDDT 색상 (JSON)
-structty query.pdb target.pdb --foldmason result.json -m lddt
+# 기능 8: FoldMason MSA 기반 superposition + 정렬 색상 (JSON)
+structty query.pdb target.pdb --foldmason result.json -m aligned
 
-# 기능 8: LDDT 색상만 (단일 구조)
-structty query.pdb --foldmason result.json -m lddt
+# 기능 8: conservation 색상만 (단일 구조, superposition 없음)
+structty query.pdb --foldmason result.json -m conservation
 
 # 기능 8: FASTA 입력 (MSA superposition + entropy conservation)
 structty query.pdb target.pdb --foldmason result_aa.fa -m conservation
+
+# 기능 8: FASTA 입력 (MSA superposition + aligned 색상)
+structty query.pdb target.pdb --foldmason result_aa.fa -m aligned
 ```
 
 ---
@@ -1260,3 +1377,6 @@ structty query.pdb target.pdb --foldmason result_aa.fa -m conservation
 12. **`flushinp()` 위치** ✅ 구현 완료: `KEY_MOUSE` 케이스에서는 반드시 `getmouse()`를 `flushinp()` 보다 먼저 호출한다. 일부 ncurses 구현에서 `flushinp()`가 내부 mouse event 큐까지 flush하여 `getmouse()`가 실패한다. `flushinp()`를 switch 진입 전에 일괄 호출하는 패턴은 KEY_MOUSE와 함께 사용 시 반드시 피한다.
 13. **마우스 이벤트 시 전체 재렌더링 금지** ✅ 구현 완료: `REPORT_MOUSE_POSITION`은 이동마다 이벤트를 생성한다. main loop에서 모든 이벤트 후 `draw_screen()`(= `clear()` + 전체 재렌더링)을 실행하면 극심한 깜빡임이 발생한다. `handle_input(bool& needs_redraw)` 오버로드를 추가하여 KEY_MOUSE 이벤트 후에는 패널 부분 갱신(`refresh()`)만 수행한다.
 14. **non-braille z-buffer 전체 복사** ✅ 구현 완료: non-braille 경로의 z-buffer resolve에서 `depth/pixel/color_id`만 복사하면 `residue_number`가 항상 -1로 남아 hover가 동작하지 않는다. `screenPixels[idx] = pt`로 RenderPoint 전체를 복사해야 한다.
+15. **BUG-A 수정 핵심**: `load_next_hit()` 호출 시점에만 protein1이 실제로 존재한다. `structty.cpp`에서 `-m aligned` 전처리 블록은 protein1이 없는 시점에 실행되므로 반드시 제거해야 한다. aligned region 계산은 항상 `load_next_hit()` 내부, U/T 적용 직후에 수행한다.
+16. **FoldMason aligned region 설정**: `apply_foldmason_superposition()` 내부에서 Kabsch superposition 적용 후, mode가 "aligned"일 때만 `Atom.is_aligned`를 설정한다. `screen_mode`는 Screen의 멤버이므로 `apply_foldmason_superposition()` 내부에서 직접 참조 가능하다.
+17. **`-m lddt` 제거**: Parameters.cpp의 유효 mode 목록, Screen.cpp의 `assign_colors_to_points()` lddt 분기, structty.cpp의 lddt 처리 블록을 모두 제거한다. Palette.hpp의 color pairs 85-94도 제거 대상이나 다른 기능에 영향이 없으면 남겨둬도 무방하다.
