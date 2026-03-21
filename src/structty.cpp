@@ -71,10 +71,45 @@ int main(int argc, char* argv[]) {
     if (!params.get_foldseek_file().empty()) {
         FoldseekParser fs_nav_parser;
         if (fs_nav_parser.load(params.get_foldseek_file()) && fs_nav_parser.hit_count() > 0) {
-            screen.set_foldseek_hits(fs_nav_parser.get_hits());
-            screen.set_fs_db_path(params.get_db_path());
-            // 첫 번째 hit 자동 로드 (입력 파일이 1개일 때만 — 이미 target이 로드된 경우 제외)
-            if ((int)params.get_in_file().size() <= 1) {
+            if ((int)params.get_in_file().size() > 1) {
+                // 작업 3-A: 다중 타겟 — m8 hit을 CLI target 파일명 기준으로 필터링
+                std::vector<std::string> target_stems;
+                for (int i = 1; i < (int)params.get_in_file().size(); i++) {
+                    fs::path p(params.get_in_file(i));
+                    target_stems.push_back(p.stem().string());
+                }
+
+                const std::vector<FoldseekHit>& all_hits = fs_nav_parser.get_hits();
+                std::vector<FoldseekHit> filtered_hits;
+                for (const FoldseekHit& hit : all_hits) {
+                    for (const std::string& stem : target_stems) {
+                        if (hit.target.find(stem) != std::string::npos ||
+                            stem.find(hit.target) != std::string::npos) {
+                            filtered_hits.push_back(hit);
+                            break;
+                        }
+                    }
+                }
+                screen.set_foldseek_hits(filtered_hits);
+                screen.set_fs_db_path(params.get_db_path());
+
+                // 작업 3-B: 각 target protein에 매칭 hit의 transform 적용
+                for (int ti = 1; ti < (int)params.get_in_file().size(); ti++) {
+                    fs::path tp(params.get_in_file(ti));
+                    std::string tstem = tp.stem().string();
+
+                    for (const FoldseekHit& hit : filtered_hits) {
+                        if (hit.target.find(tstem) != std::string::npos ||
+                            tstem.find(hit.target) != std::string::npos) {
+                            screen.apply_hit_transform(ti, hit);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 단일 입력: 기존 동작 유지
+                screen.set_foldseek_hits(fs_nav_parser.get_hits());
+                screen.set_fs_db_path(params.get_db_path());
                 screen.load_next_hit(+1);
             }
         }
