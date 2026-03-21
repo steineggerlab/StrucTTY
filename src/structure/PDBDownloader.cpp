@@ -112,6 +112,16 @@ DBType PDBDownloader::detect_db_type(const std::string& target_id) {
         return DBType::GMGCL;
     }
 
+    // 패턴 9: BFMD — BFD\d+_.+ (BFD/BFMD Foldseek DB, 예: BFD100_12345678)
+    if (starts_with(target_id, "BFD") && target_id.size() > 3) {
+        // BFD 뒤에 숫자가 오고 그 뒤 '_' 이후 내용이 있는 형태
+        size_t i = 3;
+        while (i < target_id.size() && target_id[i] >= '0' && target_id[i] <= '9') i++;
+        if (i > 3 && i < target_id.size() && target_id[i] == '_') {
+            return DBType::BFMD;
+        }
+    }
+
     // 패턴 2: AlphaFold — AF-[A-Z0-9]+-F\d+-model_v\d+
     if (starts_with(target_id, "AF-")) {
         // AF-XXXXX-F\d+-model_v\d+
@@ -254,6 +264,7 @@ std::string PDBDownloader::get_download_url(const std::string& target_id, DBType
         }
         // 다운로드 URL이 없는 DB들
         case DBType::GMGCL:
+        case DBType::BFMD:
         case DBType::Unknown:
         default:
             return "";
@@ -338,6 +349,8 @@ std::string PDBDownloader::get_no_url_message(DBType db_type,
     switch (db_type) {
         case DBType::GMGCL:
             return "GMGCL: no download URL available. Web-server only DB.";
+        case DBType::BFMD:
+            return "BFMD: no download URL. Use --db-path.";
         default:
             return "File not found: " + target_id;
     }

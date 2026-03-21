@@ -1296,13 +1296,20 @@ void Screen::compute_aligned_all(float threshold) {
 }
 
 // 기능 4: -fs 기반 — Foldseek hit의 U/T transform을 지정 protein에 적용
-void Screen::apply_foldseek_transform(int protein_idx, const float* U_flat, const float* T) {
+// T_norm: 정규화 공간 T (screen_atoms 이동용)
+// T_angstrom: Å 공간 T (init_atoms 갱신용). nullptr이면 init_atoms 미갱신.
+//   → compute_aligned_regions_from_aln은 init_atoms 기준 거리 비교를 하므로
+//     반드시 Å 공간 T를 전달해야 aligned 색상이 올바르게 동작함.
+void Screen::apply_foldseek_transform(int protein_idx, const float* U_flat,
+                                      const float* T_norm, const float* T_angstrom) {
     if (protein_idx < 0 || protein_idx >= (int)data.size() || !data[protein_idx]) return;
     // screen_atoms에 적용 (시각적 정렬)
     data[protein_idx]->do_naive_rotation(const_cast<float*>(U_flat));
-    data[protein_idx]->do_shift(const_cast<float*>(T));
-    // init_atoms에 적용 (거리 비교 기준)
-    data[protein_idx]->apply_ut_to_init_atoms(U_flat, T);
+    data[protein_idx]->do_shift(const_cast<float*>(T_norm));
+    // init_atoms에 Å 공간 T로 적용 (거리 비교 기준)
+    if (T_angstrom) {
+        data[protein_idx]->apply_ut_to_init_atoms(U_flat, T_angstrom);
+    }
     yesUT = true;
 }
 
@@ -1553,6 +1560,7 @@ void Screen::load_next_hit(int delta) {
     // U/T transform 계산
     float U[9] = {1,0,0, 0,1,0, 0,0,1};
     float T[3]  = {0,0,0};
+    float T_ang[3] = {0,0,0};  // Å 공간 T (init_atoms 갱신용)
     bool computed_transform = false;
     std::string align_method_str;
 
@@ -1573,6 +1581,8 @@ void Screen::load_next_hit(int delta) {
         T[0] = (Utc[0] + Tf[0] - norm_cx) * norm_scale;
         T[1] = (Utc[1] + Tf[1] - norm_cy) * norm_scale;
         T[2] = (Utc[2] + Tf[2] - norm_cz) * norm_scale;
+        // init_atoms용: Foldseek 원본 Å 공간 T (hit.T)를 그대로 사용
+        T_ang[0] = Tf[0]; T_ang[1] = Tf[1]; T_ang[2] = Tf[2];
         computed_transform = true;
         align_method_str = "aln-string";
 
@@ -1617,13 +1627,23 @@ void Screen::load_next_hit(int delta) {
         int N = (int)std::min(P_norm.size(), Q_norm.size()) / 3;
         if (N >= 3) {
             kabsch(P_norm, Q_norm, N, U, T);
+            // BUG-A 2단계: kabsch는 정규화 공간에서 계산됨.
+            // init_atoms는 Å 공간이므로 T_Å = T_norm/norm_scale + q_centroid - U*t_centroid
+            {
+                const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
+                const float t_cen[3] = {t_cx, t_cy, t_cz};
+                for (int r = 0; r < 3; r++) {
+                    T_ang[r] = T[r] / norm_scale + q_cen[r];
+                    for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen[c];
+                }
+            }
             computed_transform = true;
             align_method_str = "kabsch-alns";
         }
     }
 
     if (computed_transform) {
-        apply_foldseek_transform(1, U, T);
+        apply_foldseek_transform(1, U, T, T_ang);
     }
 
     // 정렬 방식 패널 갱신
@@ -1695,7 +1715,21 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
 
     float U[9], T[3];
     kabsch(P_flat, Q_flat, N, U, T);
-    apply_foldseek_transform(target_protein_idx, U, T);
+
+    // BUG-A 2단계: kabsch는 정규화 screen_atoms 공간에서 계산됨.
+    // init_atoms는 Å 공간이므로 T_Å = T_norm/norm_scale + q_centroid - U*t_centroid
+    float T_ang[3];
+    {
+        const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
+        const float t_cen[3] = {data[target_protein_idx]->cx,
+                                 data[target_protein_idx]->cy,
+                                 data[target_protein_idx]->cz};
+        for (int r = 0; r < 3; r++) {
+            T_ang[r] = T[r] / norm_scale + q_cen[r];
+            for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen[c];
+        }
+    }
+    apply_foldseek_transform(target_protein_idx, U, T, T_ang);
 
     // aligned 모드일 때 is_aligned 잔기 설정
     // MSA aa strings을 qaln/taln으로 사용 (gap 형식 동일)
