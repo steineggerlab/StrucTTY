@@ -18,8 +18,8 @@
 5. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)        ✅ **완료**
 6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
-8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ✅ **완료** (BUG-A/BUG-B 수정 포함)
-9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화  ✅ **완료**
+8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ⚠️ **수정 필요** (BUG-A 2단계, BUG-B BFMD 미처리)
+9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화  ⚠️ **수정 필요** (BUG-A 2단계와 동일 문제)
 
 ---
 
@@ -27,32 +27,50 @@
 
 ### BUG-A: `-fs -m aligned` 구조 정렬 색상이 동작하지 않음
 
-**증상:** `structty query.pdb -fs result.m8 -m aligned` 실행 시 aligned/non-aligned 색상이 전혀 표시되지 않음.
+**증상:** `structty query.pdb -fs result.m8 -m aligned` 실행 시 aligned/non-aligned 색상이 전혀 표시되지 않음. FoldMason `--foldmason -m aligned`도 동일 증상.
 
-**원인 분석:**
-현재 `structty.cpp` 구조:
+**1단계 원인 (✅ 완료):**
+`structty.cpp`의 `-m aligned` 전처리 블록이 protein1 로드 전에 실행됨 → 블록 제거 완료.
+
+**2단계 원인 (⚠️ 미수정 — 현재 핵심 버그):**
+
+`apply_foldseek_transform()` 내부의 `apply_ut_to_init_atoms(U, T)` 호출 시 **정규화 좌표계의 T 값이 Å 단위의 `init_atoms`에 그대로 적용**된다.
+
 ```
-① -m aligned 처리 블록 (line ~65-88):
-   FoldseekParser 로드 → protein1에 U/T 적용 → compute_aligned_from_aln() 호출
-   → 이 시점에서 protein1은 아직 Screen에 로드되지 않은 상태이므로 aligned 계산 실패
+데이터 흐름:
+  do_shift() / do_scale() → screen_atoms만 변환 (init_atoms 미변환)
 
-② Foldseek hit 탐색 블록 (line ~91-103):
-   load_next_hit(+1) 호출 → protein1 로드 + U/T 적용
-   → 하지만 aligned region 계산은 다시 수행하지 않음
+  normalize_proteins() 후:
+    screen_atoms[0] = (x_pdb - cx) * scale  ← 정규화됨
+    init_atoms[0]   = x_pdb                 ← 원래 PDB Å 좌표 그대로
+
+  load_next_hit() 후:
+    screen_atoms[1] = (x_pdb - t_cx) * scale → U_norm·x + T_norm  ← 정확 (표시용)
+    init_atoms[1]   = U_norm·x_pdb + T_norm  ← 좌표계 혼용 (오류)
+                      (x_pdb는 Å 단위, T_norm은 정규화 단위 ~0.1–2.0)
+
+  compute_aligned_regions_from_aln(threshold=5.0f):
+    init_atoms[0]: 원래 PDB Å (~100Å 규모)
+    init_atoms[1]: U·100Å + 1.0 → 실제 오차 수백 Å
+    모든 거리 >> 5Å → 전체 non-aligned → 전체 dim 색
 ```
-결과적으로 protein1이 로드된 이후 aligned region 계산이 한 번도 올바르게 실행되지 않는다.
 
-**수정 방향:**
-- `structty.cpp`에서 `-m aligned` 전처리 블록 전체 제거
-- `Screen::load_next_hit()` 내부에서 항상 다음을 순서대로 수행:
-  1. 타겟 protein 로드
-  2. `has_transform`이면 U/T 적용
-  3. mode == "aligned"이고 `has_aln`이면 `compute_aligned_from_aln()` 호출
-  4. mode == "aligned"이고 `has_aln`이 false이면 `compute_aligned_all(threshold=10Å)` fallback
-- `structty.cpp`에서는 `set_foldseek_hits()`, `set_fs_db_path()`, `load_next_hit(+1)` 호출만 남김
-- 정렬 방식 표시(`set_align_method`)도 `load_next_hit()` 내부에서 처리
+**적용 범위:** Foldseek 29컬럼/kabsch 경로, FoldMason `apply_foldmason_superposition` 모두 동일 버그.
 
-**영향 범위:** `src/structty.cpp`, `src/visualization/Screen.cpp`
+**수정 방향 (Option A — 최소 침습):**
+
+`apply_ut_to_init_atoms`에 정규화 공간 T 대신 **Å 공간 T**를 전달한다.
+
+- **Foldseek 29컬럼 (`has_transform`)**: `hit.T`가 이미 Å 공간 → `apply_ut_to_init_atoms(hit.U, hit.T)` 직접 호출
+- **Foldseek kabsch 경로 / FoldMason**: Kabsch는 정규화 공간에서 계산하므로 역변환:
+  ```
+  T_Å = T_norm / norm_scale + q_centroid - U · t_centroid
+  ```
+  이 T_Å와 U를 `apply_ut_to_init_atoms(U, T_Å)`에 전달.
+
+**구현 위치:** `Screen::load_next_hit()` (29컬럼·kabsch 분기), `Screen::apply_foldmason_superposition()`.
+
+**영향 범위:** `src/visualization/Screen.cpp`
 
 ---
 
@@ -60,19 +78,34 @@
 
 **증상:**
 1. N/P 키로 다음 hit으로 이동 시 두 구조가 aligned 되지 않은 상태로 표시됨
-2. 자동 다운로드가 불가능한 DB(GMGCL 등)이거나 다운로드 실패 시 패널에 아무런 메시지가 없음
+2. 자동 다운로드가 불가능한 DB(GMGCL, BFMD 등)이거나 다운로드 실패 시 패널에 아무런 메시지가 없음
+
+**현재 구현 상태:**
+1. `load_next_hit()` 내부에서 U/T + aligned region 계산 모두 수행 ✅ (BUG-A 2단계 수정 후 완전 동작)
+2. `PDBDownloader::resolve_target_file()` → `status_msg` 설정 → 패널 전달 ✅ (일부 완료)
+   - GMGCL: `status_msg = "GMGCL: no download URL available."` ✅
+   - BFMD: `DBType`에 미등록, `get_no_url_message()` 미처리 ⚠️
 
 **수정 방향:**
-1. `load_next_hit()` 내부에서 항상 superposition 적용 (BUG-A 수정과 동일한 흐름)
-2. 다운로드 불가/실패 상황별 패널 메시지:
-   - `GMGCL` 패턴: "GMGCL: local --db-path required"
-   - `--db-path` 지정 없고 캐시에도 없음: "No --db-path: cannot locate {target}"
-   - 다운로드 실패 (curl/wget 오류): "Download failed: {target}"
-   - curl/wget 모두 없음: "curl/wget not found"
-   - 파일 로드 실패 (PDB 파싱 오류): "Load failed: {target}"
-   - 위 모든 메시지는 `FoldseekHitInfo.status_msg`에 저장하여 패널에 표시
+1. `PDBDownloader`에 `BFMD` DBType 추가:
+   - 패턴: Foldseek BFD/BFMD DB에서 생성된 target ID (예: `BFD100_...` 또는 관련 prefix)
+   - `get_no_url_message()` 에 BFMD 케이스 추가: `"BFMD: no download URL. Use --db-path."`
+   - `get_download_url()` 에 BFMD 케이스 추가: 빈 문자열 반환
+2. `FoldseekHitInfo.status_msg`가 패널에 표시되는 경로는 이미 구현됨 — 새 DBType 추가만으로 자동 처리됨
 
-**영향 범위:** `src/visualization/Screen.cpp` (`load_next_hit()` 내부)
+**영향 범위:** `src/structure/PDBDownloader.hpp`, `src/structure/PDBDownloader.cpp`
+
+---
+
+### BUG-C (기능 3 다운로드 방식): Hit 다운로드 전략
+
+**현재 구현:**
+- **완전 lazy load**: N/P 키 입력 시마다 `load_next_hit()` → `resolve_target_file()` 실행 → 그때그때 다운로드/탐색
+- 사전 다운로드(top N pre-fetch) 없음
+
+**현재 방식 유지 (추가 구현 불필요):**
+- Lazy load는 메모리 효율적이고 실제 탐색하지 않는 hit의 다운로드를 방지함
+- 사전 다운로드를 원하는 경우: `--db-path`로 로컬 DB를 지정하면 다운로드 없이 즉시 탐색 가능
 
 ---
 
@@ -1296,16 +1329,16 @@ structty query.pdb target.pdb --foldmason result_aa.fa -m conservation
 | `src/structure/MSAParser.cpp` | **신규** | FASTA/A3M 파싱, Shannon entropy 계산 구현 |
 | `src/structure/FoldseekParser.hpp` | **신규** | FoldseekHit 구조체, FoldseekParser 클래스 선언 |
 | `src/structure/FoldseekParser.cpp` | **신규** | 컬럼 수 기반 포맷 자동 감지, 파싱 구현 |
-| `src/structure/PDBDownloader.hpp` | **신규** | target ID 형식 분류(PDB/AFDB/ESMAtlas/CATH/BFVD/GMGCL/TED 9패턴), 다운로드 URL 생성, 캐시 관리 |
-| `src/structure/PDBDownloader.cpp` | **신규** | curl/wget popen 기반 다운로드 구현. BFVD·BFMD·TED·GMGCL은 --db-path 탐색만 수행(URL 없음) |
-| `src/structure/FoldMasonParser.hpp` | **신규** | FoldMasonEntry 구조체, FoldMasonParser 클래스 선언 (`build_aligned_pairs()` 포함) |
-| `src/structure/FoldMasonParser.cpp` | **신규** | JSON 파싱(entries/aa/ss/ca), FASTA MSA 파싱, query-col 매핑, aligned pair 추출, Shannon entropy 계산 |
-| `src/structure/Parameters.hpp` | 수정 | `--foldmason`/`-fm` 인수 추가. `-m lddt` **추가하지 않음** (제거됨) |
-| `src/visualization/Screen.hpp` | 수정 | `foldmason_parser` 멤버 추가 |
-| `src/visualization/Screen.cpp` | 수정 | `apply_foldmason_superposition()`: Kabsch superposition + mode=="aligned"일 때 is_aligned 잔기 설정 통합. `assign_colors_to_points()`에 `lddt` 모드 **추가하지 않음** (제거됨). BUG-A 수정: `load_next_hit()` 내부에서 aligned region 계산 포함 |
-| `src/visualization/Panel.hpp` | 수정 | `set_foldmason_info()` 선언, FoldMason 섹션 상수 정의 (MSA LDDT 줄 제거 → 높이 3) |
-| `src/visualization/Panel.cpp` | 수정 | FoldMason MSA 섹션 렌더링 추가 (MSA LDDT 줄 제거) |
-| `src/structty.cpp` | 수정 | BUG-A 수정: `-m aligned` 전처리 블록 제거. FoldMasonParser 초기화 연결 (conservation + superposition, lddt 분기 제거) |
+| `src/structure/PDBDownloader.hpp` | **신규** ✅ | target ID 형식 분류(PDB/AFDB/ESMAtlas/CATH/BFVD/GMGCL/TED 9패턴), 다운로드 URL 생성, 캐시 관리 |
+| `src/structure/PDBDownloader.cpp` | **신규** ✅ / ⚠️ | curl/wget popen 기반 다운로드 구현. GMGCL status_msg 처리 완료. **BFMD DBType 추가 필요** (BUG-B) |
+| `src/structure/FoldMasonParser.hpp` | **신규** ✅ | FoldMasonEntry 구조체, FoldMasonParser 클래스 선언 (`build_aligned_pairs()` 포함) |
+| `src/structure/FoldMasonParser.cpp` | **신규** ✅ | JSON 파싱(entries/aa/ss/ca), FASTA MSA 파싱, query-col 매핑, aligned pair 추출, Shannon entropy 계산 |
+| `src/structure/Parameters.hpp` | 수정 ✅ | `--foldmason`/`-fm` 인수 추가. `-m lddt` **추가하지 않음** (제거됨) |
+| `src/visualization/Screen.hpp` | 수정 ✅ | `foldmason_parser` 멤버 추가 |
+| `src/visualization/Screen.cpp` | 수정 ✅ / ⚠️ | `apply_foldmason_superposition()` 구현. BUG-A 1단계 수정 완료. **BUG-A 2단계 미수정**: `load_next_hit()` 및 `apply_foldmason_superposition()`의 `apply_ut_to_init_atoms`에 Å 공간 T 전달 필요 |
+| `src/visualization/Panel.hpp` | 수정 ✅ | `set_foldmason_info()` 선언, FoldMason 섹션 상수 정의 (MSA LDDT 줄 제거 → 높이 3) |
+| `src/visualization/Panel.cpp` | 수정 ✅ | FoldMason MSA 섹션 렌더링 추가 (MSA LDDT 줄 제거) |
+| `src/structty.cpp` | 수정 ✅ | BUG-A 1단계 수정: `-m aligned` 전처리 블록 제거. FoldMasonParser 초기화 연결 (conservation + superposition, lddt 분기 제거) |
 
 ---
 
