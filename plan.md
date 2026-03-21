@@ -399,7 +399,11 @@ std::string PDBDownloader::extract_pdb_id(const std::string& target_id) {
 
 ## 구현 순서 (의존성 고려)
 
-1. **작업 4** (PDB100 파싱) — 독립적, 가장 단순
-2. **작업 2** (aligned 색상) — 독립적, 단순 색상 로직 변경
-3. **작업 1** (superposition 보장) — `load_next_hit()` transform 로직 보강
-4. **작업 3** (다중 타겟 필터링) — 작업 1의 transform 추출 함수에 의존
+1. ✅ **작업 4** (PDB100 파싱) — 독립적, 가장 단순
+2. ✅ **작업 2** (aligned 색상) — 독립적, 단순 색상 로직 변경
+3. ✅ **작업 1** (superposition 보장) — `load_next_hit()` transform 로직 보강
+4. ✅ **작업 3** (다중 타겟 필터링) — 작업 1의 transform 추출 함수에 의존
+
+## 구현 완료 상태
+
+모든 작업이 plan.md에 기술된 대로 구현 완료됨. 빌드 성공 확인.

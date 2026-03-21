@@ -68,6 +68,9 @@ public:
     void set_fs_db_path(const std::string& path);
     void load_next_hit(int delta);  // delta=+1: next, delta=-1: prev, delta=0: first
 
+    // 기능 3: 이미 로드된 target protein에 hit의 U/T transform 적용
+    void apply_hit_transform(int target_protein_idx, const FoldseekHit& hit);
+
     // 기능 8: FoldMason MSA 기반 superposition + aligned region 설정
     void set_foldmason(std::unique_ptr<FoldMasonParser> parser);
     void apply_foldmason_superposition(int query_protein_idx, int target_protein_idx,
