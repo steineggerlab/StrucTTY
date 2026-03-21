@@ -204,6 +204,27 @@ std::string PDBDownloader::extract_pdb_id(const std::string& target_id) {
     return target_id.substr(0, std::min(pos, (size_t)4));
 }
 
+std::string PDBDownloader::extract_uniprot_id(const std::string& target_id, DBType db_type) {
+    if (db_type == DBType::BFVD_Local) {
+        // "A0A0N7HVG9_unrelaxed_rank_001_alphafold2_..." → "A0A0N7HVG9"
+        size_t pos = target_id.find('_');
+        if (pos != std::string::npos) return target_id.substr(0, pos);
+        return target_id;
+    }
+    if (db_type == DBType::BFVD_Official) {
+        // "A0A345AIN9_1" → "A0A345AIN9", "A0A345AIN9" → "A0A345AIN9"
+        size_t underscore = target_id.rfind('_');
+        if (underscore != std::string::npos) {
+            std::string suffix = target_id.substr(underscore + 1);
+            bool all_digit = !suffix.empty();
+            for (char c : suffix) if (c < '0' || c > '9') { all_digit = false; break; }
+            if (all_digit) return target_id.substr(0, underscore);
+        }
+        return target_id;
+    }
+    return target_id;
+}
+
 std::string PDBDownloader::get_download_url(const std::string& target_id, DBType db_type) {
     switch (db_type) {
         case DBType::PDB: {
@@ -221,11 +242,18 @@ std::string PDBDownloader::get_download_url(const std::string& target_id, DBType
         case DBType::CATH50: {
             return "https://www.cathdb.info/version/v4_3_0/api/rest/id/" + target_id + ".pdb";
         }
-        // 다운로드 URL이 없는 DB들
         case DBType::BFVD_Local:
-        case DBType::BFVD_Official:
+        case DBType::BFVD_Official: {
+            // UniProt accession 추출 후 BFVD API 사용
+            std::string uniprot = extract_uniprot_id(target_id, db_type);
+            return "https://bfvd.steineggerlab.workers.dev/pdb/" + uniprot + ".pdb";
+        }
+        case DBType::TED: {
+            // TED API: target ID 그대로 사용 (accept 헤더는 resolve_target_file에서 처리)
+            return "https://ted.cathdb.info/api/v1/files/" + target_id + ".pdb";
+        }
+        // 다운로드 URL이 없는 DB들
         case DBType::GMGCL:
-        case DBType::TED:
         case DBType::Unknown:
         default:
             return "";
@@ -246,6 +274,14 @@ std::string PDBDownloader::get_cache_path(const std::string& target_id, DBType d
         case DBType::ESMAtlas30:
             return root + "/" + target_id + ".pdb";
         case DBType::CATH50:
+            return root + "/" + target_id + ".pdb";
+        case DBType::BFVD_Local:
+        case DBType::BFVD_Official: {
+            // UniProt accession 기준으로 캐시 (전체 target ID는 너무 김)
+            std::string uniprot = extract_uniprot_id(target_id, db_type);
+            return root + "/" + uniprot + ".pdb";
+        }
+        case DBType::TED:
             return root + "/" + target_id + ".pdb";
         default:
             return root + "/" + target_id + ".pdb";
@@ -275,14 +311,20 @@ std::string PDBDownloader::find_in_db_path(const std::string& target_id,
     return "";
 }
 
-bool PDBDownloader::download_file(const std::string& url, const std::string& dest_path) {
+bool PDBDownloader::download_file(const std::string& url, const std::string& dest_path,
+                                  const std::string& extra_header) {
     if (url.empty() || dest_path.empty()) return false;
 
     // curl 우선, 없으면 wget
     // -f: fail silently on HTTP errors, -s: silent, -L: follow redirects
-    std::string cmd =
-        "curl -f -s -L -o \"" + dest_path + "\" \"" + url + "\" 2>/dev/null"
-        " || wget -q -O \"" + dest_path + "\" \"" + url + "\" 2>/dev/null";
+    std::string cmd;
+    if (extra_header.empty()) {
+        cmd = "curl -f -s -L -o \"" + dest_path + "\" \"" + url + "\" 2>/dev/null"
+              " || wget -q -O \"" + dest_path + "\" \"" + url + "\" 2>/dev/null";
+    } else {
+        cmd = "curl -f -s -L -H \"" + extra_header + "\" -o \"" + dest_path + "\" \"" + url + "\" 2>/dev/null"
+              " || wget -q --header=\"" + extra_header + "\" -O \"" + dest_path + "\" \"" + url + "\" 2>/dev/null";
+    }
 
     FILE* p = popen(cmd.c_str(), "r");
     if (!p) return false;
@@ -294,14 +336,8 @@ bool PDBDownloader::download_file(const std::string& url, const std::string& des
 std::string PDBDownloader::get_no_url_message(DBType db_type,
                                                const std::string& target_id) {
     switch (db_type) {
-        case DBType::BFVD_Local:
-            return "BFVD (local): use --db-path to specify ColabFold DB dir";
-        case DBType::BFVD_Official:
-            return "BFVD: no individual download URL. Use --db-path with BFVD archive.";
         case DBType::GMGCL:
             return "GMGCL: no download URL available. Web-server only DB.";
-        case DBType::TED:
-            return "TED domain: load parent AFDB structure manually.";
         default:
             return "File not found: " + target_id;
     }
@@ -326,9 +362,14 @@ std::string PDBDownloader::resolve_target_file(const std::string& target_id,
     // 3. 다운로드 URL이 있으면 다운로드 시도
     std::string url = get_download_url(target_id, db_type);
     if (!url.empty()) {
-        bool ok = download_file(url, cache_path);
+        // TED API는 accept 헤더 필요
+        std::string header;
+        if (db_type == DBType::TED) {
+            header = "accept: application/octet-stream";
+        }
+        bool ok = download_file(url, cache_path, header);
         if (ok) return cache_path;
-        // ESMAtlas rate limit 가능성
+        // 실패 이유 메시지
         if (db_type == DBType::ESMAtlas30) {
             status_msg = "ESMAtlas API rate limit, retry later";
         } else {
