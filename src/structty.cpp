@@ -9,7 +9,8 @@
 #include "Screen.hpp"
 #include "MSAParser.hpp"
 #include "FoldseekParser.hpp"
-#include "Benchmark.hpp" 
+#include "FoldMasonParser.hpp"
+#include "Benchmark.hpp"
 
 int main(int argc, char* argv[]) {
     Parameters params(argc, argv);
@@ -58,36 +59,15 @@ int main(int argc, char* argv[]) {
         screen.compute_interface_all();
     }
 
-    // 기능 4: aligned 모드
-    // -fs 있으면 alignment string 기반, 없으면 nearest-neighbor 기반
-    if (params.get_mode() == "aligned") {
-        bool handled_by_fs = false;
-        if (!params.get_foldseek_file().empty()) {
-            FoldseekParser fs_parser;
-            if (fs_parser.load(params.get_foldseek_file()) && fs_parser.hit_count() > 0) {
-                const FoldseekHit& hit = fs_parser.get_hits()[0];
-                // hit의 U/T transform을 protein1(target)에 적용
-                if (hit.has_transform) {
-                    screen.apply_foldseek_transform(1, hit.U, hit.T);
-                }
-                if (hit.has_aln) {
-                    screen.compute_aligned_from_aln(hit.qaln, hit.taln, 5.0f);
-                    screen.set_align_method("aln-string");
-                } else {
-                    screen.compute_aligned_all();
-                    screen.set_align_method("nearest-nbr");
-                }
-                handled_by_fs = true;
-            }
-        }
-        if (!handled_by_fs) {
-            screen.compute_aligned_all();
-            // compute_aligned_all() 내부에서 "nearest-nbr" 설정
-        }
+    // 기능 4: aligned 모드 — -ut 만 있는 경우 (nearest-neighbor fallback)
+    // -fs 있는 경우는 load_next_hit() 내부에서 U/T + aligned region 계산을 수행하므로 여기서 처리 안 함
+    if (params.get_mode() == "aligned" && params.get_foldseek_file().empty()
+        && params.get_foldmason_file().empty()) {
+        screen.compute_aligned_all();
     }
 
     // 기능 3: Foldseek hit 탐색 설정 (-fs 파일이 있을 때)
-    // aligned 모드의 첫 hit 로드와 별개로, hit 목록 전체를 Screen에 전달
+    // load_next_hit() 내부에서 U/T 적용 + aligned region 계산 + align_method 설정 모두 수행
     if (!params.get_foldseek_file().empty()) {
         FoldseekParser fs_nav_parser;
         if (fs_nav_parser.load(params.get_foldseek_file()) && fs_nav_parser.hit_count() > 0) {
@@ -108,6 +88,90 @@ int main(int argc, char* argv[]) {
             screen.apply_msa_conservation(0, scores);
         } else {
             std::cerr << "Warning: Failed to load MSA file: " << params.get_msa_file() << std::endl;
+        }
+    }
+
+    // 기능 8: FoldMason MSA 기반 superposition + conservation
+    if (!params.get_foldmason_file().empty()) {
+        auto fm_parser = std::make_unique<FoldMasonParser>();
+        const std::string& fm_path = params.get_foldmason_file();
+        bool fm_loaded = false;
+
+        // 확장자 판별
+        std::string ext;
+        {
+            size_t dot = fm_path.rfind('.');
+            if (dot != std::string::npos) ext = fm_path.substr(dot + 1);
+            for (auto& c : ext) c = (char)std::tolower((unsigned char)c);
+        }
+
+        if (ext == "json") {
+            fm_loaded = fm_parser->load_json(fm_path);
+        } else {
+            fm_loaded = fm_parser->load_fasta(fm_path);
+        }
+
+        if (!fm_loaded || fm_parser->entry_count() == 0) {
+            std::cerr << "Warning: Failed to load FoldMason file: " << fm_path << std::endl;
+        } else {
+            // entry 매칭: 파일명(확장자 제외) 기준으로 탐색, 실패 시 0/1 순서 가정
+            int fm_query_idx = 0;
+            int fm_target_idx = 1;
+            const auto& entries = fm_parser->get_entries();
+            if ((int)params.get_in_file().size() >= 1) {
+                fs::path qp(params.get_in_file(0));
+                std::string qstem = qp.stem().string();
+                for (int ei = 0; ei < fm_parser->entry_count(); ei++) {
+                    if (entries[ei].name.find(qstem) != std::string::npos) {
+                        fm_query_idx = ei; break;
+                    }
+                }
+            }
+            if ((int)params.get_in_file().size() >= 2) {
+                fs::path tp(params.get_in_file(1));
+                std::string tstem = tp.stem().string();
+                for (int ei = 0; ei < fm_parser->entry_count(); ei++) {
+                    if (ei == fm_query_idx) continue;
+                    if (entries[ei].name.find(tstem) != std::string::npos) {
+                        fm_target_idx = ei; break;
+                    }
+                }
+            }
+
+            int total_entries = fm_parser->entry_count();
+
+            // conservation 색상 (단일/다중 구조 모두)
+            if (params.get_mode() == "conservation") {
+                std::vector<float> entropy = fm_parser->compute_column_entropy(false);
+                auto col_map = fm_parser->build_query_col_map(fm_query_idx);
+                // col_map: 잔기 인덱스 → MSA 열 인덱스; 잔기 순서대로 entropy 값 매핑
+                std::vector<float> mapped_scores(col_map.size(), 0.0f);
+                for (int ri = 0; ri < (int)col_map.size(); ri++) {
+                    int col = col_map[ri];
+                    if (col < (int)entropy.size()) mapped_scores[ri] = entropy[col];
+                }
+                screen.apply_msa_conservation(0, mapped_scores);
+            }
+
+            // 패널 정보 구성
+            FoldMasonInfo fm_info;
+            fm_info.valid = true;
+            fm_info.entry_count = total_entries;
+
+            // 두 구조 superposition (두 번째 PDB 있을 때만)
+            bool do_superposition = ((int)params.get_in_file().size() >= 2 && total_entries >= 2);
+            if (do_superposition) {
+                fm_info.align_method = (params.get_mode() == "aligned") ? "msa-col" : "-";
+            } else {
+                fm_info.align_method = "-";
+            }
+
+            screen.set_foldmason(std::move(fm_parser));
+            screen.set_foldmason_panel_info(fm_info);
+
+            if (do_superposition) {
+                screen.apply_foldmason_superposition(0, 1, fm_query_idx, fm_target_idx);
+            }
         }
     }
     

@@ -25,6 +25,7 @@ class Parameters{
         string msa_file = "";
         string foldseek_file = "";
         string db_path = "";
+        string foldmason_file = "";
     public:
         Parameters(int argc, char* argv[]);
 
@@ -74,5 +75,8 @@ class Parameters{
         }
         string get_db_path(){
             return db_path;
+        }
+        string get_foldmason_file(){
+            return foldmason_file;
         }
 };

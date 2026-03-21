@@ -23,6 +23,7 @@ void print_help(){
     std::cout<<"--msa <file>:\n\tMSA file for conservation score (FASTA/A3M format)"<<std::endl;
     std::cout<<"-fs <file>:\n\tFoldseek result file for hit navigation"<<std::endl;
     std::cout<<"--db-path <dir>:\n\ttarget PDB directory for Foldseek hit loading"<<std::endl;
+    std::cout<<"--foldmason, -fm <file>:\n\tFoldMason result JSON or FASTA MSA file (superposition + conservation)"<<std::endl;
 }
 Parameters::Parameters(int argc, char* argv[]) {
     arg_okay = true;
@@ -104,6 +105,12 @@ Parameters::Parameters(int argc, char* argv[]) {
                     db_path = argv[++i];
                 } else {
                     throw std::runtime_error("Error: Missing value for --db-path.");
+                }
+            } else if (!strcmp(argv[i], "--foldmason") || !strcmp(argv[i], "-fm")) {
+                if (i + 1 < argc) {
+                    foldmason_file = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --foldmason / -fm.");
                 }
             } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
                 benchmark_mode = true;
