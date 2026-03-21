@@ -18,8 +18,8 @@
 5b. **기능 4** - UTMatrix 정렬 구조 색상 표시(-fs)   ✅ **완료**
 6. **기능 5** - MSA Conservation Score 색상 표시    ✅ **완료**
 7. **기능 6** - 커서(마우스) 기반 잔기 정보 패널 표시 ✅ **완료**
-8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ⚠️ **수정 필요** (BUG-A 2단계, BUG-B BFMD 미처리)
-9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화  ⚠️ **수정 필요** (BUG-A 2단계와 동일 문제)
+8. **기능 3** - Foldseek 결과 파일 실시간 Hit 탐색      ✅ **완료** (BUG-A 2단계 수정, BUG-B BFMD 추가)
+9. **기능 8** - FoldMason 다중 구조 정렬 결과 시각화  ✅ **완료** (BUG-A 2단계 동일 수정 적용)
 
 ---
 
@@ -32,7 +32,7 @@
 **1단계 원인 (✅ 완료):**
 `structty.cpp`의 `-m aligned` 전처리 블록이 protein1 로드 전에 실행됨 → 블록 제거 완료.
 
-**2단계 원인 (⚠️ 미수정 — 현재 핵심 버그):**
+**2단계 원인 (✅ 수정 완료):**
 
 `apply_foldseek_transform()` 내부의 `apply_ut_to_init_atoms(U, T)` 호출 시 **정규화 좌표계의 T 값이 Å 단위의 `init_atoms`에 그대로 적용**된다.
 
@@ -84,7 +84,7 @@
 1. `load_next_hit()` 내부에서 U/T + aligned region 계산 모두 수행 ✅ (BUG-A 2단계 수정 후 완전 동작)
 2. `PDBDownloader::resolve_target_file()` → `status_msg` 설정 → 패널 전달 ✅ (일부 완료)
    - GMGCL: `status_msg = "GMGCL: no download URL available."` ✅
-   - BFMD: `DBType`에 미등록, `get_no_url_message()` 미처리 ⚠️
+   - BFMD: `DBType::BFMD` 추가, `get_no_url_message()` 처리 완료 ✅
 
 **수정 방향:**
 1. `PDBDownloader`에 `BFMD` DBType 추가:
@@ -1328,13 +1328,13 @@ structty query.pdb target.pdb --foldmason result_aa.fa -m conservation
 | `src/structure/MSAParser.cpp` | **신규** | FASTA/A3M 파싱, Shannon entropy 계산 구현 |
 | `src/structure/FoldseekParser.hpp` | **신규** | FoldseekHit 구조체, FoldseekParser 클래스 선언 |
 | `src/structure/FoldseekParser.cpp` | **신규** | 컬럼 수 기반 포맷 자동 감지, 파싱 구현 |
-| `src/structure/PDBDownloader.hpp` | **신규** ✅ | target ID 형식 분류(PDB/AFDB/ESMAtlas/CATH/BFVD/GMGCL/TED 9패턴), 다운로드 URL 생성, 캐시 관리 |
-| `src/structure/PDBDownloader.cpp` | **신규** ✅ / ⚠️ | curl/wget popen 기반 다운로드 구현. GMGCL status_msg 처리 완료. **BFMD DBType 추가 필요** (BUG-B) |
+| `src/structure/PDBDownloader.hpp` | **신규** ✅ | target ID 형식 분류(PDB/AFDB/ESMAtlas/CATH/BFVD/GMGCL/TED/BFMD 10패턴), 다운로드 URL 생성, 캐시 관리 |
+| `src/structure/PDBDownloader.cpp` | **신규** ✅ | curl/wget popen 기반 다운로드 구현. GMGCL/BFMD status_msg 처리 완료. BUG-B 수정 완료. |
 | `src/structure/FoldMasonParser.hpp` | **신규** ✅ | FoldMasonEntry 구조체, FoldMasonParser 클래스 선언 (`build_aligned_pairs()` 포함) |
 | `src/structure/FoldMasonParser.cpp` | **신규** ✅ | JSON 파싱(entries/aa/ss/ca), FASTA MSA 파싱, query-col 매핑, aligned pair 추출, Shannon entropy 계산 |
 | `src/structure/Parameters.hpp` | 수정 ✅ | `--foldmason`/`-fm` 인수 추가. `-m lddt` **추가하지 않음** (제거됨) |
 | `src/visualization/Screen.hpp` | 수정 ✅ | `foldmason_parser` 멤버 추가 |
-| `src/visualization/Screen.cpp` | 수정 ✅ / ⚠️ | `apply_foldmason_superposition()` 구현. BUG-A 1단계 수정 완료. **BUG-A 2단계 미수정**: `load_next_hit()` 및 `apply_foldmason_superposition()`의 `apply_ut_to_init_atoms`에 Å 공간 T 전달 필요 |
+| `src/visualization/Screen.cpp` | 수정 ✅ | `apply_foldmason_superposition()` 구현. BUG-A 1단계 수정 완료. BUG-A 2단계 수정 완료: `apply_foldseek_transform`에 `T_angstrom` 파라미터 추가, 29컬럼은 `hit.T` 직접, kabsch/FoldMason은 `T_Å = T_norm/norm_scale + q_centroid - U·t_centroid` 역변환 적용. |
 | `src/visualization/Panel.hpp` | 수정 ✅ | `set_foldmason_info()` 선언, FoldMason 섹션 상수 정의 (MSA LDDT 줄 제거 → 높이 3) |
 | `src/visualization/Panel.cpp` | 수정 ✅ | FoldMason MSA 섹션 렌더링 추가 (MSA LDDT 줄 제거) |
 | `src/structty.cpp` | 수정 ✅ | BUG-A 1단계 수정: `-m aligned` 전처리 블록 제거. FoldMasonParser 초기화 연결 (conservation + superposition, lddt 분기 제거) |

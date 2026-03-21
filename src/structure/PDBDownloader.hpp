@@ -13,6 +13,7 @@
 //   BFVD_Official— ^[A-Z0-9]{6,10}(_[0-9]+)?$ → UniProt 추출 → bfvd.steineggerlab.workers.dev
 //   GMGCL        — ^GMGC10\.[0-9_]+\..+$ (다운로드 URL 없음)
 //   TED          — ^AF-.*_TED[0-9]+$ → ted.cathdb.info (accept 헤더 필요)
+//   BFMD         — ^BFD[0-9]+_.+$ (BFD/BFMD DB, 다운로드 URL 없음, --db-path 필요)
 //   Unknown      — 그 외
 
 enum class DBType {
@@ -24,6 +25,7 @@ enum class DBType {
     BFVD_Official,
     GMGCL,
     TED,
+    BFMD,
     Unknown
 };
 
