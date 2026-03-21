@@ -9,10 +9,10 @@
 //   AlphaFold    — ^AF-[A-Z0-9]+-F[0-9]+-model_v[0-9]+$
 //   ESMAtlas30   — ^MGYP[0-9]{12}$
 //   CATH50       — ^[0-9][a-z0-9]{3}[A-Za-z][0-9]{2}$
-//   BFVD_Local   — _unrelaxed_rank_001_alphafold2 포함 (로컬 ColabFold DB)
-//   BFVD_Official— ^[A-Z0-9]{6,10}(_[0-9]+)?$ (공식 BFVD, 다운로드 URL 없음)
-//   GMGCL        — ^GMGC10\.[0-9_]+\..+$
-//   TED          — ^AF-.*_TED[0-9]+$
+//   BFVD_Local   — _unrelaxed_rank_001_alphafold2 포함 → UniProt 추출 → bfvd.steineggerlab.workers.dev
+//   BFVD_Official— ^[A-Z0-9]{6,10}(_[0-9]+)?$ → UniProt 추출 → bfvd.steineggerlab.workers.dev
+//   GMGCL        — ^GMGC10\.[0-9_]+\..+$ (다운로드 URL 없음)
+//   TED          — ^AF-.*_TED[0-9]+$ → ted.cathdb.info (accept 헤더 필요)
 //   Unknown      — 그 외
 
 enum class DBType {
@@ -42,10 +42,16 @@ public:
     // PDB 타겟에서 4자리 PDB ID 추출 (예: "2xyz_B" → "2xyz")
     static std::string extract_pdb_id(const std::string& target_id);
 
+    // BFVD target ID에서 UniProt accession 추출
+    //   BFVD_Local : "A0A0N7HVG9_unrelaxed_rank_001_..." → "A0A0N7HVG9"
+    //   BFVD_Official: "A0A345AIN9_1" → "A0A345AIN9", "A0A345AIN9" → "A0A345AIN9"
+    static std::string extract_uniprot_id(const std::string& target_id, DBType db_type);
+
     // 다운로드 URL 생성 (URL이 없는 DB는 빈 문자열 반환)
     static std::string get_download_url(const std::string& target_id, DBType db_type);
 
-    // 캐시 파일 경로 반환 (~/.cache/structty/pdb/{target_id}.{ext})
+    // 캐시 파일 경로 반환 (~/.cache/structty/pdb/{id}.{ext})
+    // BFVD: UniProt accession 기준 파일명 사용
     // 디렉토리가 없으면 생성한다
     static std::string get_cache_path(const std::string& target_id, DBType db_type);
 
@@ -56,8 +62,10 @@ public:
 
     // 파일 다운로드 (curl → wget 순서로 시도, popen 기반)
     // dest_path: 저장 경로, url: 다운로드 URL
+    // extra_header: HTTP 헤더 추가 (예: "accept: application/octet-stream"), 빈 문자열이면 생략
     // 성공 시 true, 실패 시 false
-    static bool download_file(const std::string& url, const std::string& dest_path);
+    static bool download_file(const std::string& url, const std::string& dest_path,
+                              const std::string& extra_header = "");
 
     // target에 대한 로컬 파일 경로 결정:
     //   1. db_path가 있으면 거기서 탐색
