@@ -14,6 +14,13 @@ struct Entry {
     std::map<std::string, int> chain_residue_info;
 };
 
+// 기능 8: FoldMason MSA 정보 (패널 표시용)
+struct FoldMasonInfo {
+    bool        valid        = false;
+    int         entry_count  = 0;
+    std::string align_method;  // "msa-col" or "-"
+};
+
 // 기능 3: Foldseek hit 정보 (패널 표시용)
 struct FoldseekHitInfo {
     bool     valid        = false;
@@ -70,6 +77,11 @@ public:
     // hover 섹션만 부분 갱신
     void draw_hover_section(int hover_start_row, int max_cols) const;
 
+    // 기능 8: FoldMason MSA 섹션
+    void set_foldmason_info(const FoldMasonInfo& info);
+    void clear_foldmason_info();
+    int  get_foldmason_section_height() const;
+
 private:
     std::vector<Entry> entries;
 
@@ -80,6 +92,9 @@ private:
 
     // 기능 3: foldseek hit info 상태
     FoldseekHitInfo fs_hit_info;
+
+    // 기능 8: foldmason info 상태
+    FoldMasonInfo fm_info;
 
     // 기능 6: hover 상태
     bool hover_valid = false;

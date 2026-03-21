@@ -1642,3 +1642,71 @@ void Screen::load_next_hit(int delta) {
 
     depth_calibrated = false;
 }
+
+// ── 기능 8: FoldMason MSA 기반 superposition ─────────────────────────────────
+
+void Screen::set_foldmason(std::unique_ptr<FoldMasonParser> parser) {
+    foldmason_parser = std::move(parser);
+}
+
+void Screen::set_foldmason_panel_info(const FoldMasonInfo& info) {
+    if (panel) panel->set_foldmason_info(info);
+}
+
+void Screen::apply_foldmason_superposition(int query_protein_idx, int target_protein_idx,
+                                           int fm_query_entry_idx, int fm_target_entry_idx) {
+    if (!foldmason_parser) return;
+    if (query_protein_idx < 0 || query_protein_idx >= (int)data.size() || !data[query_protein_idx]) return;
+    if (target_protein_idx < 0 || target_protein_idx >= (int)data.size() || !data[target_protein_idx]) return;
+
+    const auto& entries = foldmason_parser->get_entries();
+    if (fm_query_entry_idx >= (int)entries.size() || fm_target_entry_idx >= (int)entries.size()) return;
+
+    auto pairs = foldmason_parser->build_aligned_pairs(fm_query_entry_idx, fm_target_entry_idx);
+    if (pairs.empty()) return;
+
+    // query/target protein CA atoms 플랫화 (screen_atoms 순서)
+    std::vector<std::array<float,3>> query_cas;
+    for (auto& [cid, chain] : data[query_protein_idx]->get_atoms()) {
+        for (const auto& a : chain) query_cas.push_back({a.x, a.y, a.z});
+    }
+    std::vector<std::array<float,3>> target_cas;
+    for (auto& [cid, chain] : data[target_protein_idx]->get_atoms()) {
+        for (const auto& a : chain) target_cas.push_back({a.x, a.y, a.z});
+    }
+
+    const int q_size = (int)query_cas.size();
+    const int t_size = (int)target_cas.size();
+
+    // P = query (참조), Q = target (회전 대상)
+    std::vector<float> P_flat, Q_flat;
+    for (const auto& [ref_res, oth_res] : pairs) {
+        if (ref_res >= q_size || oth_res >= t_size) continue;
+        P_flat.push_back(query_cas[ref_res][0]);
+        P_flat.push_back(query_cas[ref_res][1]);
+        P_flat.push_back(query_cas[ref_res][2]);
+        Q_flat.push_back(target_cas[oth_res][0]);
+        Q_flat.push_back(target_cas[oth_res][1]);
+        Q_flat.push_back(target_cas[oth_res][2]);
+    }
+
+    int N = (int)std::min(P_flat.size(), Q_flat.size()) / 3;
+    if (N < 3) return;
+
+    float U[9], T[3];
+    kabsch(P_flat, Q_flat, N, U, T);
+    apply_foldseek_transform(target_protein_idx, U, T);
+
+    // aligned 모드일 때 is_aligned 잔기 설정
+    // MSA aa strings을 qaln/taln으로 사용 (gap 형식 동일)
+    if (screen_mode == "aligned") {
+        data[query_protein_idx]->compute_aligned_regions_from_aln(
+            *data[target_protein_idx],
+            entries[fm_query_entry_idx].aa,
+            entries[fm_target_entry_idx].aa,
+            5.0f);
+        set_align_method("msa-col");
+    }
+
+    depth_calibrated = false;
+}
