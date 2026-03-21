@@ -147,6 +147,18 @@ DBType PDBDownloader::detect_db_type(const std::string& target_id) {
         if (all_digit) return DBType::ESMAtlas30;
     }
 
+    // 패턴 1a: PDB100 — [0-9][a-z0-9]{3}-assembly.*\.cif\.gz_[A-Za-z0-9]+
+    // 예: 3a0d-assembly1.cif.gz_A
+    if (target_id.size() >= 6 &&
+        target_id[0] >= '0' && target_id[0] <= '9' &&
+        is_alnum_lower_or_digit(target_id[1]) &&
+        is_alnum_lower_or_digit(target_id[2]) &&
+        is_alnum_lower_or_digit(target_id[3]) &&
+        target_id[4] == '-' &&
+        contains(target_id, ".cif.gz_")) {
+        return DBType::PDB;
+    }
+
     // 패턴 1: PDB — [0-9][a-z0-9]{3}_[A-Za-z0-9]+
     if (target_id.size() >= 6 &&
         target_id[0] >= '0' && target_id[0] <= '9' &&
@@ -193,6 +205,12 @@ DBType PDBDownloader::detect_db_type(const std::string& target_id) {
 std::string PDBDownloader::extract_chain(const std::string& target_id, DBType db_type) {
     if (db_type != DBType::PDB) return "-";
 
+    // PDB100 형식: 3a0d-assembly1.cif.gz_A
+    size_t cifgz_pos = target_id.find(".cif.gz_");
+    if (cifgz_pos != std::string::npos) {
+        return target_id.substr(cifgz_pos + 8);  // ".cif.gz_" = 8글자
+    }
+
     // "2xyz_B" → "B"
     // "1a0n_MODEL_1_B" → "B" (마지막 '_' 이후)
     size_t pos = target_id.find('_');
@@ -208,6 +226,10 @@ std::string PDBDownloader::extract_chain(const std::string& target_id, DBType db
 }
 
 std::string PDBDownloader::extract_pdb_id(const std::string& target_id) {
+    // PDB100 형식: 3a0d-assembly1.cif.gz_A
+    size_t dash_pos = target_id.find('-');
+    if (dash_pos == 4) return target_id.substr(0, 4);
+
     // "2xyz_B" → "2xyz"
     size_t pos = target_id.find('_');
     if (pos == std::string::npos) return target_id.substr(0, 4);

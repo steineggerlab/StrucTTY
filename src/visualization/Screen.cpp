@@ -447,8 +447,10 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
             pt.color_id = pt.is_interface ? 43 : 44;  // 강조(마젠타) or dim
         }
     } else if (screen_mode == "aligned") {
+        int vivid_id = (protein_idx % 9) + 1;   // pairs 1-9 (PROTEIN_COLORS)
+        int dim_id   = (protein_idx % 9) + 11;  // pairs 11-19 (PROTEIN_DIM_COLORS)
         for (auto& pt : points) {
-            pt.color_id = pt.is_aligned ? 45 : 46;  // 정렬됨(초록) or dim
+            pt.color_id = pt.is_aligned ? vivid_id : dim_id;
         }
     } else if (screen_mode == "conservation") {
         for (auto& pt : points) {
@@ -1640,6 +1642,113 @@ void Screen::load_next_hit(int delta) {
             computed_transform = true;
             align_method_str = "kabsch-alns";
         }
+    } else if (hit.has_aln && !hit.is_alis_format) {
+        // 작업 1-A: 17컬럼 포맷 — qaln/taln 기반 Kabsch SVD
+        // qaln/taln에서 양쪽 비-갭 위치의 CA 쌍을 수집 → 정규화 공간에서 Kabsch
+
+        // query CA flat 리스트 (정규화된 screen_atoms)
+        std::vector<std::array<float,3>> query_cas;
+        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                query_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        // target CA flat 리스트 (정규화된 screen_atoms)
+        std::vector<std::array<float,3>> target_cas;
+        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                target_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        // qaln/taln 순회하여 aligned CA 쌍 수집
+        std::vector<float> P_norm, Q_norm;
+        int q_idx = hit.qstart - 1;  // 0-based
+        int t_idx = hit.tstart - 1;  // 0-based
+        const int q_size = (int)query_cas.size();
+        const int t_size = (int)target_cas.size();
+
+        for (size_t ai = 0; ai < hit.qaln.size() && ai < hit.taln.size(); ai++) {
+            bool q_gap = (hit.qaln[ai] == '-');
+            bool t_gap = (hit.taln[ai] == '-');
+
+            if (!q_gap && !t_gap) {
+                if (q_idx < q_size && t_idx < t_size) {
+                    P_norm.push_back(query_cas[q_idx][0]);
+                    P_norm.push_back(query_cas[q_idx][1]);
+                    P_norm.push_back(query_cas[q_idx][2]);
+                    Q_norm.push_back(target_cas[t_idx][0]);
+                    Q_norm.push_back(target_cas[t_idx][1]);
+                    Q_norm.push_back(target_cas[t_idx][2]);
+                }
+            }
+
+            if (!q_gap) q_idx++;
+            if (!t_gap) t_idx++;
+        }
+
+        int N = (int)std::min(P_norm.size(), Q_norm.size()) / 3;
+        if (N >= 3) {
+            kabsch(P_norm, Q_norm, N, U, T);
+            {
+                const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
+                const float t_cen2[3] = {t_cx, t_cy, t_cz};
+                for (int r = 0; r < 3; r++) {
+                    T_ang[r] = T[r] / norm_scale + q_cen[r];
+                    for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen2[c];
+                }
+            }
+            computed_transform = true;
+            align_method_str = "kabsch-qaln";
+        }
+    }
+
+    // 작업 1-B: fallback — 12컬럼 등 transform 정보 없는 경우 전체 CA 순서 매칭 Kabsch
+    if (!computed_transform) {
+        std::vector<std::array<float,3>> query_cas;
+        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                query_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        std::vector<std::array<float,3>> target_cas;
+        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                target_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        int N = (int)std::min(query_cas.size(), target_cas.size());
+        if (N >= 3) {
+            std::vector<float> P_norm, Q_norm;
+            P_norm.reserve(N * 3);
+            Q_norm.reserve(N * 3);
+            for (int i = 0; i < N; i++) {
+                P_norm.push_back(query_cas[i][0]);
+                P_norm.push_back(query_cas[i][1]);
+                P_norm.push_back(query_cas[i][2]);
+                Q_norm.push_back(target_cas[i][0]);
+                Q_norm.push_back(target_cas[i][1]);
+                Q_norm.push_back(target_cas[i][2]);
+            }
+            kabsch(P_norm, Q_norm, N, U, T);
+            {
+                const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
+                const float t_cen2[3] = {t_cx, t_cy, t_cz};
+                for (int r = 0; r < 3; r++) {
+                    T_ang[r] = T[r] / norm_scale + q_cen[r];
+                    for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen2[c];
+                }
+            }
+            computed_transform = true;
+            align_method_str = "kabsch-seq";
+        }
     }
 
     if (computed_transform) {
@@ -1655,6 +1764,187 @@ void Screen::load_next_hit(int delta) {
         if (hit.has_aln) {
             compute_aligned_from_aln(hit.qaln, hit.taln, 5.0f);
             set_align_method("aln-string");
+        } else {
+            compute_aligned_all();
+        }
+    }
+
+    depth_calibrated = false;
+}
+
+// ── 기능 3: 이미 로드된 target에 hit transform 적용 ─────────────────────────
+void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit) {
+    if (target_protein_idx < 0 || target_protein_idx >= (int)data.size() || !data[target_protein_idx]) return;
+    if (!data[0]) return;
+
+    Protein* target_protein = data[target_protein_idx];
+    float t_cx = target_protein->cx;
+    float t_cy = target_protein->cy;
+    float t_cz = target_protein->cz;
+
+    float U[9] = {1,0,0, 0,1,0, 0,0,1};
+    float T[3]  = {0,0,0};
+    float T_ang[3] = {0,0,0};
+    bool computed_transform = false;
+
+    if (hit.has_transform) {
+        // 29컬럼 포맷: U/T 직접 사용
+        const float* Uf = hit.U;
+        const float* Tf = hit.T;
+        float Utc[3] = {
+            Uf[0]*t_cx + Uf[1]*t_cy + Uf[2]*t_cz,
+            Uf[3]*t_cx + Uf[4]*t_cy + Uf[5]*t_cz,
+            Uf[6]*t_cx + Uf[7]*t_cy + Uf[8]*t_cz
+        };
+        for (int i = 0; i < 9; i++) U[i] = Uf[i];
+        T[0] = (Utc[0] + Tf[0] - norm_cx) * norm_scale;
+        T[1] = (Utc[1] + Tf[1] - norm_cy) * norm_scale;
+        T[2] = (Utc[2] + Tf[2] - norm_cz) * norm_scale;
+        T_ang[0] = Tf[0]; T_ang[1] = Tf[1]; T_ang[2] = Tf[2];
+        computed_transform = true;
+    } else if (hit.is_alis_format && !hit.alns.empty() && hit.has_aln) {
+        // 21컬럼 alis 포맷: Kabsch SVD
+        std::vector<std::array<float,3>> target_cas;
+        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                target_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        std::vector<float> P_norm, Q_norm;
+        int aln_idx = 0;
+        int t_seq_idx = hit.tstart - 1;
+
+        for (size_t ai = 0; ai < hit.taln.size(); ai++) {
+            if (hit.taln[ai] == '-') continue;
+            if (t_seq_idx < (int)target_cas.size() &&
+                aln_idx * 3 + 2 < (int)hit.alns.size()) {
+                P_norm.push_back((hit.alns[aln_idx*3]   - norm_cx) * norm_scale);
+                P_norm.push_back((hit.alns[aln_idx*3+1] - norm_cy) * norm_scale);
+                P_norm.push_back((hit.alns[aln_idx*3+2] - norm_cz) * norm_scale);
+                Q_norm.push_back(target_cas[t_seq_idx][0]);
+                Q_norm.push_back(target_cas[t_seq_idx][1]);
+                Q_norm.push_back(target_cas[t_seq_idx][2]);
+            }
+            aln_idx++;
+            t_seq_idx++;
+        }
+
+        int N = (int)std::min(P_norm.size(), Q_norm.size()) / 3;
+        if (N >= 3) {
+            kabsch(P_norm, Q_norm, N, U, T);
+            const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
+            const float t_cen[3] = {t_cx, t_cy, t_cz};
+            for (int r = 0; r < 3; r++) {
+                T_ang[r] = T[r] / norm_scale + q_cen[r];
+                for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen[c];
+            }
+            computed_transform = true;
+        }
+    } else if (hit.has_aln && !hit.is_alis_format) {
+        // 17컬럼: qaln/taln 기반 Kabsch
+        std::vector<std::array<float,3>> query_cas;
+        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                query_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+        std::vector<std::array<float,3>> target_cas;
+        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                target_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        std::vector<float> P_norm, Q_norm;
+        int q_idx = hit.qstart - 1;
+        int t_idx = hit.tstart - 1;
+        const int q_size = (int)query_cas.size();
+        const int t_size = (int)target_cas.size();
+
+        for (size_t ai = 0; ai < hit.qaln.size() && ai < hit.taln.size(); ai++) {
+            bool q_gap = (hit.qaln[ai] == '-');
+            bool t_gap = (hit.taln[ai] == '-');
+            if (!q_gap && !t_gap) {
+                if (q_idx < q_size && t_idx < t_size) {
+                    P_norm.push_back(query_cas[q_idx][0]);
+                    P_norm.push_back(query_cas[q_idx][1]);
+                    P_norm.push_back(query_cas[q_idx][2]);
+                    Q_norm.push_back(target_cas[t_idx][0]);
+                    Q_norm.push_back(target_cas[t_idx][1]);
+                    Q_norm.push_back(target_cas[t_idx][2]);
+                }
+            }
+            if (!q_gap) q_idx++;
+            if (!t_gap) t_idx++;
+        }
+
+        int N = (int)std::min(P_norm.size(), Q_norm.size()) / 3;
+        if (N >= 3) {
+            kabsch(P_norm, Q_norm, N, U, T);
+            const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
+            const float t_cen2[3] = {t_cx, t_cy, t_cz};
+            for (int r = 0; r < 3; r++) {
+                T_ang[r] = T[r] / norm_scale + q_cen[r];
+                for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen2[c];
+            }
+            computed_transform = true;
+        }
+    }
+
+    // fallback: 전체 CA 순서 매칭
+    if (!computed_transform) {
+        std::vector<std::array<float,3>> query_cas;
+        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                query_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+        std::vector<std::array<float,3>> target_cas;
+        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+            for (const auto& atom : chain) {
+                float* pos = const_cast<Atom&>(atom).get_position();
+                target_cas.push_back({pos[0], pos[1], pos[2]});
+            }
+        }
+
+        int N = (int)std::min(query_cas.size(), target_cas.size());
+        if (N >= 3) {
+            std::vector<float> P_norm, Q_norm;
+            P_norm.reserve(N * 3);
+            Q_norm.reserve(N * 3);
+            for (int i = 0; i < N; i++) {
+                P_norm.push_back(query_cas[i][0]);
+                P_norm.push_back(query_cas[i][1]);
+                P_norm.push_back(query_cas[i][2]);
+                Q_norm.push_back(target_cas[i][0]);
+                Q_norm.push_back(target_cas[i][1]);
+                Q_norm.push_back(target_cas[i][2]);
+            }
+            kabsch(P_norm, Q_norm, N, U, T);
+            const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
+            const float t_cen2[3] = {t_cx, t_cy, t_cz};
+            for (int r = 0; r < 3; r++) {
+                T_ang[r] = T[r] / norm_scale + q_cen[r];
+                for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen2[c];
+            }
+            computed_transform = true;
+        }
+    }
+
+    if (computed_transform) {
+        apply_foldseek_transform(target_protein_idx, U, T, T_ang);
+    }
+
+    // aligned 모드일 때 is_aligned 계산
+    if (screen_mode == "aligned") {
+        if (hit.has_aln) {
+            data[0]->compute_aligned_regions_from_aln(
+                *data[target_protein_idx], hit.qaln, hit.taln, 5.0f);
         } else {
             compute_aligned_all();
         }
@@ -1683,7 +1973,6 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
     if (fm_query_entry_idx >= (int)entries.size() || fm_target_entry_idx >= (int)entries.size()) return;
 
     auto pairs = foldmason_parser->build_aligned_pairs(fm_query_entry_idx, fm_target_entry_idx);
-    if (pairs.empty()) return;
 
     // query/target protein CA atoms 플랫화 (screen_atoms 순서)
     std::vector<std::array<float,3>> query_cas;
@@ -1700,14 +1989,29 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
 
     // P = query (참조), Q = target (회전 대상)
     std::vector<float> P_flat, Q_flat;
-    for (const auto& [ref_res, oth_res] : pairs) {
-        if (ref_res >= q_size || oth_res >= t_size) continue;
-        P_flat.push_back(query_cas[ref_res][0]);
-        P_flat.push_back(query_cas[ref_res][1]);
-        P_flat.push_back(query_cas[ref_res][2]);
-        Q_flat.push_back(target_cas[oth_res][0]);
-        Q_flat.push_back(target_cas[oth_res][1]);
-        Q_flat.push_back(target_cas[oth_res][2]);
+
+    if (!pairs.empty()) {
+        // MSA aligned pairs 사용
+        for (const auto& [ref_res, oth_res] : pairs) {
+            if (ref_res >= q_size || oth_res >= t_size) continue;
+            P_flat.push_back(query_cas[ref_res][0]);
+            P_flat.push_back(query_cas[ref_res][1]);
+            P_flat.push_back(query_cas[ref_res][2]);
+            Q_flat.push_back(target_cas[oth_res][0]);
+            Q_flat.push_back(target_cas[oth_res][1]);
+            Q_flat.push_back(target_cas[oth_res][2]);
+        }
+    } else {
+        // 작업 1-C: fallback — pairs가 비어있으면 전체 CA 순서 매칭
+        int fallback_n = std::min(q_size, t_size);
+        for (int i = 0; i < fallback_n; i++) {
+            P_flat.push_back(query_cas[i][0]);
+            P_flat.push_back(query_cas[i][1]);
+            P_flat.push_back(query_cas[i][2]);
+            Q_flat.push_back(target_cas[i][0]);
+            Q_flat.push_back(target_cas[i][1]);
+            Q_flat.push_back(target_cas[i][2]);
+        }
     }
 
     int N = (int)std::min(P_flat.size(), Q_flat.size()) / 3;
