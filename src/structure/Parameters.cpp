@@ -93,11 +93,11 @@ Parameters::Parameters(int argc, char* argv[]) {
                 } else {
                     throw std::runtime_error("Error: Missing value for --msa.");
                 }
-            } else if (!strcmp(argv[i], "-fs")) {
+            } else if (!strcmp(argv[i], "-fs") || !strcmp(argv[i], "--foldseek")) {
                 if (i + 1 < argc) {
                     foldseek_file = argv[++i];
                 } else {
-                    throw std::runtime_error("Error: Missing value for -fs.");
+                    throw std::runtime_error("Error: Missing value for -fs / --foldseek.");
                 }
             } else if (!strcmp(argv[i], "--db-path")) {
                 if (i + 1 < argc) {
