@@ -50,8 +50,11 @@ public:
     void apply_msa_conservation(int protein_idx, const std::vector<float>& scores);
 
     // 기능 4: -fs 기반 — Foldseek hit의 U/T transform을 지정 protein에 적용
-    // U_flat: row-major 3x3 (9 elements), T: translation (3 elements)
-    void apply_foldseek_transform(int protein_idx, const float* U_flat, const float* T);
+    // U_flat: row-major 3x3 (9 elements)
+    // T_norm: 정규화 공간 T (screen_atoms do_shift용)
+    // T_angstrom: Å 공간 T (init_atoms용). nullptr이면 init_atoms 미갱신
+    void apply_foldseek_transform(int protein_idx, const float* U_flat, const float* T_norm,
+                                  const float* T_angstrom = nullptr);
 
     // 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
     void compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
