@@ -6,12 +6,11 @@ const float PI  = 3.14159265359f;
 const int MAX_STRUCT_NUM = 9;
 
 Screen::Screen(const int& width, const int& height, const bool& show_structure,
-               const std::string& mode, const std::string& depthcharacter) {
+               const std::string& mode) {
     screen_width = width;
     screen_height = height;
     screen_show_structure = show_structure;
     screen_mode = mode;
-    screen_depthcharacter = depthcharacter;
     aspect_ratio = (float)screen_width / screen_height;
     zoom_level = 2.0f;
 
@@ -112,6 +111,31 @@ void Screen::init_color_pairs() {
     // Depth fog: rainbow far: pairs 180-199
     for (int i = 0; i < 20; ++i)
         init_pair(i + 180, Palettes::RAINBOW_FAR[i], -1);
+    // Depth fog: protein far (grayscale): pairs 200-208
+    for (int i = 0; i < 9; ++i)
+        init_pair(i + 200, Palettes::PROTEIN_FAR_COLORS[i], -1);
+    // Depth fog: pLDDT near: pairs 209-212
+    for (int i = 0; i < 4; ++i)
+        init_pair(i + 209, Palettes::PLDDT_NEAR[i], -1);
+    // Depth fog: pLDDT far: pairs 213-216
+    for (int i = 0; i < 4; ++i)
+        init_pair(i + 213, Palettes::PLDDT_FAR[i], -1);
+    // Depth fog: conservation near: pairs 217-226
+    for (int i = 0; i < 10; ++i)
+        init_pair(i + 217, Palettes::CONSERVATION_NEAR[i], -1);
+    // Depth fog: conservation far: pairs 227-236
+    for (int i = 0; i < 10; ++i)
+        init_pair(i + 227, Palettes::CONSERVATION_FAR[i], -1);
+    // Depth fog: interface near/far: pairs 237-240
+    init_pair(237, Palettes::INTERFACE_NEAR_COLOR, -1);
+    init_pair(238, Palettes::INTERFACE_DIM_NEAR_COLOR, -1);
+    init_pair(239, Palettes::INTERFACE_FAR_COLOR, -1);
+    init_pair(240, Palettes::INTERFACE_DIM_FAR_COLOR, -1);
+    // Depth fog: aligned bright near: pairs 241-249
+    for (int i = 0; i < 9; ++i)
+        init_pair(i + 241, Palettes::ALIGNED_BRIGHT_NEAR[i], -1);
+    // Depth fog: aligned dim far: pair 250
+    init_pair(250, Palettes::ALIGNED_NONALIGNED_FAR, -1);
 }
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
@@ -328,19 +352,6 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
     }
 }
 
-char Screen::get_pixel_char_from_depth(float z, float min_z, float max_z) {
-    if (screen_depthcharacter.empty()) return '#';
-    if (!(max_z > min_z)) return screen_depthcharacter.back();
-
-    float t = (z - min_z) / (max_z - min_z); // 0 near, 1 far
-    t = std::clamp(t, 0.0f, 1.0f);
-
-    int L = (int)screen_depthcharacter.size();
-    int idx = (int)std::floor(t * (L - 1));
-    idx = std::clamp(idx, 0, L - 1);
-    return screen_depthcharacter[idx];
-}
-
 void Screen::calibrate_depth_baseline_first_view() {
     const float nearPlane = 0.05f;
     float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
@@ -421,14 +432,13 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
         int ix = (int)x;
         int iy = (int)y;
 
-        char pix = get_pixel_char_from_depth(z, min_z, max_z);
         int band = 1;
-        if (use_braille) {
+        {
             float range = max_z - min_z;
             if (range > 0.0f) {
                 float t = (z - min_z) / range;
-                if      (t < 0.33f) band = 0;
-                else if (t < 0.66f) band = 1;
+                if      (t < 0.25f) band = 0;
+                else if (t < 0.60f) band = 1;
                 else                band = 2;
             }
         }
@@ -437,7 +447,7 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
                 if (ox != 0 && oy != 0) continue;  // cross (+) pattern, not square
                 int nx = ix + ox, ny = iy + oy;
                 if (nx >= 0 && nx < max_x && ny >= 0 && ny < max_y) {
-                    RenderPoint rp{nx, ny, z, pix, 0, chainID, structure};
+                    RenderPoint rp{nx, ny, z, ' ', 0, chainID, structure};
                     rp.depth_band = band;
                     points.push_back(rp);
                 }
@@ -456,12 +466,12 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
     if (screen_mode == "protein") {
         int idx = protein_idx % 9;
         for (auto& pt : points) {
-            if (!use_braille || pt.depth_band == 1) {
+            if (pt.depth_band == 1) {
                 pt.color_id = idx + 1;       // mid: pairs 1-9
             } else if (pt.depth_band == 0) {
                 pt.color_id = idx + 120;     // near: pairs 120-128
             } else {
-                pt.color_id = idx + 11;      // far: pairs 11-19 (dim reuse)
+                pt.color_id = idx + 200;     // far: pairs 200-208 (grayscale)
             }
         }
     } else if (screen_mode == "chain") {
@@ -470,7 +480,7 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         for (auto& pt : points) {
             if (pt.chainID != cur_chain) { color_idx++; cur_chain = pt.chainID; }
             int ci = (protein_idx * 10 + color_idx) % 15;
-            if (!use_braille || pt.depth_band == 1) {
+            if (pt.depth_band == 1) {
                 pt.color_id = 21 + ci;       // mid: pairs 21-35
             } else if (pt.depth_band == 0) {
                 pt.color_id = 130 + ci;      // near: pairs 130-144
@@ -482,7 +492,7 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
         int num_points = (int)points.size();
         for (int i = 0; i < num_points; i++) {
             int color_idx = (i * 20) / std::max(1, num_points);
-            if (!use_braille || points[i].depth_band == 1) {
+            if (points[i].depth_band == 1) {
                 points[i].color_id = color_idx + 51;   // mid: pairs 51-70
             } else if (points[i].depth_band == 0) {
                 points[i].color_id = color_idx + 160;  // near: pairs 160-179
@@ -493,19 +503,50 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
     } else if (screen_mode == "plddt") {
         for (auto& pt : points) {
             float plddt = pt.bfactor;
-            if      (plddt >= 90) pt.color_id = 71;  // Very high: 파란색
-            else if (plddt >= 70) pt.color_id = 72;  // Confident: 청록색
-            else if (plddt >= 50) pt.color_id = 73;  // Low: 노란색
-            else                  pt.color_id = 74;  // Very low: 주황색
+            int base;
+            if      (plddt >= 90) base = 0;
+            else if (plddt >= 70) base = 1;
+            else if (plddt >= 50) base = 2;
+            else                  base = 3;
+            if (pt.depth_band == 1) {
+                pt.color_id = 71 + base;       // mid: pairs 71-74
+            } else if (pt.depth_band == 0) {
+                pt.color_id = 209 + base;      // near: pairs 209-212
+            } else {
+                pt.color_id = 213 + base;      // far: pairs 213-216
+            }
         }
     } else if (screen_mode == "interface") {
         for (auto& pt : points) {
-            pt.color_id = pt.is_interface ? 43 : 44;  // 강조(마젠타) or dim
+            if (pt.depth_band == 1) {
+                pt.color_id = pt.is_interface ? 43 : 44;
+            } else if (pt.depth_band == 0) {
+                pt.color_id = pt.is_interface ? 237 : 238;  // near
+            } else {
+                pt.color_id = pt.is_interface ? 239 : 240;  // far
+            }
         }
     } else if (screen_mode == "aligned") {
-        int bright_id = (protein_idx % 9) + 101;  // pairs 101-109 (PROTEIN_BRIGHT_COLORS)
+        int bright_id = (protein_idx % 9) + 101;  // pairs 101-109
+        int near_id   = (protein_idx % 9) + 241;  // pairs 241-249
         for (auto& pt : points) {
-            pt.color_id = pt.is_aligned ? bright_id : 110;  // 110 = unified dim gray
+            if (pt.is_aligned) {
+                if (pt.depth_band == 1) {
+                    pt.color_id = bright_id;           // mid
+                } else if (pt.depth_band == 0) {
+                    pt.color_id = near_id;             // near: brighter
+                } else {
+                    pt.color_id = bright_id;           // far: same bright (aligned always visible)
+                }
+            } else {
+                if (pt.depth_band == 1) {
+                    pt.color_id = 110;                 // mid: dim gray
+                } else if (pt.depth_band == 0) {
+                    pt.color_id = 110;                 // near: dim gray (non-aligned stays dim)
+                } else {
+                    pt.color_id = 250;                 // far: darker gray
+                }
+            }
         }
     } else if (screen_mode == "conservation") {
         for (auto& pt : points) {
@@ -514,7 +555,13 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
                 pt.color_id = 11;  // 미설정: olive dim
             } else {
                 int idx = std::max(0, std::min(9, (int)(score * 9.0f)));
-                pt.color_id = 75 + idx;  // conservation gradient pairs 75-84
+                if (pt.depth_band == 1) {
+                    pt.color_id = 75 + idx;        // mid: pairs 75-84
+                } else if (pt.depth_band == 0) {
+                    pt.color_id = 217 + idx;       // near: pairs 217-226
+                } else {
+                    pt.color_id = 227 + idx;       // far: pairs 227-236
+                }
             }
         }
     } else {
@@ -538,11 +585,10 @@ void Screen::project() {
 
     float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
 
-    if (!depth_calibrated) {
-        calibrate_depth_baseline_first_view();
-    }
+    // 매 프레임 depth 재보정 — 회전 시 depth band가 현재 뷰에 최적화됨
+    calibrate_depth_baseline_first_view();
 
-    if (use_braille) {
+    {
         // Braille sub-pixel path: render to logicalPixels at 2x width, 4x height.
         // Each terminal cell maps to a 2x4 Braille dot grid giving 8x more detail.
         const int logical_w = screen_width * 2;
@@ -625,20 +671,19 @@ void Screen::project() {
                     }
 
                     if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
-                        char pix = get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z);
                         int band = 1;
                         {
                             float range = depth_base_max_z - depth_base_min_z;
                             if (range > 0.0f) {
                                 float dt = (z - depth_base_min_z) / range;
-                                if      (dt < 0.33f) band = 0;
-                                else if (dt < 0.66f) band = 1;
+                                if      (dt < 0.25f) band = 0;
+                                else if (dt < 0.60f) band = 1;
                                 else                 band = 2;
                             }
                         }
                         if (structure == 'x') {
                             // Coil: 3-pixel vertical cross node (center + top + bottom)
-                            RenderPoint rp{screenX, screenY, z, pix, 0, chainID, structure};
+                            RenderPoint rp{screenX, screenY, z, ' ', 0, chainID, structure};
                             rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
                             rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
                             rp.residue_number = cur_atom.residue_number;
@@ -657,7 +702,7 @@ void Screen::project() {
                                     if (ox != 0 && oy != 0) continue;
                                     int nx = screenX + ox, ny = screenY + oy;
                                     if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h) {
-                                        RenderPoint rp{nx, ny, z, pix, 0, chainID, structure};
+                                        RenderPoint rp{nx, ny, z, ' ', 0, chainID, structure};
                                         rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
                                         rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
                                         rp.residue_number = cur_atom.residue_number;
@@ -689,259 +734,11 @@ void Screen::project() {
                 logicalPixels[idx] = pt;
             }
         }
-        return;
-    }
-
-    // Standard (non-braille) path
-    for (auto& px : screenPixels) {
-        px.depth = std::numeric_limits<float>::infinity();
-        px.pixel = ' ';
-        px.color_id = 0;
-    }
-
-    std::vector<RenderPoint> finalPoints;
-    std::vector<RenderPoint> chainPoints;
-    finalPoints.reserve(200000);
-
-    int protein_idx = 0;
-    for (size_t ii = 0; ii < data.size(); ii++) {
-        Protein* target = data[ii];
-        chainPoints.clear();
-
-        for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
-            if (chain_atoms.empty()) continue;
-
-            int num_atoms = target->get_chain_length(chainID);
-            int prevScreenX = -1, prevScreenY = -1;
-            float prevZ = -1.0f;
-
-            for (int i = 0; i < num_atoms; ++i) {
-                float* position = chain_atoms[i].get_position();
-
-                float x = position[0];
-                float y = position[1];
-                float z = position[2] + focal_offset;
-
-                if (z < nearPlane) {
-                    prevScreenX = prevScreenY = -1;
-                    prevZ = -1.0f;
-                    continue;
-                }
-
-                char structure = chain_atoms[i].get_structure();
-
-                float projectedX = (x / z) * fovRads + pan_x[ii];
-                float projectedY = (y / z) * fovRads + pan_y[ii];
-
-                int screenX = (int)((projectedX + 1.0f) * 0.5f * screen_width);
-                int screenY = (int)((1.0f - projectedY) * 0.5f * screen_height);
-
-                const Atom& cur_atom = chain_atoms[i];
-                if (prevScreenX != -1 && prevScreenY != -1) {
-                    size_t before_draw = chainPoints.size();
-                    if (structure != 'H' && structure != 'S') {
-                        const Atom& P0 = chain_atoms[std::max(0, i-2)];
-                        const Atom& P1 = chain_atoms[i-1];
-                        const Atom& P2 = chain_atoms[i];
-                        const Atom& P3 = chain_atoms[std::min(num_atoms-1, i+1)];
-                        int cr_prevX = prevScreenX, cr_prevY = prevScreenY;
-                        float cr_prevZ = prevZ;
-                        for (int cr = 1; cr <= 4; ++cr) {
-                            float t = cr * 0.25f;
-                            float t2 = t*t, t3 = t2*t;
-                            float cx = 0.5f*((-P0.x+3*P1.x-3*P2.x+P3.x)*t3 + (2*P0.x-5*P1.x+4*P2.x-P3.x)*t2 + (-P0.x+P2.x)*t + 2*P1.x);
-                            float cy = 0.5f*((-P0.y+3*P1.y-3*P2.y+P3.y)*t3 + (2*P0.y-5*P1.y+4*P2.y-P3.y)*t2 + (-P0.y+P2.y)*t + 2*P1.y);
-                            float cz = 0.5f*((-P0.z+3*P1.z-3*P2.z+P3.z)*t3 + (2*P0.z-5*P1.z+4*P2.z-P3.z)*t2 + (-P0.z+P2.z)*t + 2*P1.z) + focal_offset;
-                            if (cz < nearPlane) break;
-                            float cpX = (cx/cz)*fovRads + pan_x[ii];
-                            float cpY = (cy/cz)*fovRads + pan_y[ii];
-                            int cX = (int)((cpX+1.0f)*0.5f*screen_width);
-                            int cY = (int)((1.0f-cpY)*0.5f*screen_height);
-                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
-                            cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
-                        }
-                    } else {
-                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
-                    }
-                    // Propagate current atom's metadata to all points added by draw_line
-                    for (size_t k = before_draw; k < chainPoints.size(); ++k) {
-                        chainPoints[k].bfactor            = cur_atom.bfactor;
-                        chainPoints[k].is_interface       = cur_atom.is_interface;
-                        chainPoints[k].is_aligned         = cur_atom.is_aligned;
-                        chainPoints[k].conservation_score = cur_atom.conservation_score;
-                        chainPoints[k].residue_number     = cur_atom.residue_number;
-                        strncpy(chainPoints[k].residue_name, cur_atom.residue_name.c_str(), 3);
-                        chainPoints[k].residue_name[3]    = '\0';
-                    }
-                }
-
-                if (screenX >= 0 && screenX < screen_width && screenY >= 0 && screenY < screen_height) {
-                    RenderPoint rp{screenX, screenY, z,
-                                   get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                   0, chainID, structure};
-                    rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
-                    rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                    rp.residue_number = cur_atom.residue_number;
-                    strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
-                    rp.residue_name[3] = '\0';
-                    chainPoints.push_back(rp);
-                }
-
-                prevScreenX = screenX;
-                prevScreenY = screenY;
-                prevZ = z;
-            }
-        }
-
-        assign_colors_to_points(chainPoints, protein_idx);
-        finalPoints.insert(finalPoints.end(), chainPoints.begin(), chainPoints.end());
-        protein_idx++;
-    }
-
-    // z-buffer resolve — 전체 복사 필수: residue_number 등 모든 필드 포함
-    for (const auto& pt : finalPoints) {
-        if (pt.x < 0 || pt.x >= screen_width || pt.y < 0 || pt.y >= screen_height) continue;
-        int idx = pt.y * screen_width + pt.x;
-        if (pt.depth < screenPixels[idx].depth) {
-            screenPixels[idx] = pt;  // RenderPoint 전체 복사 (residue_number 포함)
-        }
-    }
-}
-
-void Screen::project(std::vector<RenderPoint>& projectPixels, const int proj_width, const int proj_height) {
-    const float nearPlane = 0.05f;
-    float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
-
-    // init
-    if ((int)projectPixels.size() != proj_width * proj_height) {
-        projectPixels.assign(proj_width * proj_height, RenderPoint());
-    }
-    for (auto& px : projectPixels) {
-        px.depth = std::numeric_limits<float>::infinity();
-        px.pixel = ' ';
-        px.color_id = 0;
-    }
-
-    if (!depth_calibrated) {
-        calibrate_depth_baseline_first_view();
-    }
-
-    std::vector<RenderPoint> finalPoints;
-    std::vector<RenderPoint> chainPoints;
-    finalPoints.reserve(200000);
-
-    int protein_idx = 0;
-    for (size_t ii = 0; ii < data.size(); ii++) {
-        Protein* target = data[ii];
-        chainPoints.clear();
-
-        for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
-            if (chain_atoms.empty()) continue;
-
-            int num_atoms = target->get_chain_length(chainID);
-            int prevScreenX = -1, prevScreenY = -1;
-            float prevZ = -1.0f;
-
-            for (int i = 0; i < num_atoms; ++i) {
-                float* position = chain_atoms[i].get_position();
-
-                float x = position[0];
-                float y = position[1];
-                float z = position[2] + focal_offset;
-
-                if (z < nearPlane) {
-                    prevScreenX = prevScreenY = -1;
-                    prevZ = -1.0f;
-                    continue;
-                }
-
-                char structure = chain_atoms[i].get_structure();
-
-                float projectedX = (x / z) * fovRads + pan_x[ii];
-                float projectedY = (y / z) * fovRads + pan_y[ii];
-
-                int screenX = (int)((projectedX + 1.0f) * 0.5f * proj_width);
-                int screenY = (int)((1.0f - projectedY) * 0.5f * proj_height);
-
-                const Atom& cur_atom = chain_atoms[i];
-                if (prevScreenX != -1 && prevScreenY != -1) {
-                    size_t before_draw = chainPoints.size();
-                    if (structure != 'H' && structure != 'S') {
-                        const Atom& P0 = chain_atoms[std::max(0, i-2)];
-                        const Atom& P1 = chain_atoms[i-1];
-                        const Atom& P2 = chain_atoms[i];
-                        const Atom& P3 = chain_atoms[std::min(num_atoms-1, i+1)];
-                        int cr_prevX = prevScreenX, cr_prevY = prevScreenY;
-                        float cr_prevZ = prevZ;
-                        for (int cr = 1; cr <= 4; ++cr) {
-                            float t = cr * 0.25f;
-                            float t2 = t*t, t3 = t2*t;
-                            float cx = 0.5f*((-P0.x+3*P1.x-3*P2.x+P3.x)*t3 + (2*P0.x-5*P1.x+4*P2.x-P3.x)*t2 + (-P0.x+P2.x)*t + 2*P1.x);
-                            float cy = 0.5f*((-P0.y+3*P1.y-3*P2.y+P3.y)*t3 + (2*P0.y-5*P1.y+4*P2.y-P3.y)*t2 + (-P0.y+P2.y)*t + 2*P1.y);
-                            float cz = 0.5f*((-P0.z+3*P1.z-3*P2.z+P3.z)*t3 + (2*P0.z-5*P1.z+4*P2.z-P3.z)*t2 + (-P0.z+P2.z)*t + 2*P1.z) + focal_offset;
-                            if (cz < nearPlane) break;
-                            float cpX = (cx/cz)*fovRads + pan_x[ii];
-                            float cpY = (cy/cz)*fovRads + pan_y[ii];
-                            int cX = (int)((cpX+1.0f)*0.5f*proj_width);
-                            int cY = (int)((1.0f-cpY)*0.5f*proj_height);
-                            draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z);
-                            cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
-                        }
-                    } else {
-                        draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z);
-                    }
-                    // Propagate current atom's metadata to all points added by draw_line
-                    for (size_t k = before_draw; k < chainPoints.size(); ++k) {
-                        chainPoints[k].bfactor            = cur_atom.bfactor;
-                        chainPoints[k].is_interface       = cur_atom.is_interface;
-                        chainPoints[k].is_aligned         = cur_atom.is_aligned;
-                        chainPoints[k].conservation_score = cur_atom.conservation_score;
-                        chainPoints[k].residue_number     = cur_atom.residue_number;
-                        strncpy(chainPoints[k].residue_name, cur_atom.residue_name.c_str(), 3);
-                        chainPoints[k].residue_name[3]    = '\0';
-                    }
-                }
-
-                if (screenX >= 0 && screenX < proj_width && screenY >= 0 && screenY < proj_height) {
-                    RenderPoint rp{screenX, screenY, z,
-                                   get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z),
-                                   0, chainID, structure};
-                    rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
-                    rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                    rp.residue_number = cur_atom.residue_number;
-                    strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
-                    rp.residue_name[3] = '\0';
-                    chainPoints.push_back(rp);
-                }
-
-                prevScreenX = screenX;
-                prevScreenY = screenY;
-                prevZ = z;
-            }
-        }
-
-        assign_colors_to_points(chainPoints, protein_idx);
-        finalPoints.insert(finalPoints.end(), chainPoints.begin(), chainPoints.end());
-        protein_idx++;
-    }
-
-    for (const auto& pt : finalPoints) {
-        if (pt.x < 0 || pt.x >= proj_width || pt.y < 0 || pt.y >= proj_height) continue;
-        int idx = pt.y * proj_width + pt.x;
-
-        if (pt.depth < projectPixels[idx].depth) {
-            projectPixels[idx].depth = pt.depth;
-            projectPixels[idx].pixel = pt.pixel;
-            projectPixels[idx].color_id = pt.color_id;
-        }
     }
 }
 
 void Screen::clear_screen() {
-    screenPixels.assign(screen_width * screen_height, RenderPoint());
-    if (use_braille) {
-        logicalPixels.assign(screen_width * 2 * screen_height * 4, RenderPoint());
-    }
+    logicalPixels.assign(screen_width * 2 * screen_height * 4, RenderPoint());
 }
 
 void Screen::draw_screen(bool no_panel) {
@@ -1064,34 +861,7 @@ void Screen::print_screen_braille(int y_offset) {
 }
 
 void Screen::print_screen(int y_offset) {
-    if (use_braille) {
-        print_screen_braille(y_offset);
-        return;
-    }
-
-    int rows, cols;
-    getmaxyx(stdscr, rows, cols);
-
-    for (int i = 0; i < screen_height; ++i) {
-        int row = i - (y_offset/2)-3;
-        if (row < 0) continue;
-        if (row >= rows) break;
-
-        int max_width = std::min(screen_width, cols);
-
-        for (int j = 0; j < max_width; ++j) {
-            int idx = i * screen_width + j;
-            const RenderPoint& px = screenPixels[idx];
-
-            if (px.color_id > 0) {
-                attron(COLOR_PAIR(px.color_id));
-                mvaddch(row, j, px.pixel);
-                attroff(COLOR_PAIR(px.color_id));
-            } else {
-                mvaddch(row, j, px.pixel);
-            }
-        }
-    }
+    print_screen_braille(y_offset);
 }
 
 void Screen::set_zoom_level(float zoom){
@@ -1117,8 +887,8 @@ void Screen::update_hover_info(int mx, int my) {
     const RenderPoint* best = nullptr;
     float best_depth = std::numeric_limits<float>::infinity();
 
-    if (use_braille) {
-        int ty_screen = my + panel_offset;  // 브레일 스크린 행
+    {
+        int ty_screen = my + panel_offset;
         if (ty_screen >= 0 && ty_screen < screen_height && mx >= 0 && mx < screen_width) {
             const int logical_w = screen_width * 2;
             const int logical_h = screen_height * 4;
@@ -1133,15 +903,6 @@ void Screen::update_hover_info(int mx, int my) {
                         best = &lp;
                     }
                 }
-            }
-        }
-    } else {
-        int screen_y = my + panel_offset;
-        int screen_x = mx;
-        if (screen_x >= 0 && screen_x < screen_width && screen_y >= 0 && screen_y < screen_height) {
-            const RenderPoint& px = screenPixels[screen_y * screen_width + screen_x];
-            if (px.residue_number >= 0) {
-                best = &px;
             }
         }
     }
@@ -1298,12 +1059,8 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
         // C, c (camera)
         case 67:
         case 99:     
-        {     
-            std::vector<RenderPoint> screenshotPixels;
-            screenshotPixels.assign(screen_width * screen_height, RenderPoint());
-            project(screenshotPixels, screen_width, screen_height);
-            camera->screenshot(screenshotPixels);
-            // camera->screenshot(screenPixels);
+        {
+            camera->screenshot(logicalPixels, screen_width * 2, screen_height * 4);
             break;
         }
         // N, n (next Foldseek hit)
@@ -1380,6 +1137,17 @@ void Screen::apply_foldseek_transform(int protein_idx, const float* U_flat,
         data[protein_idx]->apply_ut_to_init_atoms(U_flat, T_angstrom);
     }
     yesUT = true;
+
+    // pan 초기화 — overlay 모드로 전환 (grid layout 해제)
+    for (size_t i = 0; i < pan_x.size(); i++) {
+        pan_x[i] = 0.0f;
+        pan_y[i] = 0.0f;
+    }
+
+    // focal_offset 재계산 (bounding box 변경 반영)
+    float radius = compute_scene_radius_from_render_positions(data);
+    focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
+    depth_calibrated = false;
 }
 
 // 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)

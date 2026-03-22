@@ -27,8 +27,7 @@ int main(int argc, char* argv[]) {
 
     Screen screen(term_cols, term_rows,
                   params.get_show_structure(),
-                  params.get_mode(),
-                  params.get_depthcharacter());
+                  params.get_mode());
     
     Benchmark bm;
     const bool bench = params.get_benchmark_mode();

@@ -15,7 +15,6 @@ bool is_nonnegative_number(const char* s) {
 
 void print_help(){
     std::cout<<"-m, --mode:\n\t1. protein (default)\n\t2. chain\n\t3. rainbow\n\t4. plddt\n\t5. interface\n\t6. conservation\n\t7. aligned"<<std::endl;
-    std::cout<<"-d, --depth:\n\t1 .#@%*^-. (default)\n\t2. 7-character user input e.g. -d a134((%"<<std::endl;
     std::cout<<"-c, --chains:\n\tshow only the selected chains, see example/chainfile"<<std::endl;
     std::cout<<"-s, --structure:\n\tshow secondary structure (alpha helix, beta sheet)"<<std::endl;
     std::cout<<"-p, --predict:\n\tshow secondary structure with prediction if it is not described in the input file"<<std::endl;
@@ -55,17 +54,6 @@ Parameters::Parameters(int argc, char* argv[]) {
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");
-                }
-            } else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--depth")) {
-                if (i + 1 < argc) {
-                    std::string val(argv[i + 1]);
-                    // std::transform(val.begin(), val.end(), val.begin(), ::tolower); // to lowercase
-                    if (val != "") {
-                        depthcharacter = val;
-                        i++;
-                    }
-                } else {
-                    throw std::runtime_error("Error: Missing value for -d / --depth.");
                 }
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--chains")) {
                 if (i + 1 < argc) {
@@ -145,7 +133,6 @@ void Parameters::print_args() {
         std::cout << "\t" << in_file[i] << ": " << chains[i] << '\n'; 
     }
     cout << "  mode: " << mode << endl;
-    cout << "  depthcharacter: " << depthcharacter << endl;
     cout << "  utmatrix: " << utmatrix << endl;
     cout << "  chainfile: " << chainfile << endl;
     cout << "  show_structure: " << show_structure << endl;
