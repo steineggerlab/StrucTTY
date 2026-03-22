@@ -1,28 +1,21 @@
 #include "Parameters.hpp"
-#include <cmath>
-
-bool is_nonnegative_number(const char* s) {
-    if (s == nullptr || *s == '\0') return false;
-    char* end = nullptr;
-    errno = 0;
-    double val = std::strtod(s, &end);
-    if (end == s || *end != '\0') return false;
-    if (errno == ERANGE) return false;
-    if (val <= 0.0) return false;
-    if (std::isnan(val)) return false;
-    return true;
-}
 
 void print_help(){
-    std::cout<<"-m, --mode:\n\t1. protein (default)\n\t2. chain\n\t3. rainbow\n\t4. plddt\n\t5. interface\n\t6. conservation\n\t7. aligned"<<std::endl;
-    std::cout<<"-c, --chains:\n\tshow only the selected chains, see example/chainfile"<<std::endl;
-    std::cout<<"-s, --structure:\n\tshow secondary structure (alpha helix, beta sheet)"<<std::endl;
-    std::cout<<"-p, --predict:\n\tshow secondary structure with prediction if it is not described in the input file"<<std::endl;
-    std::cout<<"-ut, --utmatrix:\n\trotate and translate, see example/utfile"<<std::endl;
-    std::cout<<"--msa <file>:\n\tMSA file for conservation score (FASTA/A3M format)"<<std::endl;
-    std::cout<<"-fs <file>:\n\tFoldseek result file for hit navigation"<<std::endl;
-    std::cout<<"--db-path <dir>:\n\ttarget PDB directory for Foldseek hit loading"<<std::endl;
-    std::cout<<"--foldmason, -fm <file>:\n\tFoldMason result JSON or FASTA MSA file (superposition + conservation)"<<std::endl;
+    std::cout << "Usage: StrucTTY <input_files...> [OPTIONS]\n\n";
+    std::cout << "Options:\n";
+    std::cout << "  -m, --mode <MODE>       Color mode:\n";
+    std::cout << "                            protein (default), chain, rainbow,\n";
+    std::cout << "                            plddt, interface, conservation, aligned\n";
+    std::cout << "  -c, --chains <FILE>     Show only selected chains (see example/chainfile)\n";
+    std::cout << "  -s, --structure         Show secondary structure (alpha helix, beta sheet)\n";
+    std::cout << "  -ut, --utmatrix <FILE>  Apply rotation/translation matrix (see example/utfile)\n";
+    std::cout << "  --msa <FILE>            MSA file for conservation score (FASTA/A3M)\n";
+    std::cout << "  -fs, --foldseek <FILE>  Foldseek result file for hit navigation\n";
+    std::cout << "  --db-path <DIR>         Target PDB directory for Foldseek hit loading\n";
+    std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSA)\n";
+    std::cout << "  -n, --nopanel           Hide info panel\n";
+    std::cout << "  -b, --benchmark         Benchmark mode (measure FPS/latency)\n";
+    std::cout << "  --help                  Show this help message\n";
 }
 Parameters::Parameters(int argc, char* argv[]) {
     arg_okay = true;
@@ -66,8 +59,6 @@ Parameters::Parameters(int argc, char* argv[]) {
                 show_structure = true;
             } else if (!strcmp(argv[i], "-n") || !strcmp(argv[i], "--nopanel")) {
                 no_panel = true;
-            } else if (!strcmp(argv[i], "-p") || !strcmp(argv[i], "--predict")) {
-                predict_structure = true;
             } else if (!strcmp(argv[i], "-ut") || !strcmp(argv[i], "--utmatrix")) {
                 if (i + 1 < argc) {
                     utmatrix = argv[++i];
@@ -114,10 +105,6 @@ Parameters::Parameters(int argc, char* argv[]) {
             return;
         }
     }
-    while(in_file.size() != chains.size()){
-        chains.push_back("-");
-    }
-
     if (in_file.size() == 0){
         std::cerr << "Error: Need input file dir" << std::endl;
         arg_okay = false;
@@ -129,8 +116,8 @@ Parameters::Parameters(int argc, char* argv[]) {
 void Parameters::print_args() {
     cout << "Input parameters >> " << endl;
     cout << "  in_file: " << endl;
-    for (int i = 0; i < in_file.size(); i++) {
-        std::cout << "\t" << in_file[i] << ": " << chains[i] << '\n'; 
+    for (size_t i = 0; i < in_file.size(); i++) {
+        std::cout << "\t" << in_file[i] << '\n';
     }
     cout << "  mode: " << mode << endl;
     cout << "  utmatrix: " << utmatrix << endl;

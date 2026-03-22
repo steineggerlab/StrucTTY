@@ -4,8 +4,6 @@
 #include <map>
 #include <vector>
 #include <tuple>
-#include <fstream>
-#include <sstream>
 #include <cmath>
 #include <limits>
 #include <algorithm>
@@ -59,8 +57,6 @@ public:
     int get_length();
     void set_bounding_box();
 
-    float get_scaled_min_z();
-    float get_scaled_max_z();
     BoundingBox& get_bounding_box();
     void set_scale(float scale_);
     std::string get_file_name() { return in_file; }
@@ -119,7 +115,7 @@ private:
 
     std::string in_file;
     std::string target_chains;
-    bool show_structure, predict_structure;
+    bool show_structure;
 
     BoundingBox bounding_box;
 

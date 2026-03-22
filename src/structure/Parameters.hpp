@@ -13,11 +13,9 @@ class Parameters{
     private:
         bool show_structure = false;
         bool no_panel = false;
-        bool predict_structure = false;
         bool arg_okay = true;
         bool benchmark_mode = false;
         vector<string> in_file;
-        vector<string> chains;
         string utmatrix = "";
         string chainfile = "";
         string mode = "protein";
@@ -29,8 +27,6 @@ class Parameters{
         Parameters(int argc, char* argv[]);
 
         void print_args();
-
-        bool is_valid_number(const std::string& str, int min, int max);
 
         // get, set
         vector<string>& get_in_file(){
