@@ -54,13 +54,7 @@ int Protein::get_length() {
     return total_atoms;
 }
 
-float Protein::get_scaled_min_z() { 
-    return (bounding_box.min_z - cz) * scale; 
-}
 
-float Protein::get_scaled_max_z() { 
-    return (bounding_box.max_z - cz) * scale; 
-}
 
 BoundingBox& Protein::get_bounding_box() {
      return bounding_box; 

@@ -13,8 +13,6 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
-#include <unordered_map>
-#include <cstdlib>
 #include <algorithm>   // clamp, max
 #include <limits>      // numeric_limits
 #include <memory>
