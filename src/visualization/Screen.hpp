@@ -23,14 +23,14 @@
 class Screen {
 public:
     Screen(const int& width, const int& height, const bool& show_structure,
-           const std::string& mode, const std::string& depthcharacter);
+           const std::string& mode);
     ~Screen();
 
     // 기능 6: 마우스 hover — main loop용 (needs_redraw 반환)
     bool handle_input(bool& needs_redraw);
     // 벤치마크용: needs_redraw 없이 키 직접 처리
     bool handle_input(int key);
-    char get_pixel_char_from_depth(float z, float min_z, float max_z);
+
 
     void set_protein(const std::string& in_file, int ii, const bool& show_structure);
     void normalize_proteins(const std::string& utmatrix);
@@ -109,11 +109,9 @@ private:
     bool screen_show_structure;
     bool yesUT = false;
     std::string screen_mode;
-    std::string screen_depthcharacter;
     int structNum = -1;
 
     // Braille sub-pixel rendering
-    bool use_braille = true;
     std::vector<RenderPoint> logicalPixels; // 2*width x 4*height logical buffer
     void print_screen_braille(int y_offset);
 
@@ -125,7 +123,6 @@ private:
     std::vector<std::string> chainVec;
     float** vectorpointer = nullptr;
 
-    std::vector<RenderPoint> screenPixels;
     std::vector<Protein*> data;
 
     BoundingBox global_bb;
@@ -160,7 +157,6 @@ private:
     void calibrate_depth_baseline_first_view();
 
     void project();
-    void project(std::vector<RenderPoint>& screenshotPixels, const int proj_width, const int proj_height);
     void clear_screen();
     void print_screen(int panel_lines);
 
