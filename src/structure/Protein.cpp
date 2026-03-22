@@ -607,7 +607,8 @@ void Protein::compute_aligned_regions_nn(Protein& other, float threshold) {
 void Protein::compute_aligned_regions_from_aln(Protein& other,
                                                const std::string& qaln,
                                                const std::string& taln,
-                                               float threshold) {
+                                               float threshold,
+                                               bool skip_distance_check) {
     if (qaln.size() != taln.size()) return;
     float thr2 = threshold * threshold;
 
@@ -640,12 +641,18 @@ void Protein::compute_aligned_regions_from_aln(Protein& other,
             if (q_idx < q_size && t_idx < t_size) {
                 Atom* qa = query_cas[q_idx];
                 Atom* ta = target_cas[t_idx];
-                float dx = qa->x - ta->x;
-                float dy = qa->y - ta->y;
-                float dz = qa->z - ta->z;
-                if (dx*dx + dy*dy + dz*dz < thr2) {
+                if (skip_distance_check) {
+                    // alignment string만으로 is_aligned 설정 (좌표 비교 생략)
                     qa->is_aligned = true;
                     ta->is_aligned = true;
+                } else {
+                    float dx = qa->x - ta->x;
+                    float dy = qa->y - ta->y;
+                    float dz = qa->z - ta->z;
+                    if (dx*dx + dy*dy + dz*dz < thr2) {
+                        qa->is_aligned = true;
+                        ta->is_aligned = true;
+                    }
                 }
             }
         }

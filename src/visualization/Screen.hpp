@@ -58,7 +58,8 @@ public:
 
     // 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
     void compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
-                                  float threshold = 5.0f);
+                                  float threshold = 5.0f,
+                                  bool skip_distance_check = false);
 
     // 기능 4: 패널에 정렬 방식 표시 설정 ("aln-string" or "nearest-nbr")
     void set_align_method(const std::string& method);
