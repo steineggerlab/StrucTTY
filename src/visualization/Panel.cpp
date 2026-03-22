@@ -319,6 +319,8 @@ void Panel::draw_panel(int start_row, int start_col,
         int protein_pair = 0;
         if (panel_mode == "protein") {
             protein_pair = (file_idx % num_protein_colors) + 1;  // pairs 1-9
+        } else if (panel_mode == "aligned") {
+            protein_pair = (file_idx % num_protein_colors) + 101;  // pairs 101-109
         }
 
         // file name line
@@ -366,7 +368,7 @@ void Panel::draw_panel(int start_row, int start_col,
                 chain_pair = 21 + ((file_idx * 10 + count) % num_chain_colors);  // pairs 21-35
             }
 
-            int pair_to_use = (panel_mode == "protein") ? protein_pair : chain_pair;
+            int pair_to_use = (panel_mode == "protein" || panel_mode == "aligned") ? protein_pair : chain_pair;
 
             if (pair_to_use > 0) attron(COLOR_PAIR(pair_to_use));
             put_n(r, x, buf, token_len);
