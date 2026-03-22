@@ -973,6 +973,9 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
         case 52:
         case 53:
         case 54:
+        case 55:
+        case 56:
+        case 57:
             if (key == 48){
                 structNum = -1;
             }
