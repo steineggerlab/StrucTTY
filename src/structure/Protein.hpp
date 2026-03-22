@@ -77,7 +77,8 @@ public:
     void compute_aligned_regions_from_aln(Protein& other,
                                           const std::string& qaln,
                                           const std::string& taln,
-                                          float threshold = 10.0f);
+                                          float threshold = 10.0f,
+                                          bool skip_distance_check = false);
 
     // 기능 4: nearest-neighbor 기반 (-ut 단독 사용 fallback)
     void compute_aligned_regions_nn(Protein& other, float threshold = 10.0f);
