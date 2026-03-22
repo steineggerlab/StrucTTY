@@ -38,13 +38,26 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& screenPixels,
                 if (cid <= 0) {
                 } else {
                     int xterm;
-                    if      (cid >= 1  && cid <= 9)  xterm = Palettes::PROTEIN_COLORS[cid - 1];
-                    else if (cid >= 11 && cid <= 19) xterm = Palettes::PROTEIN_DIM_COLORS[cid - 11];
-                    else if (cid >= 21 && cid <= 35) xterm = Palettes::CHAIN_COLORS[cid - 21];
-                    else if (cid == 41)              xterm = 226;  // yellow helix
-                    else if (cid == 42)              xterm = 51;   // cyan sheet
-                    else if (cid >= 51 && cid <= 70) xterm = Palettes::RAINBOW[cid - 51];
-                    else                             xterm = 231;  // fallback white
+                    if      (cid >= 1  && cid <= 9)    xterm = Palettes::PROTEIN_COLORS[cid - 1];
+                    else if (cid >= 11 && cid <= 19)   xterm = Palettes::PROTEIN_DIM_COLORS[cid - 11];
+                    else if (cid >= 21 && cid <= 35)   xterm = Palettes::CHAIN_COLORS[cid - 21];
+                    else if (cid == 41)                xterm = 226;  // yellow helix
+                    else if (cid == 42)                xterm = 51;   // cyan sheet
+                    else if (cid == 43)                xterm = Palettes::INTERFACE_COLOR;
+                    else if (cid == 44)                xterm = Palettes::INTERFACE_DIM_COLOR;
+                    else if (cid == 45)                xterm = Palettes::ALIGNED_COLOR;
+                    else if (cid == 46)                xterm = Palettes::ALIGNED_DIM_COLOR;
+                    else if (cid >= 51 && cid <= 70)   xterm = Palettes::RAINBOW[cid - 51];
+                    else if (cid >= 71 && cid <= 74)   xterm = Palettes::PLDDT_COLORS[cid - 71];
+                    else if (cid >= 75 && cid <= 84)   xterm = Palettes::CONSERVATION_COLORS[cid - 75];
+                    else if (cid >= 101 && cid <= 109) xterm = Palettes::PROTEIN_BRIGHT_COLORS[cid - 101];
+                    else if (cid == 110)               xterm = Palettes::ALIGNED_NONALIGNED_DIM;
+                    else if (cid >= 120 && cid <= 128) xterm = Palettes::PROTEIN_NEAR_COLORS[cid - 120];
+                    else if (cid >= 130 && cid <= 144) xterm = Palettes::CHAIN_NEAR_COLORS[cid - 130];
+                    else if (cid >= 145 && cid <= 159) xterm = Palettes::CHAIN_FAR_COLORS[cid - 145];
+                    else if (cid >= 160 && cid <= 179) xterm = Palettes::RAINBOW_NEAR[cid - 160];
+                    else if (cid >= 180 && cid <= 199) xterm = Palettes::RAINBOW_FAR[cid - 180];
+                    else                               xterm = 231;  // fallback white
                     screenImage[((y * height_duplicate) + d) * camera_width + x] =
                         Palettes::ID2RGBA[xterm];
                 }
