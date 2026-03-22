@@ -19,12 +19,12 @@
 
 **StrucTTY** is a lightweight, terminal-based protein structure visualizer built in C++17. It renders 3D protein structures directly in the terminal using **Unicode Braille sub-pixel rendering**, providing 8x resolution compared to standard character-based rendering.
 
-StrucTTY supports simultaneous visualization of up to 6 proteins, 7 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
+StrucTTY supports simultaneous visualization of up to 9 proteins, 7 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
 
 ## Features
 
 - **Braille sub-pixel rendering** — each terminal cell maps to a 2×4 logical pixel grid
-- **Up to 6 proteins** rendered simultaneously with independent controls
+- **Up to 9 proteins** rendered simultaneously with independent controls
 - **7 color modes** — `protein`, `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `aligned`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
 - **Secondary structure visualization** — helix cylinders and sheet ribbons
@@ -161,7 +161,7 @@ make -j$(nproc)
 | Key | Action |
 |-----|--------|
 | `0` | Control all proteins |
-| `1`–`6` | Control individual protein |
+| `1`–`9` | Control individual protein |
 | `W` / `A` / `S` / `D` | Move up / left / down / right |
 | `X` / `Y` / `Z` | Rotate around X / Y / Z axis |
 | `R` / `F` | Zoom in / out |
