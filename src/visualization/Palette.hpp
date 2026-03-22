@@ -37,6 +37,86 @@ namespace Palettes {
          88,  // 19  red dim       #870000
     };
 
+    // Aligned 강조용 밝은 protein colors, pairs 101-109
+    inline const std::array<int, 9> PROTEIN_BRIGHT_COLORS = {
+        148,  // 101  olive bright    #afd700
+        123,  // 102  turquoise bright #87d7ff
+         69,  // 103  navy bright     #5f87ff
+        171,  // 104  purple bright   #d75fff
+        219,  // 105  pink bright     #ffafff
+        216,  // 106  coral bright    #ffaf87
+        178,  // 107  brown bright    #d7af00
+        221,  // 108  orange bright   #ffd75f
+        203,  // 109  red bright      #ff5f5f
+    };
+
+    // Non-aligned 통일 회색, pair 110
+    inline constexpr int ALIGNED_NONALIGNED_DIM = 240;  // xterm-240 #585858
+
+    // Depth fog: protein near (bright) colors, pairs 120-128
+    inline const std::array<int, 9> PROTEIN_NEAR_COLORS = {
+        142,  // 120  olive near      #afaf00
+        116,  // 121  turquoise near  #87d7d7
+         63,  // 122  navy near       #5f5fff
+        135,  // 123  purple near     #af5fff
+        219,  // 124  pink near       #ffafff
+        216,  // 125  coral near      #ffaf87
+        178,  // 126  brown near      #d7af00
+        221,  // 127  orange near     #ffd75f
+        203,  // 128  red near        #ff5f5f
+    };
+    // Protein far = PROTEIN_DIM_COLORS (pairs 11-19), 재사용
+
+    // Depth fog: chain near colors (brighter), pairs 130-144
+    inline const std::array<int, 15> CHAIN_NEAR_COLORS = {
+        142,  // 130  olive near      #afaf00
+        116,  // 131  turquoise near  #87d7d7
+         63,  // 132  navy near       #5f5fff
+        135,  // 133  purple near     #af5fff
+        219,  // 134  pink near       #ffafff
+        216,  // 135  coral near      #ffaf87
+        178,  // 136  brown near      #d7af00
+        221,  // 137  orange near     #ffd75f
+        203,  // 138  red near        #ff5f5f
+         44,  // 139  teal near       #00d7d7
+        155,  // 140  lime near       #afd75f
+        207,  // 141  magenta near    #ff5fff
+        228,  // 142  gold near       #ffff87
+        189,  // 143  lavender near   #d7d7ff
+        217,  // 144  salmon near     #ffafaf
+    };
+
+    // Depth fog: chain far colors (dimmer), pairs 145-159
+    inline const std::array<int, 15> CHAIN_FAR_COLORS = {
+         58,  // 145  olive far       #5f5f00
+         30,  // 146  turquoise far   #008787
+         18,  // 147  navy far        #000087
+         54,  // 148  purple far      #5f0087
+        132,  // 149  pink far        #af5f87
+        131,  // 150  coral far       #af5f5f
+         94,  // 151  brown far       #875f00
+        172,  // 152  orange far      #d78700
+         88,  // 153  red far         #870000
+         23,  // 154  teal far        #005f5f
+         64,  // 155  lime far        #5f8700
+        127,  // 156  magenta far     #af00af
+        178,  // 157  gold far        #d7af00
+        103,  // 158  lavender far    #8787ff
+        131,  // 159  salmon far      #af5f5f
+    };
+
+    // Depth fog: rainbow near colors (brighter), pairs 160-179
+    inline const std::array<int, 20> RAINBOW_NEAR = {
+        210, 216, 215, 221, 228, 229, 192, 157, 157, 120,
+         85,  87,  81,  75,  69,  63,  57,  99, 135, 207
+    };
+
+    // Depth fog: rainbow far colors (dimmer), pairs 180-199
+    inline const std::array<int, 20> RAINBOW_FAR = {
+        124, 130, 136, 172, 178, 184, 148, 112,  64,  28,
+         23,  24,  24,  18,  18,  18,  18,  54,  90, 127
+    };
+
     // Interface region colors, pairs 43-44
     // pair 43: interface residue (bright magenta, xterm-201)
     // pair 44: non-interface dim  (olive dim, xterm-58)

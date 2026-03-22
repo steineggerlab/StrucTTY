@@ -90,6 +90,28 @@ void Screen::init_color_pairs() {
     // Conservation gradient: pairs 75-84
     for (int i = 0; i < 10; ++i)
         init_pair(i + 75, Palettes::CONSERVATION_COLORS[i], -1);
+
+    // Aligned bright: pairs 101-109
+    for (int i = 0; i < 9; ++i)
+        init_pair(i + 101, Palettes::PROTEIN_BRIGHT_COLORS[i], -1);
+    // Aligned non-aligned dim: pair 110
+    init_pair(110, Palettes::ALIGNED_NONALIGNED_DIM, -1);
+
+    // Depth fog: protein near: pairs 120-128
+    for (int i = 0; i < 9; ++i)
+        init_pair(i + 120, Palettes::PROTEIN_NEAR_COLORS[i], -1);
+    // Depth fog: chain near: pairs 130-144
+    for (int i = 0; i < 15; ++i)
+        init_pair(i + 130, Palettes::CHAIN_NEAR_COLORS[i], -1);
+    // Depth fog: chain far: pairs 145-159
+    for (int i = 0; i < 15; ++i)
+        init_pair(i + 145, Palettes::CHAIN_FAR_COLORS[i], -1);
+    // Depth fog: rainbow near: pairs 160-179
+    for (int i = 0; i < 20; ++i)
+        init_pair(i + 160, Palettes::RAINBOW_NEAR[i], -1);
+    // Depth fog: rainbow far: pairs 180-199
+    for (int i = 0; i < 20; ++i)
+        init_pair(i + 180, Palettes::RAINBOW_FAR[i], -1);
 }
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
@@ -400,12 +422,25 @@ void Screen::draw_line(std::vector<RenderPoint>& points,
         int iy = (int)y;
 
         char pix = get_pixel_char_from_depth(z, min_z, max_z);
+        int band = 1;
+        if (use_braille) {
+            float range = max_z - min_z;
+            if (range > 0.0f) {
+                float t = (z - min_z) / range;
+                if      (t < 0.33f) band = 0;
+                else if (t < 0.66f) band = 1;
+                else                band = 2;
+            }
+        }
         for (int oy = -half; oy <= half; oy++) {
             for (int ox = -half; ox <= half; ox++) {
                 if (ox != 0 && oy != 0) continue;  // cross (+) pattern, not square
                 int nx = ix + ox, ny = iy + oy;
-                if (nx >= 0 && nx < max_x && ny >= 0 && ny < max_y)
-                    points.push_back({nx, ny, z, pix, 0, chainID, structure});
+                if (nx >= 0 && nx < max_x && ny >= 0 && ny < max_y) {
+                    RenderPoint rp{nx, ny, z, pix, 0, chainID, structure};
+                    rp.depth_band = band;
+                    points.push_back(rp);
+                }
             }
         }
 
@@ -420,19 +455,40 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
 
     if (screen_mode == "protein") {
         int idx = protein_idx % 9;
-        for (auto& pt : points) pt.color_id = idx + 1;  // pairs 1-9
+        for (auto& pt : points) {
+            if (!use_braille || pt.depth_band == 1) {
+                pt.color_id = idx + 1;       // mid: pairs 1-9
+            } else if (pt.depth_band == 0) {
+                pt.color_id = idx + 120;     // near: pairs 120-128
+            } else {
+                pt.color_id = idx + 11;      // far: pairs 11-19 (dim reuse)
+            }
+        }
     } else if (screen_mode == "chain") {
         std::string cur_chain = points[0].chainID;
         int color_idx  = 0;
         for (auto& pt : points) {
             if (pt.chainID != cur_chain) { color_idx++; cur_chain = pt.chainID; }
-            pt.color_id = 21 + ((protein_idx * 10 + color_idx) % 15);  // pairs 21-35
+            int ci = (protein_idx * 10 + color_idx) % 15;
+            if (!use_braille || pt.depth_band == 1) {
+                pt.color_id = 21 + ci;       // mid: pairs 21-35
+            } else if (pt.depth_band == 0) {
+                pt.color_id = 130 + ci;      // near: pairs 130-144
+            } else {
+                pt.color_id = 145 + ci;      // far: pairs 145-159
+            }
         }
     } else if (screen_mode == "rainbow") {
         int num_points = (int)points.size();
         for (int i = 0; i < num_points; i++) {
             int color_idx = (i * 20) / std::max(1, num_points);
-            points[i].color_id = color_idx + 51;  // pairs 51-70
+            if (!use_braille || points[i].depth_band == 1) {
+                points[i].color_id = color_idx + 51;   // mid: pairs 51-70
+            } else if (points[i].depth_band == 0) {
+                points[i].color_id = color_idx + 160;  // near: pairs 160-179
+            } else {
+                points[i].color_id = color_idx + 180;  // far: pairs 180-199
+            }
         }
     } else if (screen_mode == "plddt") {
         for (auto& pt : points) {
@@ -447,10 +503,9 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
             pt.color_id = pt.is_interface ? 43 : 44;  // 강조(마젠타) or dim
         }
     } else if (screen_mode == "aligned") {
-        int vivid_id = (protein_idx % 9) + 1;   // pairs 1-9 (PROTEIN_COLORS)
-        int dim_id   = (protein_idx % 9) + 11;  // pairs 11-19 (PROTEIN_DIM_COLORS)
+        int bright_id = (protein_idx % 9) + 101;  // pairs 101-109 (PROTEIN_BRIGHT_COLORS)
         for (auto& pt : points) {
-            pt.color_id = pt.is_aligned ? vivid_id : dim_id;
+            pt.color_id = pt.is_aligned ? bright_id : 110;  // 110 = unified dim gray
         }
     } else if (screen_mode == "conservation") {
         for (auto& pt : points) {
@@ -571,6 +626,16 @@ void Screen::project() {
 
                     if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
                         char pix = get_pixel_char_from_depth(z, depth_base_min_z, depth_base_max_z);
+                        int band = 1;
+                        {
+                            float range = depth_base_max_z - depth_base_min_z;
+                            if (range > 0.0f) {
+                                float dt = (z - depth_base_min_z) / range;
+                                if      (dt < 0.33f) band = 0;
+                                else if (dt < 0.66f) band = 1;
+                                else                 band = 2;
+                            }
+                        }
                         if (structure == 'x') {
                             // Coil: 3-pixel vertical cross node (center + top + bottom)
                             RenderPoint rp{screenX, screenY, z, pix, 0, chainID, structure};
@@ -579,6 +644,7 @@ void Screen::project() {
                             rp.residue_number = cur_atom.residue_number;
                             strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
                             rp.residue_name[3] = '\0';
+                            rp.depth_band = band;
                             chainPoints.push_back(rp);
                             rp.y = screenY - 1;
                             if (rp.y >= 0) chainPoints.push_back(rp);
@@ -597,6 +663,7 @@ void Screen::project() {
                                         rp.residue_number = cur_atom.residue_number;
                                         strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
                                         rp.residue_name[3] = '\0';
+                                        rp.depth_band = band;
                                         chainPoints.push_back(rp);
                                     }
                                 }
