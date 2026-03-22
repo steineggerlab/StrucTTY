@@ -1152,9 +1152,9 @@ void Screen::apply_foldseek_transform(int protein_idx, const float* U_flat,
 
 // 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
 void Screen::compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
-                                      float threshold) {
+                                      float threshold, bool skip_distance_check) {
     if ((int)data.size() < 2 || !data[0] || !data[1]) return;
-    data[0]->compute_aligned_regions_from_aln(*data[1], qaln, taln, threshold);
+    data[0]->compute_aligned_regions_from_aln(*data[1], qaln, taln, threshold, skip_distance_check);
 }
 
 // 기능 4: 패널에 정렬 방식 표시 설정
@@ -1597,7 +1597,7 @@ void Screen::load_next_hit(int delta) {
     // aligned 모드일 때 is_aligned 계산
     if (screen_mode == "aligned") {
         if (hit.has_aln) {
-            compute_aligned_from_aln(hit.qaln, hit.taln, 5.0f);
+            compute_aligned_from_aln(hit.qaln, hit.taln, 5.0f, true);
             set_align_method("aln-string");
         } else {
             compute_aligned_all();
@@ -1779,7 +1779,7 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
     if (screen_mode == "aligned") {
         if (hit.has_aln) {
             data[0]->compute_aligned_regions_from_aln(
-                *data[target_protein_idx], hit.qaln, hit.taln, 5.0f);
+                *data[target_protein_idx], hit.qaln, hit.taln, 5.0f, true);
         } else {
             compute_aligned_all();
         }
@@ -1877,7 +1877,7 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
             *data[target_protein_idx],
             entries[fm_query_entry_idx].aa,
             entries[fm_target_entry_idx].aa,
-            5.0f);
+            5.0f, true);
         set_align_method("msa-col");
     }
 

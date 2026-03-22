@@ -215,17 +215,21 @@ target의 init_atoms에 적용하는 T_ang 계산을 수정하여, query의 init
 
 ## 구현 순서
 
-### Step 1: Far 색상 채도 복원 (문제 1)
-- `Palette.hpp`: PROTEIN_FAR_COLORS, CHAIN_FAR_COLORS, RAINBOW_FAR 값을 색조 유지 어두운 색으로 교체
-- PLDDT_FAR, CONSERVATION_FAR, INTERFACE far 색상도 동일 원칙 적용
+### Step 1: Far 색상 채도 복원 (문제 1) ✅ 완료
+- `Palette.hpp`: PROTEIN_FAR_COLORS → 색조 유지 어두운 색 (58,30,18,54,96,130,94,136,88)
+- CHAIN_FAR_COLORS → 동일 원칙 15색 교체
+- RAINBOW_FAR → rainbow gradient의 어두운 버전으로 교체
+- PLDDT_FAR → 어두운 파랑(18), 청록(30), 노랑(58), 주황(94)
+- CONSERVATION_FAR → gradient 어두운 버전
+- INTERFACE_FAR_COLOR → 어두운 마젠타(90)
 
-### Step 2: Aligned 모드 -fs/-fm 버그 수정 (문제 2)
-- `Protein.hpp/cpp`: `compute_aligned_regions_from_aln()`에 `skip_distance_check` 옵션 추가
-- `Screen.cpp`: -fs/-fm 경로에서 `skip_distance_check = true` 전달
+### Step 2: Aligned 모드 -fs/-fm 버그 수정 (문제 2) ✅ 완료
+- `Protein.hpp/cpp`: `compute_aligned_regions_from_aln()`에 `skip_distance_check` 파라미터 추가
+- `Screen.cpp`: load_next_hit() -fs 경로 3곳에서 `skip_distance_check=true` 전달
+- `Screen.cpp`: apply_foldmason_superposition() -fm 경로에서 `skip_distance_check=true` 전달
 
-### Step 3: 빌드 및 검증
-- 컴파일 에러 확인
-- 빌드 성공 확인
+### Step 3: 빌드 및 검증 ✅ 완료
+- 컴파일 에러 없이 빌드 성공
 
 ---
 
