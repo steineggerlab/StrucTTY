@@ -21,7 +21,6 @@ class Parameters{
         string utmatrix = "";
         string chainfile = "";
         string mode = "protein";
-        string depthcharacter = "@#%*^-.";
         string msa_file = "";
         string foldseek_file = "";
         string db_path = "";
@@ -51,9 +50,6 @@ class Parameters{
         }
         string get_mode(){
             return mode;
-        }
-        string get_depthcharacter(){
-            return depthcharacter;
         }
         bool get_show_structure(){
             return show_structure;

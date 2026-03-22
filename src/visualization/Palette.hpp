@@ -54,68 +54,113 @@ namespace Palettes {
     inline constexpr int ALIGNED_NONALIGNED_DIM = 240;  // xterm-240 #585858
 
     // Depth fog: protein near (bright) colors, pairs 120-128
+    // 기존 대비 +80~120 RGB 차이 — 매우 밝은 변형
     inline const std::array<int, 9> PROTEIN_NEAR_COLORS = {
-        142,  // 120  olive near      #afaf00
-        116,  // 121  turquoise near  #87d7d7
-         63,  // 122  navy near       #5f5fff
-        135,  // 123  purple near     #af5fff
-        219,  // 124  pink near       #ffafff
-        216,  // 125  coral near      #ffaf87
-        178,  // 126  brown near      #d7af00
-        221,  // 127  orange near     #ffd75f
-        203,  // 128  red near        #ff5f5f
+        184,  // 120  olive near      #d7d700 (215,215,0)
+        159,  // 121  turquoise near  #afffff (175,255,255)
+        105,  // 122  navy near       #8787ff (135,135,255)
+        177,  // 123  purple near     #d787ff (215,135,255)
+        225,  // 124  pink near       #ffd7ff (255,215,255)
+        223,  // 125  coral near      #ffd7af (255,215,175)
+        220,  // 126  brown near      #ffd700 (255,215,0)
+        229,  // 127  orange near     #ffffaf (255,255,175)
+        210,  // 128  red near        #ff8787 (255,135,135)
     };
-    // Protein far = PROTEIN_DIM_COLORS (pairs 11-19), 재사용
+
+    // Depth fog: protein far colors (grayscale desaturate), pairs 200-208
+    inline const std::array<int, 9> PROTEIN_FAR_COLORS = {
+        242,  // 200  olive far       #6c6c6c (108,108,108)
+        243,  // 201  turquoise far   #767676 (118,118,118)
+        237,  // 202  navy far        #3a3a3a (58,58,58)
+        239,  // 203  purple far      #4e4e4e (78,78,78)
+        245,  // 204  pink far        #8a8a8a (138,138,138)
+        243,  // 205  coral far       #767676 (118,118,118)
+        240,  // 206  brown far       #585858 (88,88,88)
+        243,  // 207  orange far      #767676 (118,118,118)
+        240,  // 208  red far         #585858 (88,88,88)
+    };
 
     // Depth fog: chain near colors (brighter), pairs 130-144
     inline const std::array<int, 15> CHAIN_NEAR_COLORS = {
-        142,  // 130  olive near      #afaf00
-        116,  // 131  turquoise near  #87d7d7
-         63,  // 132  navy near       #5f5fff
-        135,  // 133  purple near     #af5fff
-        219,  // 134  pink near       #ffafff
-        216,  // 135  coral near      #ffaf87
-        178,  // 136  brown near      #d7af00
-        221,  // 137  orange near     #ffd75f
-        203,  // 138  red near        #ff5f5f
-         44,  // 139  teal near       #00d7d7
-        155,  // 140  lime near       #afd75f
-        207,  // 141  magenta near    #ff5fff
+        184,  // 130  olive near      #d7d700
+        159,  // 131  turquoise near  #afffff
+        105,  // 132  navy near       #8787ff
+        177,  // 133  purple near     #d787ff
+        225,  // 134  pink near       #ffd7ff
+        223,  // 135  coral near      #ffd7af
+        220,  // 136  brown near      #ffd700
+        229,  // 137  orange near     #ffffaf
+        210,  // 138  red near        #ff8787
+         87,  // 139  teal near       #5fffff
+        192,  // 140  lime near       #d7ff87
+        213,  // 141  magenta near    #ff87ff
         228,  // 142  gold near       #ffff87
         189,  // 143  lavender near   #d7d7ff
         217,  // 144  salmon near     #ffafaf
     };
 
-    // Depth fog: chain far colors (dimmer), pairs 145-159
+    // Depth fog: chain far colors (grayscale desaturate), pairs 145-159
     inline const std::array<int, 15> CHAIN_FAR_COLORS = {
-         58,  // 145  olive far       #5f5f00
-         30,  // 146  turquoise far   #008787
-         18,  // 147  navy far        #000087
-         54,  // 148  purple far      #5f0087
-        132,  // 149  pink far        #af5f87
-        131,  // 150  coral far       #af5f5f
-         94,  // 151  brown far       #875f00
-        172,  // 152  orange far      #d78700
-         88,  // 153  red far         #870000
-         23,  // 154  teal far        #005f5f
-         64,  // 155  lime far        #5f8700
-        127,  // 156  magenta far     #af00af
-        178,  // 157  gold far        #d7af00
-        103,  // 158  lavender far    #8787ff
-        131,  // 159  salmon far      #af5f5f
+        242,  // 145  olive far       #6c6c6c
+        243,  // 146  turquoise far   #767676
+        237,  // 147  navy far        #3a3a3a
+        239,  // 148  purple far      #4e4e4e
+        245,  // 149  pink far        #8a8a8a
+        243,  // 150  coral far       #767676
+        240,  // 151  brown far       #585858
+        243,  // 152  orange far      #767676
+        240,  // 153  red far         #585858
+        238,  // 154  teal far        #444444
+        241,  // 155  lime far        #626262
+        244,  // 156  magenta far     #808080
+        243,  // 157  gold far        #767676
+        244,  // 158  lavender far    #808080
+        243,  // 159  salmon far      #767676
     };
 
     // Depth fog: rainbow near colors (brighter), pairs 160-179
     inline const std::array<int, 20> RAINBOW_NEAR = {
-        210, 216, 215, 221, 228, 229, 192, 157, 157, 120,
-         85,  87,  81,  75,  69,  63,  57,  99, 135, 207
+        210, 216, 222, 228, 229, 230, 192, 157, 157, 120,
+         85,  87,  81,  75, 105,  63,  57,  99, 177, 213
     };
 
-    // Depth fog: rainbow far colors (dimmer), pairs 180-199
+    // Depth fog: rainbow far colors (grayscale), pairs 180-199
     inline const std::array<int, 20> RAINBOW_FAR = {
-        124, 130, 136, 172, 178, 184, 148, 112,  64,  28,
-         23,  24,  24,  18,  18,  18,  18,  54,  90, 127
+        240, 240, 241, 242, 243, 244, 243, 242, 241, 240,
+        239, 239, 238, 238, 237, 237, 236, 238, 239, 244
     };
+
+    // Depth fog: pLDDT near (brighter), pairs 209-212
+    inline const std::array<int, 4> PLDDT_NEAR = {57, 87, 229, 216};
+    // Depth fog: pLDDT far (grayscale), pairs 213-216
+    inline const std::array<int, 4> PLDDT_FAR = {237, 239, 243, 241};
+
+    // Depth fog: conservation near (brighter), pairs 217-226
+    inline const std::array<int, 10> CONSERVATION_NEAR = {57, 63, 69, 75, 85, 157, 192, 229, 221, 210};
+    // Depth fog: conservation far (grayscale), pairs 227-236
+    inline const std::array<int, 10> CONSERVATION_FAR = {236, 237, 237, 238, 239, 241, 242, 243, 242, 240};
+
+    // Depth fog: interface near/far, pairs 237-238 (near), 239-240 (far)
+    inline constexpr int INTERFACE_NEAR_COLOR     = 213;  // xterm-213 #ff87ff (brighter magenta)
+    inline constexpr int INTERFACE_DIM_NEAR_COLOR = 243;  // xterm-243 #767676 (lighter gray)
+    inline constexpr int INTERFACE_FAR_COLOR      = 244;  // xterm-244 #808080 (grayscale)
+    inline constexpr int INTERFACE_DIM_FAR_COLOR  = 236;  // xterm-236 #303030 (dark gray)
+
+    // Depth fog: aligned near/far, pairs 241-249 (near), 250 (far dim)
+    // aligned bright near = even brighter protein colors
+    inline const std::array<int, 9> ALIGNED_BRIGHT_NEAR = {
+        190,  // 241  olive aligned near   #d7ff00
+        159,  // 242  turquoise aligned near #afffff
+        111,  // 243  navy aligned near    #8787ff
+        183,  // 244  purple aligned near  #d7afff
+        231,  // 245  pink aligned near    #ffffff
+        224,  // 246  coral aligned near   #ffd7d7
+        227,  // 247  brown aligned near   #ffff5f
+        230,  // 248  orange aligned near  #ffffd7
+        211,  // 249  red aligned near     #ff875f
+    };
+    // aligned dim far = darker gray
+    inline constexpr int ALIGNED_NONALIGNED_FAR = 235;  // xterm-235 #262626
 
     // Interface region colors, pairs 43-44
     // pair 43: interface residue (bright magenta, xterm-201)

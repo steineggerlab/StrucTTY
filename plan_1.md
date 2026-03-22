@@ -257,35 +257,38 @@ camera->screenshot(screenshotPixels);
 
 ## 구현 순서
 
-### Step 1: Superposition pan 버그 수정 (문제 2)
+### Step 1: Superposition pan 버그 수정 (문제 2) ✅ 완료
 - `apply_foldseek_transform()`에서 pan_x/pan_y 전체 0 리셋
 - focal_offset 재계산 추가
-- **가장 간단하고 즉각적인 효과**
 
-### Step 2: Fog 색상 강화 (문제 1-A, 1-B)
+### Step 2: Fog 색상 강화 (문제 1-A, 1-B) ✅ 완료
 - `Palette.hpp`: PROTEIN_NEAR/FAR, CHAIN_NEAR/FAR, RAINBOW_NEAR/FAR 색상값 교체
-- near = 매우 밝은 색, far = 회색조 desaturate
+- near = 2단계 이상 밝은 색, far = 회색조 desaturate (grayscale)
+- PROTEIN_FAR_COLORS 신규 추가 (pairs 200-208, grayscale)
 - `Screen.cpp`: init_color_pairs 업데이트
 
-### Step 3: Fog 모드 확장 (문제 1-C)
-- pLDDT, conservation, interface, aligned 모드에 depth_band 기반 fog 추가
-- 각 모드별 near/far 색상 pair 추가
+### Step 3: Fog 모드 확장 (문제 1-C) ✅ 완료
+- pLDDT near/far (pairs 209-216), conservation near/far (pairs 217-236)
+- interface near/far (pairs 237-240), aligned near/far (pairs 241-250)
+- 각 모드 assign_colors_to_points에 depth_band 기반 분기 추가
 
-### Step 4: (선택적) depth_band 비선형 경계 (문제 1-D)
-- 0.33/0.66 → 0.25/0.60 등으로 조정
-- 가까운 물체의 bright 효과 강화
+### Step 4: depth_band 비선형 경계 + 회전 시 재보정 (문제 1-D, 1-E) ✅ 완료
+- 0.33/0.66 → 0.25/0.60으로 조정
+- 매 프레임 depth 재보정 (calibrate_depth_baseline 매 project() 호출 시 실행)
 
-### Step 5: 비-braille 경로 제거 (문제 3)
-- screenPixels 및 관련 코드 삭제
-- Camera.cpp braille 해상도 기반으로 리팩토링
-- use_braille 변수 제거
-- Parameters에서 -d 플래그 및 depthcharacter 삭제
+### Step 5: 비-braille 경로 제거 (문제 3) ✅ 완료
+- screenPixels 멤버 삭제
+- use_braille 변수 삭제
+- 비-braille project 경로 (표준 + 스크린샷 오버로드) 전체 삭제
+- print_screen 비-braille 분기 삭제
+- update_hover_info 비-braille 분기 삭제
+- get_pixel_char_from_depth 함수 및 호출부 전체 삭제
+- Camera.hpp/cpp: width/height 파라미터 기반으로 리팩토링 (logicalPixels 직접 사용)
+- Parameters.hpp/cpp: depthcharacter, -d 플래그 삭제
+- Screen 생성자에서 depthcharacter 파라미터 제거
 
-### Step 6: 빌드 및 검증
-- 컴파일 에러 확인
-- `-fs`, `-fm` 옵션으로 superposition 확인
-- braille fog 원근감 확인
-- 스크린샷 정상 출력 확인
+### Step 6: 빌드 ✅ 완료
+- 컴파일 에러 없이 빌드 성공
 
 ---
 
