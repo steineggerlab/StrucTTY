@@ -82,7 +82,7 @@ make -j$(nproc)
 ```bash
 ./StrucTTY ../example/1NPL-assembly1.cif --mode chain
 ```
-![1NPL chain mode](.github/1NPL_chain_edit.gif)
+![1NPL chain mode](.github/StrucTTY_main_1NPL.gif)
 
 ### Secondary structure visualization
 
@@ -90,52 +90,70 @@ make -j$(nproc)
 ./StrucTTY ../example/3HGM-assembly1.cif --mode chain
 ./StrucTTY ../example/3HGM-assembly1.cif --mode chain -s
 ```
-![Secondary structure](.github/structure_pair.gif)
+![Secondary structure](.github/3HGM_ss_option.gif)
 
 ### Color modes
 
 ```bash
-./StrucTTY ../example/1NPL-assembly1.cif                  # protein (default)
-./StrucTTY ../example/1NPL-assembly1.cif --mode chain      # chain
-./StrucTTY ../example/1NPL-assembly1.cif --mode rainbow    # rainbow
+./StrucTTY ../example/3A0C-assembly1.cif                  # protein (default)
+./StrucTTY ../example/3A0C-assembly1.cif --mode chain
+./StrucTTY ../example/3A0C-assembly1.cif --mode rainbow
+./StrucTTY  ../example/colabfold_result/3A0C_e7fa1_unrelaxed_rank_005_alphafold2_ptm_model_5_seed_000.pdb --mode plddt
+./StrucTTY ../example/3A0C-assembly1.cif --mode interface
+./StrucTTY ../example/3A0C-assembly1.cif --mode conservation \
+  --msa /home/lunajang/src/StrucTTY_luna/example/msa_result/query.a3m
 ```
-![Color modes](.github/color_modes.gif)
+![Color modes](.github/3A0C_modes.gif)
 
 ### Multiple structures
 
 ```bash
-./StrucTTY ../example/9N47-assembly1.cif ../example/9FL9-assembly1.cif --mode chain
+./StrucTTY ../example/1CJK-assembly1.cif \
+  ../example/1NPL-assembly1.cif \
+  ../example/3A0C-assembly1.cif \
+  ../example/3HGM-assembly1.cif \
+  ../example/3OAG-assembly1.cif \
+  ../example/9FL9-assembly1.cif \
+  ../example/A0A0K2SDS1_CONEP_23_61_90b02_unrelaxed_rank_1_model_5.pdb \
+  ../example/AF-A0A233SAX3-F1-model_v6.cif \
+  ../example/AF-E3NU62-F1-model_v4_TED02.pdb
 ```
-![Multi-structure comparison](.github/9N47_9FL9_chain_edit.gif)
+![Multi-structure comparison](.github/multi_input.gif)
 
 ### Structural alignment with UT matrix
 
 ```bash
+./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif
 ./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif \
   -ut ../example/utfile_1npl_3a0c.tsv
 ```
-![Alignment](.github/1NPL_3A0C_align.png)
+![UT_Alignment](.github/1NPL_3A0C_ut_aligned.png)
 
 ### Chain selection
 
 ```bash
+./StrucTTY ../example/9N47-assembly1.cif -m chain
 ./StrucTTY ../example/9N47-assembly1.cif -c ../example/chainfile_9N47.tsv -m chain
 ```
+![Chain_selection](.github/9N47_chain_select.gif)
 
 ### Foldseek hit navigation
 
 ```bash
-./StrucTTY ../example/1NPL-assembly1.cif \
-  -fs ../example/foldseek_result/alis_pdb100.m8 \
+./StrucTTY ../example/3A0C-assembly1.cif \
+  -fs ../example/foldseek_result/alis_afdb50.m8 \
   --db-path /path/to/pdb/
 ```
+![Foldseek_navigation](.github/3A0C_foldseek_hits.gif)
 
 ### FoldMason MSA superposition
 
 ```bash
-./StrucTTY ../example/1NPL-assembly1.cif \
-  -fm ../example/foldmason_result/foldmason.json
+./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb 
+./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb \
+  -fm ../example/foldmason_result/foldmason.json -m aligned
 ```
+![FoldMason_superposition](.github/3A0C_L7RCY6_foldmason_aligned.gif)
 
 ## Usage
 
