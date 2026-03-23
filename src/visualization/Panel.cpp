@@ -85,6 +85,10 @@ void Panel::clear_hover_residue() {
     hover_valid = false;
 }
 
+int Panel::get_last_hover_row() const {
+    return last_hover_row;
+}
+
 int Panel::get_residue_section_height() const {
     // 항상 고정: header + chain + res + ss (= 4 기본)
     // + pLDDT 줄 (plddt 모드일 때) + Cons 줄 (conservation 모드일 때)
@@ -216,7 +220,8 @@ int Panel::get_height() const {
     return lines;
 }
 void Panel::draw_panel(int start_row, int start_col,
-                       int max_rows, int max_cols) const {
+                       int max_rows, int max_cols,
+                       int compact_level) const {
     const int num_protein_colors = 9;
     const int num_chain_colors   = 15;
     if (max_rows <= 0 || max_cols <= 0) return;
@@ -334,54 +339,75 @@ void Panel::draw_panel(int start_row, int start_col,
         ++r;
         if (!in_rows(r)) break;
 
-        // chain lines
-        clear_line(r);
-        move(r, left);
-        int x = left;
-        put_indent(r, x);
+        // chain lines (compact_level < 3)
+        if (compact_level <= 1) {
+            // Level 0, 1: 기존 chain 상세 표시
+            clear_line(r);
+            move(r, left);
+            int x = left;
+            put_indent(r, x);
 
-        int count = 0;
-        for (const auto& [chainID, length] : chain_info) {
-            if (!in_rows(r)) break;
-
-            int residue_cnt = 0;
-            auto itC = entry.chain_residue_info.find(chainID);
-            if (itC != entry.chain_residue_info.end()) residue_cnt = itC->second;
-
-            char buf[64];
-            int token_len = std::snprintf(buf, sizeof(buf), "%s: %d (%d)  ",
-                                          chainID.c_str(), residue_cnt, length);
-            if (token_len < 0) token_len = 0;
-            if (token_len >= (int)sizeof(buf)) token_len = (int)sizeof(buf) - 1;
-
-            if (x + token_len > right_limit) {
-                ++r;
+            int count = 0;
+            for (const auto& [chainID, length] : chain_info) {
                 if (!in_rows(r)) break;
-                clear_line(r);
-                move(r, left);
-                x = left;
+
+                int residue_cnt = 0;
+                auto itC = entry.chain_residue_info.find(chainID);
+                if (itC != entry.chain_residue_info.end()) residue_cnt = itC->second;
+
+                char buf[64];
+                int token_len = std::snprintf(buf, sizeof(buf), "%s: %d (%d)  ",
+                                              chainID.c_str(), residue_cnt, length);
+                if (token_len < 0) token_len = 0;
+                if (token_len >= (int)sizeof(buf)) token_len = (int)sizeof(buf) - 1;
+
+                if (x + token_len > right_limit) {
+                    ++r;
+                    if (!in_rows(r)) break;
+                    clear_line(r);
+                    move(r, left);
+                    x = left;
+                    put_indent(r, x);
+                }
+
+                int chain_pair = 0;
+                if (panel_mode == "chain") {
+                    chain_pair = 21 + ((file_idx * 10 + count) % num_chain_colors);  // pairs 21-35
+                }
+
+                int pair_to_use = (panel_mode == "protein" || panel_mode == "aligned") ? protein_pair : chain_pair;
+
+                if (pair_to_use > 0) attron(COLOR_PAIR(pair_to_use));
+                put_n(r, x, buf, token_len);
+                if (pair_to_use > 0) attroff(COLOR_PAIR(pair_to_use));
+
+                ++count;
+            }
+            ++r;
+        } else if (compact_level == 2) {
+            // Level 2: "N chains" 한 줄 요약
+            clear_line(r);
+            {
+                int x = left;
                 put_indent(r, x);
+                char buf[32];
+                std::snprintf(buf, sizeof(buf), "%d chains", (int)chain_info.size());
+                put_cstr(r, x, buf);
             }
-
-            int chain_pair = 0;
-            if (panel_mode == "chain") {
-                chain_pair = 21 + ((file_idx * 10 + count) % num_chain_colors);  // pairs 21-35
-            }
-
-            int pair_to_use = (panel_mode == "protein" || panel_mode == "aligned") ? protein_pair : chain_pair;
-
-            if (pair_to_use > 0) attron(COLOR_PAIR(pair_to_use));
-            put_n(r, x, buf, token_len);
-            if (pair_to_use > 0) attroff(COLOR_PAIR(pair_to_use));
-
-            ++count;
+            ++r;
         }
+        // Level 3: chain 정보 생략 (파일명만 표시)
 
-        // blank line (2 rows)
-        ++r;
-        if (!in_rows(r)) break;
-        clear_line(r);
-        ++r;
+        // blank lines
+        if (compact_level == 0) {
+            // Level 0: blank line 2줄
+            if (!in_rows(r)) break;
+            clear_line(r);
+            ++r;
+        } else if (compact_level == 1) {
+            // Level 1: blank line 없음 (++r은 chain 블록에서 이미 수행)
+        }
+        // Level 2, 3: blank line 없음
 
         ++file_idx;
     }
@@ -560,6 +586,7 @@ void Panel::draw_panel(int start_row, int start_col,
     // 기능 6: Residue Info 섹션 (draw_hover_section과 동일한 내용)
     // draw_panel()은 전체 패널을 그리므로 여기서도 Residue Info를 그린다.
     // hover가 없을 때는 모두 "-" 표시.
+    last_hover_row = r;  // hover 부분 갱신 시 정확한 행 사용
     draw_hover_section(r, max_cols);
     r += get_residue_section_height();
 
@@ -611,7 +638,7 @@ static int count_wrapped_lines_for_chaininfo(
     }
     return lines;
 }
-int Panel::get_height_for_width(int max_cols) const {
+int Panel::get_height_for_width(int max_cols, int compact_level) const {
     int lines = 0;
 
     lines += 3; // Top border + Help line + Separator
@@ -626,13 +653,26 @@ int Panel::get_height_for_width(int max_cols) const {
     for (const auto& entry : entries) {
         lines += 1; // file name line
 
-        lines += count_wrapped_lines_for_chaininfo(
-            entry.chain_atom_info, entry.chain_residue_info,
-            /*avail_cols=*/avail_cols,
-            /*indent_cols=*/2
-        );
+        if (compact_level <= 1) {
+            // Level 0, 1: chain 정보 표시
+            lines += count_wrapped_lines_for_chaininfo(
+                entry.chain_atom_info, entry.chain_residue_info,
+                /*avail_cols=*/avail_cols,
+                /*indent_cols=*/2
+            );
+        } else if (compact_level == 2) {
+            // Level 2: "N chains" 한 줄 요약
+            lines += 1;
+        }
+        // Level 3: 파일명만 (chain 정보 없음)
 
-        lines += 2;
+        // blank lines
+        if (compact_level == 0) {
+            lines += 2;
+        } else if (compact_level == 1) {
+            lines += 1;
+        }
+        // Level 2, 3: blank line 없음
     }
 
     // 기능 3: Foldseek hit info 섹션

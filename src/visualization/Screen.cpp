@@ -750,7 +750,22 @@ void Screen::draw_screen(bool no_panel) {
     getmaxyx(stdscr, rows, cols);
     int panel_cols = std::min(cols, screen_width);
 
-    int panel_h = panel->get_height_for_width(panel_cols);
+    // compact_level 자동 결정: 패널이 터미널 높이의 40% 이하가 되도록
+    int max_panel_h = rows * 2 / 5;  // 40%
+    int compact = 0;
+    int panel_h = panel->get_height_for_width(panel_cols, 0);
+    if (panel_h > max_panel_h) {
+        compact = 1;
+        panel_h = panel->get_height_for_width(panel_cols, 1);
+    }
+    if (panel_h > max_panel_h) {
+        compact = 2;
+        panel_h = panel->get_height_for_width(panel_cols, 2);
+    }
+    if (panel_h > max_panel_h) {
+        compact = 3;
+        panel_h = panel->get_height_for_width(panel_cols, 3);
+    }
     if (panel_h > rows) panel_h = rows;
 
     int offset = 0;
@@ -763,7 +778,7 @@ void Screen::draw_screen(bool no_panel) {
     print_screen(offset);
 
     int start_row = rows;
-    if (!no_panel) { 
+    if (!no_panel) {
         start_row -= panel_h;
     }
     if (start_row < 0) start_row = 0;
@@ -773,7 +788,7 @@ void Screen::draw_screen(bool no_panel) {
         clrtoeol();
     }
     if (!no_panel){
-        panel->draw_panel(start_row, 0, panel_h, panel_cols);
+        panel->draw_panel(start_row, 0, panel_h, panel_cols, compact);
     }
     // 기능 6: 패널 위치 저장 (hover 갱신 시 부분 재렌더링에 사용)
     last_panel_h         = no_panel ? 0 : panel_h;
@@ -917,10 +932,8 @@ void Screen::update_hover_info(int mx, int my) {
 
     // 패널이 보이는 경우에만 hover 섹션을 부분 갱신
     if (!last_no_panel && last_panel_h > 0) {
-        int rsh = panel->get_residue_section_height();
-        // Residue Info 헤더 행 = 패널 하단에서 (rsh + 1) 줄 위 (1=bottom border)
-        int hover_row = last_panel_start_row + last_panel_h - 1 - rsh;
-        if (hover_row >= last_panel_start_row && hover_row + rsh <= last_panel_start_row + last_panel_h - 1) {
+        int hover_row = panel->get_last_hover_row();
+        if (hover_row >= 0) {
             panel->draw_hover_section(hover_row, last_panel_cols);
             refresh();
         }
