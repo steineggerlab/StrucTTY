@@ -49,10 +49,11 @@ public:
                       const std::map<std::string, int>& chain_residue_info);
 
     int get_height() const;
-    int get_height_for_width(int max_cols) const;
+    int get_height_for_width(int max_cols, int compact_level = 0) const;
 
     void draw_panel(int start_row, int start_col,
-                    int max_rows, int max_cols) const;
+                    int max_rows, int max_cols,
+                    int compact_level = 0) const;
 
     // 기능 4: 정렬 방식 표시 ("nearest-nbr" or "aln-string")
     void set_align_method(const std::string& method);
@@ -73,6 +74,9 @@ public:
 
     // Residue Info 섹션의 줄 수 (항상 고정)
     int get_residue_section_height() const;
+
+    // draw_panel()에서 기록된 Residue Info 시작 행
+    int get_last_hover_row() const;
 
     // hover 섹션만 부분 갱신
     void draw_hover_section(int hover_start_row, int max_cols) const;
@@ -97,6 +101,7 @@ private:
     FoldMasonInfo fm_info;
 
     // 기능 6: hover 상태
+    mutable int last_hover_row = -1;  // draw_panel()에서 기록된 Residue Info 시작 행
     bool hover_valid = false;
     std::string hover_chain;
     char hover_residue_name[4] = {};
