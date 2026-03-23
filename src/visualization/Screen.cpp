@@ -774,7 +774,7 @@ void Screen::draw_screen(bool no_panel) {
     }
     if (offset > rows) offset = rows;
 
-    clear();
+    erase();
     print_screen(offset);
 
     int start_row = rows;
@@ -783,10 +783,6 @@ void Screen::draw_screen(bool no_panel) {
     }
     if (start_row < 0) start_row = 0;
 
-    for (int r = start_row; r < rows; ++r) {
-        move(r, 0);
-        clrtoeol();
-    }
     if (!no_panel){
         panel->draw_panel(start_row, 0, panel_h, panel_cols, compact);
     }
