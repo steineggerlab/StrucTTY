@@ -154,7 +154,6 @@ make -j$(nproc)
 | `--db-path <DIR>` | PDB directory for Foldseek hit loading |
 | `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSA) |
 | `-n, --nopanel` | Hide info panel |
-| `-b, --benchmark` | Benchmark mode (FPS/latency measurement) |
 
 ## Keyboard Controls
 
