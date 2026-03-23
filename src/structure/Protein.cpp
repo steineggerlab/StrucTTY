@@ -606,6 +606,18 @@ void Protein::compute_aligned_regions_from_aln(Protein& other,
     if (qaln.size() != taln.size()) return;
     float thr2 = threshold * threshold;
 
+    // is_aligned 플래그 초기화 (multihit 전환 시 이전 hit 잔류 방지)
+    for (auto& [cid, chain] : init_atoms) {
+        for (Atom& a : chain) {
+            a.is_aligned = false;
+        }
+    }
+    for (auto& [cid, chain] : other.init_atoms) {
+        for (Atom& a : chain) {
+            a.is_aligned = false;
+        }
+    }
+
     // query CA flat 목록 (chain 이름 순 = map 순)
     std::vector<Atom*> query_cas;
     for (auto& [cid, chain] : init_atoms) {
@@ -724,15 +736,36 @@ void Protein::sync_conservation_to_screen() {
 // scores 벡터 길이는 init_atoms 전체 잔기 수와 일치해야 정확하다.
 // map 순서(체인 ID 사전순) → 각 체인 내 순서(읽은 순서)로 순회하여 적용한다.
 void Protein::apply_conservation_scores(const std::vector<float>& scores) {
-    int idx = 0;
     int score_len = (int)scores.size();
+    if (score_len == 0) return;
 
+    // 전체 잔기 수 계산
+    int total_residues = 0;
     for (auto& [cid, chain] : init_atoms) {
-        for (Atom& a : chain) {
-            if (idx < score_len) {
-                a.conservation_score = scores[idx];
+        total_residues += (int)chain.size();
+    }
+
+    if (total_residues <= score_len) {
+        // 기존 방식: scores가 전체 잔기를 커버하면 순차 적용
+        int idx = 0;
+        for (auto& [cid, chain] : init_atoms) {
+            for (Atom& a : chain) {
+                if (idx < score_len) {
+                    a.conservation_score = scores[idx];
+                }
+                idx++;
             }
-            idx++;
+        }
+    } else {
+        // Homodimer 대응: scores가 전체 잔기보다 짧으면 체인별로 반복 적용
+        for (auto& [cid, chain] : init_atoms) {
+            int idx = 0;
+            for (Atom& a : chain) {
+                if (idx < score_len) {
+                    a.conservation_score = scores[idx];
+                }
+                idx++;
+            }
         }
     }
 
