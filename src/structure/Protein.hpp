@@ -4,8 +4,6 @@
 #include <map>
 #include <vector>
 #include <tuple>
-#include <fstream>
-#include <sstream>
 #include <cmath>
 #include <limits>
 #include <algorithm>
@@ -59,14 +57,31 @@ public:
     int get_length();
     void set_bounding_box();
 
-    float get_scaled_min_z();
-    float get_scaled_max_z();
     BoundingBox& get_bounding_box();
     void set_scale(float scale_);
     std::string get_file_name() { return in_file; }
 
     void load_data(float * vectorpointers, bool yesUT);
-    
+
+    // 기능 1: Interface Region — 모든 체인 쌍에 대해 CA-CA 거리 < threshold 인 잔기를 표시
+    void compute_interface(float threshold = 8.0f);
+
+    // 기능 4: UTMatrix 정렬 구조 — UT transform을 init_atoms에도 적용
+    void apply_ut_to_init_atoms(const float* U, const float* T);
+
+    // 기능 4: alignment string 기반 (Foldseek qaln/taln 사용)
+    void compute_aligned_regions_from_aln(Protein& other,
+                                          const std::string& qaln,
+                                          const std::string& taln,
+                                          float threshold = 10.0f,
+                                          bool skip_distance_check = false);
+
+    // 기능 4: nearest-neighbor 기반 (-ut 단독 사용 fallback)
+    void compute_aligned_regions_nn(Protein& other, float threshold = 10.0f);
+
+    // 기능 5: 0-based 인덱스 순서로 conservation_score를 init_atoms에 적용 후 screen_atoms에 전파
+    void apply_conservation_scores(const std::vector<float>& scores);
+
     void set_rotate(int x_rotate, int y_rotate, int z_rotate);
     void set_shift(float shift_x, float shift_y, float shift_z);
     void do_naive_rotation(float* rotate_mat);
@@ -88,6 +103,10 @@ private:
                              const std::string& target_chains, float * vectorpointers, bool yesUT);
     
     void pred_ss_info(std::map<std::string, std::vector<Atom>>& init_atoms);
+    void compute_interface_pair(const std::string& chain_A, const std::string& chain_B, float threshold);
+    void sync_interface_to_screen();
+    void sync_aligned_to_screen();
+    void sync_conservation_to_screen();
 
     std::map<std::string, std::vector<Atom>> init_atoms;
     std::map<std::string, std::vector<Atom>> screen_atoms;
@@ -96,7 +115,7 @@ private:
 
     std::string in_file;
     std::string target_chains;
-    bool show_structure, predict_structure;
+    bool show_structure;
 
     BoundingBox bounding_box;
 

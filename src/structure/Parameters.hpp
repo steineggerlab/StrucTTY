@@ -13,21 +13,20 @@ class Parameters{
     private:
         bool show_structure = false;
         bool no_panel = false;
-        bool predict_structure = false;
         bool arg_okay = true;
         bool benchmark_mode = false;
         vector<string> in_file;
-        vector<string> chains;
         string utmatrix = "";
         string chainfile = "";
         string mode = "protein";
-        string depthcharacter = "@#%*^-.";
+        string msa_file = "";
+        string foldseek_file = "";
+        string db_path = "";
+        string foldmason_file = "";
     public:
         Parameters(int argc, char* argv[]);
 
         void print_args();
-
-        bool is_valid_number(const std::string& str, int min, int max);
 
         // get, set
         vector<string>& get_in_file(){
@@ -48,9 +47,6 @@ class Parameters{
         string get_mode(){
             return mode;
         }
-        string get_depthcharacter(){
-            return depthcharacter;
-        }
         bool get_show_structure(){
             return show_structure;
         }
@@ -62,5 +58,17 @@ class Parameters{
         }
         bool check_arg_okay(){
             return arg_okay;
+        }
+        string get_msa_file(){
+            return msa_file;
+        }
+        string get_foldseek_file(){
+            return foldseek_file;
+        }
+        string get_db_path(){
+            return db_path;
+        }
+        string get_foldmason_file(){
+            return foldmason_file;
         }
 };
