@@ -44,3 +44,5 @@ build/*
 .vscode/
 #example/*
 benchmark/*
+temp/*
+structty_paper.tex
