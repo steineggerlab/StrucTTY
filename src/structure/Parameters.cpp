@@ -1,25 +1,21 @@
 #include "Parameters.hpp"
-#include <cmath>
-
-bool is_nonnegative_number(const char* s) {
-    if (s == nullptr || *s == '\0') return false;
-    char* end = nullptr;
-    errno = 0;
-    double val = std::strtod(s, &end);
-    if (end == s || *end != '\0') return false;
-    if (errno == ERANGE) return false;
-    if (val <= 0.0) return false;
-    if (std::isnan(val)) return false;
-    return true;
-}
 
 void print_help(){
-    std::cout<<"-m, --mode:\n\t1. protein (default)\n\t2. chain\n\t3. rainbow"<<std::endl;
-    std::cout<<"-d, --depth:\n\t1 .#@%*^-. (default)\n\t2. 7-character user input e.g. -d a134((%"<<std::endl;
-    std::cout<<"-c, --chains:\n\tshow only the selected chains, see example/chainfile"<<std::endl;
-    std::cout<<"-s, --structure:\n\tshow secondary structure (alpha helix, beta sheet)"<<std::endl;
-    std::cout<<"-p, --predict:\n\tshow secondary structure with prediction if it is not described in the input file"<<std::endl;
-    std::cout<<"-ut, --utmatrix:\n\trotate and translate, see example/utfile"<<std::endl;
+    std::cout << "Usage: StrucTTY <input_files...> [OPTIONS]\n\n";
+    std::cout << "Options:\n";
+    std::cout << "  -m, --mode <MODE>       Color mode:\n";
+    std::cout << "                            protein (default), chain, rainbow,\n";
+    std::cout << "                            plddt, interface, conservation, aligned\n";
+    std::cout << "  -c, --chains <FILE>     Show only selected chains (see example/chainfile)\n";
+    std::cout << "  -s, --structure         Show secondary structure (alpha helix, beta sheet)\n";
+    std::cout << "  -ut, --utmatrix <FILE>  Apply rotation/translation matrix (see example/utfile)\n";
+    std::cout << "  --msa <FILE>            MSA file for conservation score (FASTA/A3M)\n";
+    std::cout << "  -fs, --foldseek <FILE>  Foldseek result file for hit navigation\n";
+    std::cout << "  --db-path <DIR>         Target PDB directory for Foldseek hit loading\n";
+    std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSA)\n";
+    std::cout << "  -n, --nopanel           Hide info panel\n";
+    std::cout << "  -b, --benchmark         Benchmark mode (measure FPS/latency)\n";
+    std::cout << "  --help                  Show this help message\n";
 }
 Parameters::Parameters(int argc, char* argv[]) {
     arg_okay = true;
@@ -42,25 +38,15 @@ Parameters::Parameters(int argc, char* argv[]) {
                 if (i + 1 < argc) {
                     std::string val(argv[i + 1]);
                     std::transform(val.begin(), val.end(), val.begin(), ::tolower); // to lowercase
-                    if (val == "chain" || val == "rainbow" || val == "protein") {
+                    if (val == "chain" || val == "rainbow" || val == "protein" ||
+                        val == "plddt" || val == "interface" || val == "conservation" || val == "aligned") {
                         mode = val;
                         i++;
                     } else {
-                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain' or 'rainbow'.");
+                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'plddt', 'interface', 'conservation', or 'aligned'.");
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");
-                }
-            } else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--depth")) {
-                if (i + 1 < argc) {
-                    std::string val(argv[i + 1]);
-                    // std::transform(val.begin(), val.end(), val.begin(), ::tolower); // to lowercase
-                    if (val != "") {
-                        depthcharacter = val;
-                        i++;
-                    }
-                } else {
-                    throw std::runtime_error("Error: Missing value for -d / --depth.");
                 }
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--chains")) {
                 if (i + 1 < argc) {
@@ -73,8 +59,6 @@ Parameters::Parameters(int argc, char* argv[]) {
                 show_structure = true;
             } else if (!strcmp(argv[i], "-n") || !strcmp(argv[i], "--nopanel")) {
                 no_panel = true;
-            } else if (!strcmp(argv[i], "-p") || !strcmp(argv[i], "--predict")) {
-                predict_structure = true;
             } else if (!strcmp(argv[i], "-ut") || !strcmp(argv[i], "--utmatrix")) {
                 if (i + 1 < argc) {
                     utmatrix = argv[++i];
@@ -83,6 +67,30 @@ Parameters::Parameters(int argc, char* argv[]) {
                 }
             } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 9){
                 in_file.push_back(argv[i]);
+            } else if (!strcmp(argv[i], "--msa")) {
+                if (i + 1 < argc) {
+                    msa_file = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --msa.");
+                }
+            } else if (!strcmp(argv[i], "-fs") || !strcmp(argv[i], "--foldseek")) {
+                if (i + 1 < argc) {
+                    foldseek_file = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for -fs / --foldseek.");
+                }
+            } else if (!strcmp(argv[i], "--db-path")) {
+                if (i + 1 < argc) {
+                    db_path = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --db-path.");
+                }
+            } else if (!strcmp(argv[i], "--foldmason") || !strcmp(argv[i], "-fm")) {
+                if (i + 1 < argc) {
+                    foldmason_file = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --foldmason / -fm.");
+                }
             } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
                 benchmark_mode = true;
                 show_structure = true;
@@ -97,10 +105,6 @@ Parameters::Parameters(int argc, char* argv[]) {
             return;
         }
     }
-    while(in_file.size() != chains.size()){
-        chains.push_back("-");
-    }
-
     if (in_file.size() == 0){
         std::cerr << "Error: Need input file dir" << std::endl;
         arg_okay = false;
@@ -112,11 +116,10 @@ Parameters::Parameters(int argc, char* argv[]) {
 void Parameters::print_args() {
     cout << "Input parameters >> " << endl;
     cout << "  in_file: " << endl;
-    for (int i = 0; i < in_file.size(); i++) {
-        std::cout << "\t" << in_file[i] << ": " << chains[i] << '\n'; 
+    for (size_t i = 0; i < in_file.size(); i++) {
+        std::cout << "\t" << in_file[i] << '\n';
     }
     cout << "  mode: " << mode << endl;
-    cout << "  depthcharacter: " << depthcharacter << endl;
     cout << "  utmatrix: " << utmatrix << endl;
     cout << "  chainfile: " << chainfile << endl;
     cout << "  show_structure: " << show_structure << endl;
