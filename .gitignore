@@ -46,3 +46,6 @@ build/*
 benchmark/*
 temp/*
 structty_paper.tex
+
+plan*
+research*
