@@ -20,6 +20,15 @@ Protein::Protein(const std::string& in_file_, const std::string& target_chains_,
     cx = cy = cz = scale = 0.0;
 }
 
+Protein::Protein(const std::string& name, bool show_structure_val) {
+    structureMaker = StructureMaker();
+
+    in_file = name;
+    target_chains = "-";
+    show_structure = show_structure_val;
+    cx = cy = cz = scale = 0.0;
+}
+
 Protein::~Protein() {
 }
 
@@ -283,6 +292,53 @@ void Protein::load_data(float * vectorpointers, bool yesUT) {
         return;
     }
     std::cout << std::endl;
+}
+
+static const char* aa_to_three(char one_letter) {
+    static const char* table[26] = {
+        "ALA","ASX","CYS","ASP","GLU","PHE","GLY","HIS","ILE",
+        "XLE","LYS","LEU","MET","ASN","PYL","PRO","GLN","ARG",
+        "SER","THR","SEC","VAL","TRP","XAA","TYR","GLX"
+    };
+    int idx = std::toupper(static_cast<unsigned char>(one_letter)) - 'A';
+    if (idx < 0 || idx >= 26) return "UNK";
+    return table[idx];
+}
+
+void Protein::load_from_ca(const std::vector<float>& coords, size_t n_residues,
+                            const std::string& aa_seq) {
+    init_atoms.clear();
+    ca_only_ = true;
+
+    for (size_t j = 0; j < n_residues; ++j) {
+        float x = coords[j];
+        float y = coords[j + n_residues];
+        float z = coords[j + 2 * n_residues];
+
+        Atom a(x, y, z, 'x');
+        a.residue_number = static_cast<int>(j + 1);
+        if (j < aa_seq.size()) {
+            a.residue_name = aa_to_three(aa_seq[j]);
+        } else {
+            a.residue_name = "UNK";
+        }
+        init_atoms["A"].push_back(a);
+    }
+
+    if (init_atoms.empty()) {
+        std::cerr << "Error: Foldseek DB entry is empty." << std::endl;
+        return;
+    }
+
+    if (show_structure) {
+        ssPredictor.run(init_atoms);
+        structureMaker.calculate_ss_points(init_atoms, screen_atoms);
+    } else {
+        screen_atoms = init_atoms;
+    }
+
+    chain_res_count.clear();
+    chain_res_count["A"] = static_cast<int>(n_residues);
 }
 
 void Protein::set_rotate(int x_rotate, int y_rotate, int z_rotate){

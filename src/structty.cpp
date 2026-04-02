@@ -65,6 +65,11 @@ int main(int argc, char* argv[]) {
         screen.compute_aligned_all();
     }
 
+    // Foldseek DB 직접 읽기 모드 (--db 옵션)
+    if (!params.get_foldseek_db().empty()) {
+        screen.open_foldseek_db(params.get_foldseek_db());
+    }
+
     // 기능 3: Foldseek hit 탐색 설정 (-fs 파일이 있을 때)
     // load_next_hit() 내부에서 U/T 적용 + aligned region 계산 + align_method 설정 모두 수행
     if (!params.get_foldseek_file().empty()) {
@@ -91,6 +96,7 @@ int main(int argc, char* argv[]) {
                 }
                 screen.set_foldseek_hits(filtered_hits);
                 screen.set_fs_db_path(params.get_db_path());
+                screen.prepare_foldseek_db(filtered_hits);
 
                 // 작업 3-B: 각 target protein에 매칭 hit의 transform 적용
                 for (int ti = 1; ti < (int)params.get_in_file().size(); ti++) {
@@ -109,6 +115,7 @@ int main(int argc, char* argv[]) {
                 // 단일 입력: 기존 동작 유지
                 screen.set_foldseek_hits(fs_nav_parser.get_hits());
                 screen.set_fs_db_path(params.get_db_path());
+                screen.prepare_foldseek_db(fs_nav_parser.get_hits());
                 screen.load_next_hit(+1);
             }
         }

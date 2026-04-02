@@ -5,6 +5,7 @@
 #include <vector>
 #include <tuple>
 #include <cmath>
+#include <cctype>
 #include <limits>
 #include <algorithm>
 
@@ -48,6 +49,7 @@ struct BoundingBox {
 class Protein {
 public:
     Protein(const std::string& in_file_, const std::string& target_chains_, const bool& show_structure_);
+    Protein(const std::string& name, bool show_structure);
     ~Protein();
 
     std::map<std::string, std::vector<Atom>>& get_atoms();
@@ -62,6 +64,9 @@ public:
     std::string get_file_name() { return in_file; }
 
     void load_data(float * vectorpointers, bool yesUT);
+    void load_from_ca(const std::vector<float>& coords, size_t n_residues,
+                      const std::string& aa_seq);
+    bool is_ca_only() const { return ca_only_; }
 
     // 기능 1: Interface Region — 모든 체인 쌍에 대해 CA-CA 거리 < threshold 인 잔기를 표시
     void compute_interface(float threshold = 8.0f);
@@ -116,6 +121,7 @@ private:
     std::string in_file;
     std::string target_chains;
     bool show_structure;
+    bool ca_only_ = false;
 
     BoundingBox bounding_box;
 
