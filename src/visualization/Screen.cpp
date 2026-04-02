@@ -1,5 +1,6 @@
 #include "Screen.hpp"
-#include <cstring>  // strncpy, memset
+#include <cstring>       // strncpy, memset
+#include <unordered_set>
 
 const float FOV = 90.0f;
 const float PI  = 3.14159265359f;
@@ -1330,6 +1331,24 @@ void Screen::set_fs_db_path(const std::string& path) {
     fs_db_path = path;
 }
 
+bool Screen::open_foldseek_db(const std::string& db_base_path) {
+    if (fs_db_reader_.open(db_base_path)) {
+        std::cout << "  Foldseek DB opened: " << db_base_path << "\n";
+        return true;
+    }
+    std::cerr << "Warning: Failed to open Foldseek DB: " << db_base_path << "\n";
+    return false;
+}
+
+bool Screen::prepare_foldseek_db(const std::vector<FoldseekHit>& hits) {
+    if (!fs_db_reader_.is_open()) return false;
+    std::unordered_set<std::string> target_ids;
+    for (const auto& hit : hits) {
+        target_ids.insert(hit.target);
+    }
+    return fs_db_reader_.prepare(target_ids);
+}
+
 void Screen::load_next_hit(int delta) {
     if (foldseek_hits.empty()) return;
 
@@ -1346,25 +1365,16 @@ void Screen::load_next_hit(int delta) {
 
     const FoldseekHit& hit = foldseek_hits[current_hit_idx];
 
-    // 파일 경로 결정 (다운로드 포함)
     std::string status_msg;
-    std::string file_path = PDBDownloader::resolve_target_file(
-        hit.target, fs_db_path, status_msg);
-
-    // 패널 정보 갱신
     FoldseekHitInfo fs_info;
     fs_info.valid      = true;
-    fs_info.current_idx = current_hit_idx + 1;  // 1-based
+    fs_info.current_idx = current_hit_idx + 1;
     fs_info.total_hits  = (int)foldseek_hits.size();
     fs_info.target      = hit.target;
     fs_info.evalue      = hit.evalue;
     fs_info.prob        = hit.prob;
     fs_info.lddt        = hit.lddt;
     fs_info.qtmscore    = hit.qtmscore;
-    fs_info.status_msg  = status_msg;
-    if (panel) panel->set_foldseek_hit_info(fs_info);
-
-    if (file_path.empty()) return;
 
     // 기존 target protein (index 1+) 제거
     while ((int)data.size() > 1) {
@@ -1375,19 +1385,55 @@ void Screen::load_next_hit(int delta) {
     }
     while ((int)chainVec.size() > 1) chainVec.pop_back();
 
-    // 체인 필터 결정
-    DBType db_type = PDBDownloader::detect_db_type(hit.target);
-    std::string chain_filter = PDBDownloader::extract_chain(hit.target, db_type);
-    chainVec.push_back(chain_filter);
+    Protein* target_protein = nullptr;
+    bool loaded_from_db = false;
 
-    // 새 target protein 로드
-    Protein* target_protein = new Protein(file_path, chain_filter, screen_show_structure);
-    data.push_back(target_protein);
-    pan_x.push_back(0.0f);
-    pan_y.push_back(0.0f);
+    // ★ DB 직접 읽기 경로
+    if (fs_db_reader_.is_open()) {
+        std::vector<float> coords;
+        std::string aa_seq;
+        size_t n_res = fs_db_reader_.read_entry(hit.target, coords, aa_seq);
+        if (n_res > 0) {
+            chainVec.push_back("-");
+            target_protein = new Protein(hit.target, screen_show_structure);
+            target_protein->load_from_ca(coords, n_res, aa_seq);
+            data.push_back(target_protein);
+            pan_x.push_back(0.0f);
+            pan_y.push_back(0.0f);
+            loaded_from_db = true;
+            status_msg = "loaded from DB";
+            if (screen_mode == "plddt") {
+                status_msg += " (pLDDT not available)";
+            }
+        }
+    }
 
-    float tvec[3] = {0.f, 0.f, 0.f};
-    target_protein->load_data(tvec, false);
+    // Fallback: 기존 PDBDownloader 경로
+    if (!loaded_from_db) {
+        std::string file_path = PDBDownloader::resolve_target_file(
+            hit.target, fs_db_path, status_msg);
+
+        if (file_path.empty()) {
+            fs_info.status_msg = status_msg;
+            if (panel) panel->set_foldseek_hit_info(fs_info);
+            return;
+        }
+
+        DBType db_type = PDBDownloader::detect_db_type(hit.target);
+        std::string chain_filter = PDBDownloader::extract_chain(hit.target, db_type);
+        chainVec.push_back(chain_filter);
+
+        target_protein = new Protein(file_path, chain_filter, screen_show_structure);
+        data.push_back(target_protein);
+        pan_x.push_back(0.0f);
+        pan_y.push_back(0.0f);
+
+        float tvec[3] = {0.f, 0.f, 0.f};
+        target_protein->load_data(tvec, false);
+    }
+
+    fs_info.status_msg = status_msg;
+    if (panel) panel->set_foldseek_hit_info(fs_info);
 
     // 패널 entry 갱신
     if (panel) {

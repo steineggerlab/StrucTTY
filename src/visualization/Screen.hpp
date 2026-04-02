@@ -10,6 +10,7 @@
 #include "../structure/FoldseekParser.hpp"
 #include "../structure/PDBDownloader.hpp"
 #include "../structure/FoldMasonParser.hpp"
+#include "../structure/FoldseekDBReader.hpp"
 #include <vector>
 #include <cmath>
 #include <iostream>
@@ -66,6 +67,10 @@ public:
     void set_foldseek_hits(const std::vector<FoldseekHit>& hits);
     void set_fs_db_path(const std::string& path);
     void load_next_hit(int delta);  // delta=+1: next, delta=-1: prev, delta=0: first
+
+    // Foldseek DB 직접 읽기 (v2: 선택적 스캔)
+    bool open_foldseek_db(const std::string& db_base_path);
+    bool prepare_foldseek_db(const std::vector<FoldseekHit>& hits);
 
     // 기능 3: 이미 로드된 target protein에 hit의 U/T transform 적용
     void apply_hit_transform(int target_protein_idx, const FoldseekHit& hit);
@@ -145,6 +150,9 @@ private:
     std::vector<FoldseekHit> foldseek_hits;
     int current_hit_idx = -1;
     std::string fs_db_path;
+
+    // Foldseek DB 직접 읽기
+    FoldseekDBReader fs_db_reader_;
 
     // 기능 8: FoldMason MSA
     std::unique_ptr<FoldMasonParser> foldmason_parser;
