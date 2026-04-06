@@ -28,7 +28,7 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 7 color modes 
 - **7 color modes** — `protein`, `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `aligned`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
 - **Secondary structure visualization** — helix cylinders and sheet ribbons
-- **Foldseek integration** — load `.m8` results, navigate hits, auto-download structures
+- **Foldseek integration** — load `.m8` results, navigate hits, auto-download structures or read directly from Foldseek DB
 - **FoldMason integration** — MSA superposition with conservation coloring
 - **MSA conservation scoring** — Shannon entropy from FASTA/A3M alignments
 - **Interface detection** — inter-chain contact residue highlighting
@@ -169,6 +169,7 @@ make -j$(nproc)
 | `-ut, --utmatrix <FILE>` | Apply rotation/translation matrix for alignment |
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
 | `-fs, --foldseek <FILE>` | Foldseek `.m8` result for hit navigation |
+| `--db <PATH>` | Foldseek structure database path for offline Cα coordinate reading |
 | `--db-path <DIR>` | PDB directory for Foldseek hit loading |
 | `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSA) |
 | `-n, --nopanel` | Hide info panel |
@@ -207,9 +208,21 @@ All modes support **3-band depth fog**: near (vivid), mid (normal), far (dark, h
 StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12, 17, 21, and 29 column formats. Features include:
 
 - Interactive hit navigation with automatic structure downloading
+- **Direct Foldseek DB reading** (`--db`) — read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Uses hit-based selective scanning for minimal memory usage (~152KB for 1000 hits, even on AFDB50)
 - Structural superposition using U/T rotation-translation matrices
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
+
+```bash
+# Online mode (download structures)
+./StrucTTY query.pdb --foldseek result.m8
+
+# Offline mode (read from Foldseek DB)
+./StrucTTY query.pdb --foldseek result.m8 --db /path/to/targetDB
+
+# Hybrid (DB first, fallback to download)
+./StrucTTY query.pdb --foldseek result.m8 --db /path/to/targetDB --db-path /path/to/pdbs/
+```
 
 ### FoldMason
 
