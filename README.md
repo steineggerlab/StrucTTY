@@ -213,6 +213,20 @@ StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12,
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
 
+#### Launch from Foldseek (`--view`)
+
+Foldseek can launch StrucTTY directly after search completion using the `--view` flag. This automatically passes the query structure, result file, and target database to StrucTTY:
+
+```bash
+foldseek easy-search query.pdb targetDB result.m8 tmp --view 1
+# Equivalent to running:
+# StrucTTY query.pdb --foldseek result.m8 --db targetDB
+```
+
+> Requires `StrucTTY` to be available in `PATH`. If not found, Foldseek prints a warning and exits normally — search results are always preserved regardless.
+
+#### Standalone usage
+
 ```bash
 # Online mode (download structures)
 ./StrucTTY query.pdb --foldseek result.m8
