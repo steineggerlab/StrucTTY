@@ -104,7 +104,19 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                 while (i < atoms.size() && atoms[i].structure == 'H') ++i;
                 size_t end = i;
 
-                if (end - start >= 4) {
+                if (end - start < 4) {
+                    // Short helix: fall back to coil rendering instead of silently dropping
+                    for (size_t k = start; k < end; ++k) {
+                        Atom coil_atom = atoms[k];
+                        coil_atom.structure = 'x';
+                        output.push_back(coil_atom);
+                    }
+                } else {
+                    // Junction: 첫 번째 CA를 coil로 추가 (coil→helix 경계 끊김 방지)
+                    Atom junction_start = atoms[start];
+                    junction_start.structure = 'x';
+                    output.push_back(junction_start);
+
                     auto segment = std::vector<Atom>(atoms.begin() + start, atoms.begin() + end);
 
                     float center[3], axis[3];
@@ -181,9 +193,28 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                             float px = base[0] + radius * rad[0] + rw * tan_dir[0];
                             float py = base[1] + radius * rad[1] + rw * tan_dir[1];
                             float pz = base[2] + radius * rad[2] + rw * tan_dir[2];
-                            output.emplace_back(px, py, pz, 'H');
+                            Atom geom(px, py, pz, 'H');
+                            // Interpolate per-residue metadata along the helix spiral (t: 0→1)
+                            geom.bfactor            = segment.front().bfactor + t * (segment.back().bfactor - segment.front().bfactor);
+                            geom.is_interface       = segment.front().is_interface;
+                            geom.is_aligned         = segment.front().is_aligned;
+                            geom.conservation_score = segment.front().conservation_score + t * (segment.back().conservation_score - segment.front().conservation_score);
+                            // 기능 6: 가장 가까운 CA 원자의 잔기 정보 사용 (plan 0-3)
+                            {
+                                int ca_idx = std::min(
+                                    (int)std::round(t * (float)(segment.size() - 1)),
+                                    (int)segment.size() - 1);
+                                geom.residue_number = segment[ca_idx].residue_number;
+                                geom.residue_name   = segment[ca_idx].residue_name;
+                            }
+                            output.push_back(geom);
                         }
                     }
+
+                    // Junction: 마지막 CA를 coil로 추가 (helix→coil 경계 끊김 방지)
+                    Atom junction_end = atoms[end - 1];
+                    junction_end.structure = 'x';
+                    output.push_back(junction_end);
                 }
                 // i already advanced to end of helix segment by the inner while loop
             }
@@ -196,8 +227,18 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                 int seg_len = (int)(seg_end - seg_start);
 
                 if (seg_len < 2) {
-                    output.push_back(atoms[seg_start]);
+                    // 1-residue sheet: coil로 폴백
+                    Atom coil_atom = atoms[seg_start];
+                    coil_atom.structure = 'x';
+                    output.push_back(coil_atom);
                     continue;
+                }
+
+                // Junction: 첫 번째 CA를 coil로 추가 (coil→sheet 경계 끊김 방지)
+                {
+                    Atom junc = atoms[seg_start];
+                    junc.structure = 'x';
+                    output.push_back(junc);
                 }
 
                 // Compute a consistent perpendicular from the overall segment direction
@@ -247,14 +288,28 @@ void StructureMaker::calculate_ss_points(std::map<std::string, std::vector<Atom>
                         // with draw_line, so sub-sampling here just wastes atoms.
                         for (int t = 0; t <= 1; ++t) {
                             float f = static_cast<float>(t);
-                            output.emplace_back(
-                                pa.x + ox + f * pair_dx,
-                                pa.y + oy + f * pair_dy,
-                                pa.z + oz + f * pair_dz,
-                                'S'
-                            );
+                            Atom geom(pa.x + ox + f * pair_dx,
+                                      pa.y + oy + f * pair_dy,
+                                      pa.z + oz + f * pair_dz,
+                                      'S');
+                            // Interpolate per-residue metadata along the strand (f: 0→1)
+                            geom.bfactor            = pa.bfactor + f * (pb.bfactor - pa.bfactor);
+                            geom.is_interface       = pa.is_interface;
+                            geom.is_aligned         = pa.is_aligned;
+                            geom.conservation_score = pa.conservation_score + f * (pb.conservation_score - pa.conservation_score);
+                            // 기능 6: pa atom의 잔기 정보 사용 (plan 0-3)
+                            geom.residue_number = pa.residue_number;
+                            geom.residue_name   = pa.residue_name;
+                            output.push_back(geom);
                         }
                     }
+                }
+
+                // Junction: 마지막 CA를 coil로 추가 (sheet→coil 경계 끊김 방지)
+                {
+                    Atom junc = atoms[seg_end - 1];
+                    junc.structure = 'x';
+                    output.push_back(junc);
                 }
                 // i already advanced to seg_end by the inner while loop
             }
