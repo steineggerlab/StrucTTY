@@ -13,9 +13,8 @@
   <a href="#-installation"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg" alt="Platform"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License"/></a>
   <a href="https://github.com/steineggerlab/StrucTTY"><img src="https://img.shields.io/badge/build-CMake-orange.svg" alt="Build"/></a>
+  <a href="https://doi.org/10.64898/2026.03.17.712308"><img src="https://img.shields.io/badge/bioRxiv-10.64898%2F2026.03.17.712308-b31b1b.svg?logo=biorxiv" alt="bioRxiv"/></a>
 </p>
-
-[![bioRxiv](https://img.shields.io/badge/bioRxiv-10.64898%2F2026.03.17.712308-b31b1b.svg?logo=biorxiv)](https://doi.org/10.64898/2026.03.17.712308)
 
 ---
 
