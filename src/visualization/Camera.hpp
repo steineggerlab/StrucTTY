@@ -26,10 +26,10 @@ public:
     Camera(const int width, const int height, const std::string mode);
     ~Camera() = default;
 
-    void screenshot(const std::vector<RenderPoint>& screenPixels);    
-    void renderPoint2image(const std::vector<RenderPoint>& screenPixels,
+    void screenshot(const std::vector<RenderPoint>& pixels, int width, int height);
+    void renderPoint2image(const std::vector<RenderPoint>& pixels, int width, int height,
                            std::vector<RGBA>& screenImage);
-    bool save_image(std::vector<RGBA>& screenImage);
+    bool save_image(std::vector<RGBA>& screenImage, int width, int height);
     int get_alpha_from_depth(float z, float min_z, float max_z);
 
 private:
