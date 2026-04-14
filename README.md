@@ -15,6 +15,8 @@
   <a href="https://github.com/steineggerlab/StrucTTY"><img src="https://img.shields.io/badge/build-CMake-orange.svg" alt="Build"/></a>
 </p>
 
+[![bioRxiv](https://img.shields.io/badge/bioRxiv-10.1101%2F2025.XX.XX.XXXXXX-b31b1b.svg?logo=biorxiv)](https://doi.org/10.64898/2026.03.17.712308)
+
 ---
 
 **StrucTTY** is a lightweight, terminal-based protein structure visualizer built in C++17. It renders 3D protein structures directly in the terminal using **Unicode Braille sub-pixel rendering**, providing 8x resolution compared to standard character-based rendering.
