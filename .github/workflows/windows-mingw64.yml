@@ -2,9 +2,6 @@ name: windows-x64 (msys2 mingw64, mintty runtime)
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["**"]
-  pull_request:
 
 jobs:
   build:
