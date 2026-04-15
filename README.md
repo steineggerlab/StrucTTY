@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="#-installation"><img src="https://img.shields.io/badge/C%2B%2B-17-blue.svg" alt="C++17"/></a>
-  <a href="#-installation"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg" alt="Platform"/></a>
+  <a href="#-installation"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg" alt="Platform"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License"/></a>
   <a href="https://github.com/steineggerlab/StrucTTY"><img src="https://img.shields.io/badge/build-CMake-orange.svg" alt="Build"/></a>
   <a href="https://doi.org/10.64898/2026.03.17.712308"><img src="https://img.shields.io/badge/bioRxiv-10.64898%2F2026.03.17.712308-b31b1b.svg?logo=biorxiv" alt="bioRxiv"/></a>
@@ -47,7 +47,7 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 7 color modes 
 | CMake | ≥ 3.15 |
 | ncurses | wide character support (`libncursesw`) |
 
-Supported platforms: **Linux**, **macOS**, **Windows** (Git Bash / MinTTY)
+Supported platforms: **Linux**, **macOS**
 
 ### Build (Linux)
 
