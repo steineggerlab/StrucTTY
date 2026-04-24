@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CURSES_NEED_WIDE TRUE)
 find_package(Curses REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # Third-party deps are built in lib/
 add_subdirectory(lib)
@@ -37,6 +38,7 @@ target_include_directories(StrucTTY
         ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
         ${CMAKE_CURRENT_SOURCE_DIR}/src/structure
         ${CMAKE_CURRENT_SOURCE_DIR}/src/visualization
+        ${CURSES_INCLUDE_DIRS}
 )
 
 target_link_libraries(StrucTTY
@@ -44,4 +46,5 @@ target_link_libraries(StrucTTY
         gemmi::gemmi_cpp
         lodepng
         ${CURSES_LIBRARIES}
+        ZLIB::ZLIB
 )

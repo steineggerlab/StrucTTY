@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <string>
 
 struct RGBA { uint8_t r,g,b,a; };
 static_assert(sizeof(RGBA) == 4, "RGBA must be 4 bytes");
@@ -459,4 +460,50 @@ namespace Palettes {
         RGBA{228, 228, 228, 255}, // 254
         RGBA{238, 238, 238, 255} // 255
     };
+
+    // color_id (logical palette index / ncurses pair number) → xterm-256 foreground color number.
+    // Mirrors Camera::renderPoint2image() so ANSI and PNG output use identical colors.
+    inline int palette_to_xterm256_fg(int cid) {
+        if      (cid >= 1   && cid <= 9)   return PROTEIN_COLORS[cid - 1];
+        else if (cid >= 11  && cid <= 19)  return PROTEIN_DIM_COLORS[cid - 11];
+        else if (cid >= 21  && cid <= 35)  return CHAIN_COLORS[cid - 21];
+        else if (cid == 41)                return 226;
+        else if (cid == 42)                return 51;
+        else if (cid == 43)                return INTERFACE_COLOR;
+        else if (cid == 44)                return INTERFACE_DIM_COLOR;
+        else if (cid == 45)                return ALIGNED_COLOR;
+        else if (cid == 46)                return ALIGNED_DIM_COLOR;
+        else if (cid >= 51  && cid <= 70)  return RAINBOW[cid - 51];
+        else if (cid >= 71  && cid <= 74)  return PLDDT_COLORS[cid - 71];
+        else if (cid >= 75  && cid <= 84)  return CONSERVATION_COLORS[cid - 75];
+        else if (cid >= 101 && cid <= 109) return PROTEIN_BRIGHT_COLORS[cid - 101];
+        else if (cid == 110)               return ALIGNED_NONALIGNED_DIM;
+        else if (cid >= 120 && cid <= 128) return PROTEIN_NEAR_COLORS[cid - 120];
+        else if (cid >= 130 && cid <= 144) return CHAIN_NEAR_COLORS[cid - 130];
+        else if (cid >= 145 && cid <= 159) return CHAIN_FAR_COLORS[cid - 145];
+        else if (cid >= 160 && cid <= 179) return RAINBOW_NEAR[cid - 160];
+        else if (cid >= 180 && cid <= 199) return RAINBOW_FAR[cid - 180];
+        else if (cid >= 200 && cid <= 208) return PROTEIN_FAR_COLORS[cid - 200];
+        else if (cid >= 209 && cid <= 212) return PLDDT_NEAR[cid - 209];
+        else if (cid >= 213 && cid <= 216) return PLDDT_FAR[cid - 213];
+        else if (cid >= 217 && cid <= 226) return CONSERVATION_NEAR[cid - 217];
+        else if (cid >= 227 && cid <= 236) return CONSERVATION_FAR[cid - 227];
+        else if (cid == 237)               return INTERFACE_NEAR_COLOR;
+        else if (cid == 238)               return INTERFACE_DIM_NEAR_COLOR;
+        else if (cid == 239)               return INTERFACE_FAR_COLOR;
+        else if (cid == 240)               return INTERFACE_DIM_FAR_COLOR;
+        else if (cid >= 241 && cid <= 249) return ALIGNED_BRIGHT_NEAR[cid - 241];
+        else if (cid == 250)               return ALIGNED_NONALIGNED_FAR;
+        else                               return 231;  // fallback white
+    }
+
+    // color_id → ANSI xterm-256 foreground escape sequence "\033[38;5;Nm"
+    inline std::string palette_to_ansi_fg_str(int color_id) {
+        return "\033[38;5;" + std::to_string(palette_to_xterm256_fg(color_id)) + "m";
+    }
+
+    // ANSI attribute reset
+    inline const char* palette_to_ansi_reset() {
+        return "\033[0m";
+    }
 }
