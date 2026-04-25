@@ -19,12 +19,14 @@ add_subdirectory(lib)
 file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/structure/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/visualization/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/render/*.cpp"
 )
 
 file(GLOB_RECURSE APP_HEADERS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/*.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/structure/*.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/visualization/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/render/*.hpp"
 )
 
 add_executable(StrucTTY
@@ -38,6 +40,7 @@ target_include_directories(StrucTTY
         ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
         ${CMAKE_CURRENT_SOURCE_DIR}/src/structure
         ${CMAKE_CURRENT_SOURCE_DIR}/src/visualization
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/render
         ${CURSES_INCLUDE_DIRS}
 )
 

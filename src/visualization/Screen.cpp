@@ -7,7 +7,9 @@ const float PI  = 3.14159265359f;
 const int MAX_STRUCT_NUM = 9;
 
 Screen::Screen(const int& width, const int& height, const bool& show_structure,
-               const std::string& mode) {
+               const std::string& mode)
+    : renderer_(width, height, mode, show_structure)
+{
     screen_width = width;
     screen_height = height;
     screen_show_structure = show_structure;
@@ -581,171 +583,41 @@ void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int prote
     }
 }
 
-void Screen::project() {
-    const float nearPlane = 0.05f;
-
-    float fovRads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
-
-    // 매 프레임 depth 재보정 — 회전 시 depth band가 현재 뷰에 최적화됨
-    calibrate_depth_baseline_first_view();
-
-    {
-        // Braille sub-pixel path: render to logicalPixels at 2x width, 4x height.
-        // Each terminal cell maps to a 2x4 Braille dot grid giving 8x more detail.
-        const int logical_w = screen_width * 2;
-        const int logical_h = screen_height * 4;
-
-        std::vector<RenderPoint> finalPoints;
-        std::vector<RenderPoint> chainPoints;
-        finalPoints.reserve(50000);
-
-        int protein_idx = 0;
-        for (size_t ii = 0; ii < data.size(); ii++) {
-            Protein* target = data[ii];
-            chainPoints.clear();
-
-            for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
-                if (chain_atoms.empty()) continue;
-
-                int num_atoms = target->get_chain_length(chainID);
-                int prevScreenX = -1, prevScreenY = -1;
-                float prevZ = -1.0f;
-
-                for (int i = 0; i < num_atoms; ++i) {
-                    float* position = chain_atoms[i].get_position();
-                    float x = position[0];
-                    float y = position[1];
-                    float z = position[2] + focal_offset;
-
-                    if (z < nearPlane) {
-                        prevScreenX = prevScreenY = -1;
-                        prevZ = -1.0f;
-                        continue;
-                    }
-
-                    char structure = chain_atoms[i].get_structure();
-                    float projectedX = (x / z) * fovRads + pan_x[ii];
-                    float projectedY = (y / z) * fovRads + pan_y[ii];
-
-                    int screenX = (int)((projectedX + 1.0f) * 0.5f * logical_w);
-                    int screenY = (int)((1.0f - projectedY) * 0.5f * logical_h);
-
-                    const Atom& cur_atom = chain_atoms[i];
-                    if (prevScreenX != -1 && prevScreenY != -1) {
-                        size_t before_draw = chainPoints.size();
-                        if (structure != 'H' && structure != 'S') {
-                            // Catmull-Rom for coil/backbone only — SS geometry is already
-                            // dense from StructureMaker so applying it there is wasteful.
-                            const Atom& P0 = chain_atoms[std::max(0, i-2)];
-                            const Atom& P1 = chain_atoms[i-1];
-                            const Atom& P2 = chain_atoms[i];
-                            const Atom& P3 = chain_atoms[std::min(num_atoms-1, i+1)];
-                            int cr_prevX = prevScreenX, cr_prevY = prevScreenY;
-                            float cr_prevZ = prevZ;
-                            for (int cr = 1; cr <= 4; ++cr) {
-                                float t = cr * 0.25f;
-                                float t2 = t*t, t3 = t2*t;
-                                float cx = 0.5f*((-P0.x+3*P1.x-3*P2.x+P3.x)*t3 + (2*P0.x-5*P1.x+4*P2.x-P3.x)*t2 + (-P0.x+P2.x)*t + 2*P1.x);
-                                float cy = 0.5f*((-P0.y+3*P1.y-3*P2.y+P3.y)*t3 + (2*P0.y-5*P1.y+4*P2.y-P3.y)*t2 + (-P0.y+P2.y)*t + 2*P1.y);
-                                float cz = 0.5f*((-P0.z+3*P1.z-3*P2.z+P3.z)*t3 + (2*P0.z-5*P1.z+4*P2.z-P3.z)*t2 + (-P0.z+P2.z)*t + 2*P1.z) + focal_offset;
-                                if (cz < nearPlane) break;
-                                float cpX = (cx/cz)*fovRads + pan_x[ii];
-                                float cpY = (cy/cz)*fovRads + pan_y[ii];
-                                int cX = (int)((cpX+1.0f)*0.5f*logical_w);
-                                int cY = (int)((1.0f-cpY)*0.5f*logical_h);
-                                draw_line(chainPoints, cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h, 1);
-                                cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
-                            }
-                        } else {
-                            draw_line(chainPoints, prevScreenX, screenX, prevScreenY, screenY, prevZ, z, chainID, structure, depth_base_min_z, depth_base_max_z, logical_w, logical_h, 1);
-                        }
-                        // Propagate current atom's metadata to all points added by draw_line
-                        for (size_t k = before_draw; k < chainPoints.size(); ++k) {
-                            chainPoints[k].bfactor            = cur_atom.bfactor;
-                            chainPoints[k].is_interface       = cur_atom.is_interface;
-                            chainPoints[k].is_aligned         = cur_atom.is_aligned;
-                            chainPoints[k].conservation_score = cur_atom.conservation_score;
-                            chainPoints[k].residue_number     = cur_atom.residue_number;
-                            strncpy(chainPoints[k].residue_name, cur_atom.residue_name.c_str(), 3);
-                            chainPoints[k].residue_name[3]    = '\0';
-                        }
-                    }
-
-                    if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
-                        int band = 1;
-                        {
-                            float range = depth_base_max_z - depth_base_min_z;
-                            if (range > 0.0f) {
-                                float dt = (z - depth_base_min_z) / range;
-                                if      (dt < 0.25f) band = 0;
-                                else if (dt < 0.60f) band = 1;
-                                else                 band = 2;
-                            }
-                        }
-                        if (structure == 'x') {
-                            // Coil: 3-pixel vertical cross node (center + top + bottom)
-                            RenderPoint rp{screenX, screenY, z, ' ', 0, chainID, structure};
-                            rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
-                            rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                            rp.residue_number = cur_atom.residue_number;
-                            strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
-                            rp.residue_name[3] = '\0';
-                            rp.depth_band = band;
-                            chainPoints.push_back(rp);
-                            rp.y = screenY - 1;
-                            if (rp.y >= 0) chainPoints.push_back(rp);
-                            rp.y = screenY + 1;
-                            if (rp.y < logical_h) chainPoints.push_back(rp);
-                        } else {
-                            // Helix/Sheet geometry: 5-pixel cross node
-                            for (int oy = -1; oy <= 1; oy++)
-                                for (int ox = -1; ox <= 1; ox++) {
-                                    if (ox != 0 && oy != 0) continue;
-                                    int nx = screenX + ox, ny = screenY + oy;
-                                    if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h) {
-                                        RenderPoint rp{nx, ny, z, ' ', 0, chainID, structure};
-                                        rp.bfactor = cur_atom.bfactor; rp.is_interface = cur_atom.is_interface;
-                                        rp.is_aligned = cur_atom.is_aligned; rp.conservation_score = cur_atom.conservation_score;
-                                        rp.residue_number = cur_atom.residue_number;
-                                        strncpy(rp.residue_name, cur_atom.residue_name.c_str(), 3);
-                                        rp.residue_name[3] = '\0';
-                                        rp.depth_band = band;
-                                        chainPoints.push_back(rp);
-                                    }
-                                }
-                        }
-                    }
-
-                    prevScreenX = screenX;
-                    prevScreenY = screenY;
-                    prevZ = z;
-                }
-            }
-
-            assign_colors_to_points(chainPoints, protein_idx);
-            finalPoints.insert(finalPoints.end(), chainPoints.begin(), chainPoints.end());
-            protein_idx++;
-        }
-
-        // z-buffer resolve into logicalPixels
-        for (const auto& pt : finalPoints) {
-            if (pt.x < 0 || pt.x >= logical_w || pt.y < 0 || pt.y >= logical_h) continue;
-            int idx = pt.y * logical_w + pt.x;
-            if (pt.depth < logicalPixels[idx].depth) {
-                logicalPixels[idx] = pt;
+std::vector<RenderAtom> Screen::to_render_atoms() {
+    std::vector<RenderAtom> result;
+    result.reserve(50000);
+    for (size_t ii = 0; ii < data.size(); ++ii) {
+        Protein* target = data[ii];
+        for (const auto& [chainID, chain_atoms] : target->get_atoms()) {
+            if (chain_atoms.empty()) continue;
+            for (const auto& a : chain_atoms) {
+                RenderAtom ra;
+                ra.x = a.x; ra.y = a.y; ra.z = a.z;
+                ra.structure          = a.get_structure();
+                ra.bfactor            = a.bfactor;
+                ra.is_interface       = a.is_interface;
+                ra.is_aligned         = a.is_aligned;
+                ra.conservation_score = a.conservation_score;
+                ra.residue_number     = a.residue_number;
+                strncpy(ra.residue_name, a.residue_name.c_str(), 3);
+                ra.residue_name[3]    = '\0';
+                ra.chain_id           = chainID;
+                ra.protein_index      = (int)ii;
+                ra.pan_x              = pan_x[ii];
+                ra.pan_y              = pan_y[ii];
+                result.push_back(std::move(ra));
             }
         }
     }
+    return result;
 }
 
-void Screen::clear_screen() {
-    logicalPixels.assign(screen_width * 2 * screen_height * 4, RenderPoint());
-}
 
 void Screen::draw_screen(bool no_panel) {
     auto t0 = Benchmark::clock::now();
-    clear_screen();
-    project();
+    calibrate_depth_baseline_first_view();
+    renderer_.set_depth_params(focal_offset, zoom_level, depth_base_min_z, depth_base_max_z);
+    renderer_.render(to_render_atoms());
 
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
@@ -828,6 +700,7 @@ void Screen::print_screen_braille(int y_offset) {
     const int logical_w = screen_width * 2;
     const int logical_h = screen_height * 4;
 
+    const auto& pixels = renderer_.get_pixels();
     for (int ty = 0; ty < screen_height; ++ty) {
         int row = ty - (y_offset / 2) - 3;
         if (row < 0) continue;
@@ -846,7 +719,7 @@ void Screen::print_screen_braille(int y_offset) {
                     int ly = ty * 4 + sr;
                     if (lx >= logical_w || ly >= logical_h) continue;
 
-                    const RenderPoint& lp = logicalPixels[ly * logical_w + lx];
+                    const RenderPoint& lp = pixels[ly * logical_w + lx];
                     if (lp.color_id > 0) {
                         bitmask |= (1 << dot_bits[sc][sr]);
                         if (lp.depth < best_depth) {
@@ -904,12 +777,13 @@ void Screen::update_hover_info(int mx, int my) {
         if (ty_screen >= 0 && ty_screen < screen_height && mx >= 0 && mx < screen_width) {
             const int logical_w = screen_width * 2;
             const int logical_h = screen_height * 4;
+            const auto& pixels = renderer_.get_pixels();
             for (int sc = 0; sc < 2; ++sc) {
                 for (int sr = 0; sr < 4; ++sr) {
                     int lx = mx * 2 + sc;
                     int ly = ty_screen * 4 + sr;
                     if (lx >= logical_w || ly >= logical_h) continue;
-                    const RenderPoint& lp = logicalPixels[ly * logical_w + lx];
+                    const RenderPoint& lp = pixels[ly * logical_w + lx];
                     if (lp.residue_number >= 0 && lp.depth < best_depth) {
                         best_depth = lp.depth;
                         best = &lp;
@@ -1073,7 +947,7 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
         case 67:
         case 99:     
         {
-            camera->screenshot(logicalPixels, screen_width * 2, screen_height * 4);
+            camera->screenshot(renderer_.get_pixels(), screen_width * 2, screen_height * 4);
             break;
         }
         // N, n (next Foldseek hit)
