@@ -7,6 +7,7 @@
 #include "Camera.hpp"
 #include "Panel.hpp"
 #include "Benchmark.hpp"
+#include "Renderer.hpp"
 #include "../structure/FoldseekParser.hpp"
 #include "../structure/PDBDownloader.hpp"
 #include "../structure/FoldMasonParser.hpp"
@@ -115,8 +116,8 @@ private:
     std::string screen_mode;
     int structNum = -1;
 
-    // Braille sub-pixel rendering
-    std::vector<RenderPoint> logicalPixels; // 2*width x 4*height logical buffer
+    // Braille sub-pixel rendering (logical pixels now owned by renderer_)
+    Renderer renderer_;
     void print_screen_braille(int y_offset);
 
     float focal_offset = 3.0f;
@@ -163,8 +164,7 @@ private:
 
     void calibrate_depth_baseline_first_view();
 
-    void project();
-    void clear_screen();
+    std::vector<RenderAtom> to_render_atoms();
     void print_screen(int panel_lines);
 
     // 기능 6: handle_input 내부 구현 (두 public 오버로드 공유)

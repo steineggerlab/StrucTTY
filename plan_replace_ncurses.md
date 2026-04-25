@@ -119,7 +119,7 @@ libstructty-render 링크
 
 Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 `Renderer` 클래스로 이관한다. Screen은 Renderer를 내부적으로 사용하는 구조로 변경한다.
 
-- [ ] **2-1. Renderer 클래스 헤더 설계 (`src/render/Renderer.hpp`)**
+- [x] **2-1. Renderer 클래스 헤더 설계 (`src/render/Renderer.hpp`)**
   ```cpp
   class Renderer {
   public:
@@ -145,7 +145,7 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   };
   ```
 
-- [ ] **2-2. RenderAtom 구조체 정의 (`src/render/Renderer.hpp`)**
+- [x] **2-2. RenderAtom 구조체 정의 (`src/render/Renderer.hpp`)**
   - Protein/Atom과 무관한 순수 데이터 구조체 (ncurses, gemmi 미포함)
   ```cpp
   struct RenderAtom {
@@ -162,25 +162,25 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   };
   ```
 
-- [ ] **2-3. `project_atoms()` 추출**
+- [x] **2-3. `project_atoms()` 추출**
   - Screen.cpp의 3D→2D 원근 투영 로직 이관
   - Camera.cpp의 `focal_offset`, FOV 상수 의존성 파악 후 파라미터화
   - ncurses 호출 없음 검증
 
-- [ ] **2-4. `apply_zbuffer()` 추출**
+- [x] **2-4. `apply_zbuffer()` 추출**
   - 논리 픽셀 격자 Z-버퍼 및 깊이 정렬 로직 이관
   - `logicalPixels` 버퍼 초기화 포함
 
-- [ ] **2-5. `assign_colors()` 추출**
+- [x] **2-5. `assign_colors()` 추출**
   - 7개 색상 모드별 컬러 할당 로직 이관
   - `color_id`에 논리 팔레트 인덱스 저장 (기존 값 그대로)
   - `depth_band` 설정 로직 포함
 
-- [ ] **2-6. `generate_braille()` 추출**
+- [x] **2-6. `generate_braille()` 추출**
   - 논리 픽셀 2×4 → 점자 유니코드 문자 생성 로직 이관
   - `RenderPoint.pixel` 채우기 포함
 
-- [ ] **2-7. Screen.cpp 리팩터**
+- [x] **2-7. Screen.cpp 리팩터**
   - `draw_screen()`이 내부적으로 `Renderer::render()` 호출 후 ncurses로 출력하는 구조로 변경
   - Screen의 기존 기능(패널, 입력, Foldseek 탐색 등) 변경 없음
   - `Protein::screen_atoms` → `RenderAtom` 변환 어댑터 함수 추가 (`Screen::to_render_atoms()`)

@@ -537,3 +537,57 @@ Palette.hpp의 near/mid/far 색상 변형이 이미 별도 xterm-256 번호로 �
 Zero new warnings. 기존 `Protein.cpp` narrowing 경고들은 Phase 1 이전부터 존재하던 것으로, Phase 1과 무관하다.
 
 *최종 업데이트: 2026-04-24*
+
+---
+
+## Phase 2 구현 요약: 렌더링 코어 추출
+
+**브랜치:** `replace-ncurses`  
+**완료일:** 2026-04-25
+
+### 목표
+
+`Screen.cpp`의 렌더링 파이프라인(투영·Z-버퍼·색상 할당)을 ncurses와 무관한 `Renderer` 클래스로 분리하여 `src/render/` 아래에 배치.
+
+### 변경 파일
+
+**`src/render/Renderer.hpp`** (신규):
+- `RenderAtom` 구조체: Protein/Atom/gemmi/ncurses와 완전 분리된 순수 데이터. `chain_id`는 `std::string` (plan의 `char` 대신 — `Protein::get_atoms()` 키가 `std::string`이므로). per-protein 화면 오프셋 `pan_x`, `pan_y` 필드 추가 (plan 미명시).
+- `Renderer` 클래스: 공개 API는 `render(atoms)`, `get_pixels()`, `get_logical_width/height()`, `set_depth_params()`.
+
+**`src/render/Renderer.cpp`** (신규):
+- `project_and_fill()`: 원근 투영 + Catmull-Rom 코일 보간 (평탄한 `RenderAtom` 벡터를 protein → chain 순으로 그루핑하여 처리).
+- `zbuffer_resolve()`: Z-버퍼 합성, `logical_pixels_` 소유.
+- `assign_colors_impl()`: 7개 색상 모드(protein/chain/rainbow/plddt/interface/aligned/conservation) × 3 깊이 밴드 — `Screen::assign_colors_to_points()`와 동일 논리.
+- `draw_line_impl()`: `compute_depth_band()` 내부 호출로 min_z/max_z 파라미터 제거.
+
+**`src/visualization/Screen.hpp`** (수정):
+- `#include "Renderer.hpp"` 추가, `Renderer renderer_` 멤버 추가.
+- `logicalPixels` 벡터 제거, `project()`/`clear_screen()` 선언 제거.
+- `to_render_atoms()` 비공개 메서드 선언 추가.
+
+**`src/visualization/Screen.cpp`** (수정):
+- 생성자에 `renderer_(width, height, mode, show_structure)` 이니셜라이저 추가.
+- `Screen::project()`(~155줄) 및 `clear_screen()` 구현 제거.
+- `to_render_atoms()` 구현 추가: `data[]` → `RenderAtom` 벡터 변환 어댑터.
+- `draw_screen()`: `calibrate_depth_baseline_first_view()` → `renderer_.set_depth_params(...)` → `renderer_.render(to_render_atoms())` 순으로 위임.
+- `print_screen_braille()`, `update_hover_info()`, `camera->screenshot()`: `logicalPixels` → `renderer_.get_pixels()` 교체.
+
+**`CMakeLists.txt`** (수정):
+- `src/render/*.cpp`, `src/render/*.hpp` 글로브 추가.
+- `target_include_directories`에 `src/render` 경로 추가.
+
+### 설계 결정 및 plan 이탈 사항
+
+| 항목 | plan 명세 | 실제 구현 | 이유 |
+|------|-----------|-----------|------|
+| `RenderAtom.chain_id` | `char` | `std::string` | `Protein::get_atoms()` 키가 `std::string` |
+| `pan_x`, `pan_y` | 미명시 | `RenderAtom`에 추가 | 투영 시 per-protein 화면 오프셋 필요 |
+| `generate_braille()` 추출 | Phase 2-6 | Screen에 유지 | 브레일 생성은 ncurses 출력과 결합되어 있어 Phase 3에서 분리하는 것이 적절 |
+| `calibrate_depth_baseline` | `project()` 내부 호출 | `draw_screen()`으로 이동 | Renderer 생성 후 `set_depth_params()` 전에 호출해야 하는 순서 보장 |
+
+### 빌드 결과
+
+Zero new warnings (기존 `Protein.cpp` narrowing 경고는 Phase 2 이전부터 존재). 빌드 성공, `1_1CRN.cif -m chain -s` 실행 결과 동일.
+
+*최종 업데이트: 2026-04-25*
