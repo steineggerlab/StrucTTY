@@ -223,7 +223,7 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
 
 ### Phase 4: 공개 API 헤더 및 CMake 타겟
 
-- [ ] **4-1. 공개 API 헤더 작성 (`include/structty_render.h`)**
+- [x] **4-1. 공개 API 헤더 작성 (`include/structty_render.h`)**
   ```cpp
   // C++ API (내부용 + Foldseek)
   #pragma once
@@ -255,7 +255,7 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   } // namespace structty
   ```
 
-- [ ] **4-2. `src/render/CMakeLists.txt` 작성**
+- [x] **4-2. `src/render/CMakeLists.txt` 작성**
   ```cmake
   add_library(structty_render STATIC
       Renderer.cpp
@@ -276,12 +276,12 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   )
   ```
 
-- [ ] **4-3. 루트 CMakeLists.txt 수정**
+- [x] **4-3. 루트 CMakeLists.txt 수정**
   - `add_subdirectory(src/render)` 추가
   - `StrucTTY` 타겟에 `structty_render` 링크 추가
   - ncurses는 `StrucTTY`만 링크하고 `structty_render`는 미링크임을 주석으로 명시
 
-- [ ] **4-4. ncurses 미링크 빌드 검증**
+- [x] **4-4. ncurses 미링크 빌드 검증**
   - `structty_render` 타겟을 `ldd` 또는 `nm`으로 검사하여 ncurses 심볼 없음 확인
   - Linux: `nm -u libstructty_render.a | grep -i ncurses` 결과 비어야 함
 

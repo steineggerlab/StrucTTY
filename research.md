@@ -631,4 +631,56 @@ Zero new warnings (기존 `Protein.cpp` narrowing 경고는 Phase 2 이전부터
 
 Zero new warnings. 빌드 성공, `1_1CRN.cif -m chain -s` 실행 결과 동일.
 
+## Phase 4 구현 요약: 공개 API 헤더 및 CMake 타겟
+
+**브랜치:** `replace-ncurses`  
+**완료일:** 2026-04-26
+
+### 목표
+
+Phase 1–3에서 구현한 `Renderer`/`AnsiOutput`/`Palette`를 ncurses 미링크 독립 정적 라이브러리 (`structty_render`)로 패키징하고, Foldseek이 `add_subdirectory` 방식으로 링크할 수 있는 공개 C++ API 헤더를 작성.
+
+### 변경 파일
+
+**`include/structty_render.h`** (신규):
+- `#include "Renderer.hpp"` + `#include "AnsiOutput.hpp"` 포함.
+- `namespace structty {}` 내 두 개의 inline 편의 함수:
+  - `render_to_ansi(atoms, width, height, mode, show_structure) -> std::string`
+  - `render_to_stdout(atoms, width, height, mode, show_structure)`
+- 두 함수 모두 `Renderer` 인스턴스 생성 → `render()` 호출 → `AnsiOutput` 변환의 3단계.
+- 기본값: `mode="protein"`, `show_structure=false`.
+
+**`src/render/CMakeLists.txt`** (신규):
+- `add_library(structty_render STATIC Renderer.cpp AnsiOutput.cpp)`
+- PUBLIC include dirs: `${PROJECT_SOURCE_DIR}/include`, `${CMAKE_CURRENT_SOURCE_DIR}` (src/render/), `${PROJECT_SOURCE_DIR}/src/visualization`.
+- PRIVATE 의존: `gemmi::gemmi_cpp`. ncurses 링크 없음.
+
+**`CMakeLists.txt`** (수정):
+- `add_subdirectory(src/render)` 추가 (lib 다음).
+- `APP_SOURCES` glob에서 `src/render/*.cpp` 제거 — `structty_render` 라이브러리가 컴파일하므로 중복 방지.
+- `target_link_libraries(StrucTTY ...)` 에 `structty_render` 추가. ncurses는 StrucTTY에만 링크.
+
+### 설계 결정
+
+| 항목 | 결정 | 이유 |
+|------|------|------|
+| inline vs .cpp | inline 함수 | `structty_render.a`에 컴파일 단위 추가 없이 헤더만으로 완결; 얇은 래퍼이므로 코드 비용 무시 가능 |
+| src/render 중복 제거 | glob에서 제외 | `structty_render`가 동일 .cpp를 컴파일하므로 StrucTTY에 직접 포함 시 duplicate symbol 링크 오류 발생 |
+| PUBLIC include 전파 | structty_render PUBLIC | StrucTTY가 `src/render/*.hpp` 를 include할 때 별도 PRIVATE include 없이 transitive 경로로 해결 가능 |
+
+### 빌드 및 검증 결과
+
+```
+[85%] Linking CXX static library libstructty_render.a
+[85%] Built target structty_render
+[100%] Built target StrucTTY
+```
+
+Zero new warnings. ncurses 심볼 검증:
+
+```
+nm -u build/src/render/libstructty_render.a | grep -i ncurses
+# → 출력 없음 (exit 1) — ncurses 미의존 확인
+```
+
 *최종 업데이트: 2026-04-26*
