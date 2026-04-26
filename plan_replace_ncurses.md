@@ -189,7 +189,7 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
 
 ### Phase 3: ANSI 출력 백엔드 구현
 
-- [ ] **3-1. AnsiOutput 클래스 구현 (`src/render/AnsiOutput.cpp/hpp`)**
+- [x] **3-1. AnsiOutput 클래스 구현 (`src/render/AnsiOutput.cpp/hpp`)**
   ```cpp
   class AnsiOutput {
   public:
@@ -209,13 +209,13 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   };
   ```
 
-- [ ] **3-2. 점자 문자 + ANSI 컬러 결합 로직 구현**
+- [x] **3-2. 점자 문자 + ANSI 컬러 결합 로직 구현**
   - 각 터미널 문자 위치에서 `RenderPoint` 2×4 블록 수집
   - 전경색: `palette_to_ansi_fg_str(color_id)` 적용
   - 깊이 밴드 far의 경우 dim 처리 (`\033[2m`) 또는 색상 변형 적용
   - 점자 유니코드 출력 후 reset (`\033[0m`)
 
-- [ ] **3-3. 줄 바꿈 및 커서 처리**
+- [x] **3-3. 줄 바꿈 및 커서 처리**
   - 각 논리 픽셀 행 → 터미널 행 매핑 (4 논리 픽셀 행 = 1 터미널 행)
   - 출력 후 커서 위치 초기화 여부 결정 (Foldseek UX 요구사항에 따라)
 
