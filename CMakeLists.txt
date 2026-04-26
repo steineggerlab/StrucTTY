@@ -15,11 +15,14 @@ find_package(ZLIB REQUIRED)
 # Third-party deps are built in lib/
 add_subdirectory(lib)
 
+# Render library (ncurses-free static lib; Renderer.cpp + AnsiOutput.cpp)
+add_subdirectory(src/render)
+
 # App sources (under src/)
+# src/render/*.cpp is compiled into structty_render — excluded here to avoid duplicates.
 file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/structure/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/visualization/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/render/*.cpp"
 )
 
 file(GLOB_RECURSE APP_HEADERS CONFIGURE_DEPENDS
@@ -46,8 +49,9 @@ target_include_directories(StrucTTY
 
 target_link_libraries(StrucTTY
     PRIVATE
+        structty_render      # ncurses-free render lib; ncurses linked below
         gemmi::gemmi_cpp
         lodepng
-        ${CURSES_LIBRARIES}
+        ${CURSES_LIBRARIES}  # StrucTTY only; structty_render must not link ncurses
         ZLIB::ZLIB
 )
