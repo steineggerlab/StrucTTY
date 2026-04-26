@@ -591,3 +591,44 @@ Zero new warnings. 기존 `Protein.cpp` narrowing 경고들은 Phase 1 이전부
 Zero new warnings (기존 `Protein.cpp` narrowing 경고는 Phase 2 이전부터 존재). 빌드 성공, `1_1CRN.cif -m chain -s` 실행 결과 동일.
 
 *최종 업데이트: 2026-04-25*
+
+---
+
+## Phase 3 구현 요약: ANSI 출력 백엔드
+
+**브랜치:** `replace-ncurses`  
+**완료일:** 2026-04-26
+
+### 목표
+
+`Renderer::get_pixels()`가 반환하는 논리 픽셀 버퍼(`logical_pixels_`)를 ANSI escape code 문자열로 변환하는 `AnsiOutput` 클래스 구현. ncurses 미포함.
+
+### 변경 파일
+
+**`src/render/AnsiOutput.hpp`** (신규):
+- `AnsiOutput` 클래스: 두 개의 static 메서드로 구성.
+  - `to_ansi_string(pixels, logical_width, logical_height) -> std::string`: 픽셀 버퍼 → ANSI string. 터미널 크기 = (logical_width/2) × (logical_height/4).
+  - `print_to_stdout(...)`: `setlocale(LC_ALL, "")` 후 `to_ansi_string()` 결과를 `fwrite`로 stdout 출력.
+
+**`src/render/AnsiOutput.cpp`** (신규):
+- `Screen::print_screen_braille()`와 동일한 2×4 점자 bitmask 계산 로직 사용.
+- `DOT_BITS[2][4]` 상수: Screen.cpp와 동일한 dot bit 배열.
+- 각 터미널 셀에서 최소 depth(가장 앞면)의 `color_id`를 선택.
+- `Palettes::palette_to_ansi_fg_str(color_id)` + 브레일 UTF-8 3바이트 인코딩(`0xE2, 0xA0|(mask>>6), 0x80|(mask&0x3F)`) + `Palettes::palette_to_ansi_reset()` 조합.
+- 빈 셀(bitmask==0 또는 color_id==0)은 공백(' ')으로 채워 열 정렬 유지.
+- 각 행 끝에 `'\n'` 추가.
+- `out.reserve()` 로 heap reallocation 최소화.
+
+### 설계 결정
+
+| 항목 | 결정 | 이유 |
+|------|------|------|
+| 커서 위치 초기화 | 미포함 | Foldseek UX 요구사항 Phase 5에서 결정; 호출부에서 필요 시 추가 |
+| depth_band far dim | 미적용 | color_id에 이미 어두운 xterm 번호 인코딩됨 (`PROTEIN_FAR_COLORS` 등) |
+| 빈 셀 처리 | 공백(' ') | ANSI 출력에서 열 정렬 유지 필요 (ncurses는 커서 이동으로 스킵 가능했으나 ANSI는 행 연속 출력) |
+
+### 빌드 결과
+
+Zero new warnings. 빌드 성공, `1_1CRN.cif -m chain -s` 실행 결과 동일.
+
+*최종 업데이트: 2026-04-26*
