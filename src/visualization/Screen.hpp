@@ -1,5 +1,4 @@
 #pragma once
-#include "Curses.hpp"
 #include "Protein.hpp"
 #include "Atom.hpp"
 #include "RenderPoint.hpp"
@@ -86,7 +85,6 @@ public:
 
     // 기능 6: 마우스 hover — 현재 커서 위치의 잔기 정보를 패널에 반영
     void update_hover_info(int mx, int my);
-    void init_color_pairs();
     void assign_colors_to_points(std::vector<RenderPoint>& points, int protein_idx);
 
     void draw_line(std::vector<RenderPoint>& points,

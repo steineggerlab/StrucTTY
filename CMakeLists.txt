@@ -13,11 +13,6 @@ option(STRUCTTY_BUILD_APP  "Build StrucTTY terminal application" ON)
 # Set ON to also build the render_test integration test binary.
 option(BUILD_RENDER_TEST   "Build render_test integration test binary" OFF)
 
-if (STRUCTTY_BUILD_APP)
-    set(CURSES_NEED_WIDE TRUE)
-    find_package(Curses REQUIRED)
-endif()
-
 find_package(ZLIB REQUIRED)
 
 # Third-party deps are built in lib/
@@ -32,6 +27,7 @@ if (STRUCTTY_BUILD_APP)
     file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/structure/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/visualization/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/*.cpp"
     )
 
     file(GLOB_RECURSE APP_HEADERS CONFIGURE_DEPENDS
@@ -53,15 +49,13 @@ if (STRUCTTY_BUILD_APP)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/structure
             ${CMAKE_CURRENT_SOURCE_DIR}/src/visualization
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render
-            ${CURSES_INCLUDE_DIRS}
     )
 
     target_link_libraries(StrucTTY
         PRIVATE
-            structty_render      # ncurses-free render lib; ncurses linked below
+            structty_render
             gemmi::gemmi_cpp
             lodepng
-            ${CURSES_LIBRARIES}  # StrucTTY only; structty_render must not link ncurses
             ZLIB::ZLIB
     )
 endif()

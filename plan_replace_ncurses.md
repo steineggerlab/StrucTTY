@@ -1,4 +1,4 @@
-# libstructty-render 추출 구현 계획
+# StrucTTY ncurses 완전 제거 및 라이브러리 패키징 계획
 
 ## 배경
 
@@ -6,14 +6,14 @@ Martin이 Foldseek 연동을 위한 두 가지 접근 방식을 거부했다:
 1. ncurses를 Foldseek에 링크 — 너무 비대
 2. StrucTTY를 subprocess로 호출 — 수용 불가
 
-Foldseek 통합 계획은 확정되어 있으며, 렌더링 엔진을 ncurses 독립 standalone 라이브러리로 추출해야 한다.
+**최종 목표 (2026-04-27 확정):** StrucTTY에서 ncurses를 완전히 제거하고, Foldseek이 인터랙티브 뷰어를 통째로 임베딩할 수 있는 단일 라이브러리 타겟을 제공한다. Foldseek 측 작업은 `add_subdirectory` + `structty::run(opts)` 호출 두 줄로 끝나야 한다.
 
 ---
 
 ## 목표 및 범위
 
 ### 목표
-`libstructty-render`라는 ncurses 의존성 없는 정적 라이브러리를 만들어, Foldseek이 단일 단백질 구조를 ANSI escape code로 터미널에 표시할 수 있게 한다.
+StrucTTY에서 ncurses 의존성을 완전히 제거하고 (`libncursesw` 링크 없음), 전체 인터랙티브 TUI(렌더링 + 키보드/마우스 입력 + 화면 관리)를 `structty` 정적 라이브러리로 패키징하여 Foldseek이 최소한의 코드로 임베딩할 수 있게 한다.
 
 ### 포함 범위
 - 3D → 2D 원근 투영 (Camera 로직)
@@ -22,21 +22,28 @@ Foldseek 통합 계획은 확정되어 있으며, 렌더링 엔진을 ncurses �
 - 3-밴드 깊이 안개 (near/mid/far)
 - 점자(Braille) 문자 생성
 - ANSI escape code stdout 출력 백엔드
-- CMake `INTERFACE` 헤더 + 정적 라이브러리 타겟
+- **termios 기반 raw mode 입력 (키보드 + 마우스) — ncurses 대체**
+- **전체 인터랙티브 TUI (`structty::run()` 단일 진입점)**
+- CMake `add_subdirectory` 연동 지원
 
-### 제외 범위 (StrucTTY 내부에 유지)
-- 패널 레이아웃 및 렌더링 (`Panel.cpp`)
-- 키보드/마우스 입력 처리 (`getch`, `handle_input`)
-- 멀티 구조 비교 UI
-- ncurses TUI 라이프사이클 (`initscr`, `endwin`)
-- Foldseek 히트 탐색, FoldMason 중첩 UI
+### 제외 범위 (변경 없음)
+- Foldseek 내부 데이터 구조 — `RenderAtom` 변환은 Foldseek 측에서 담당
+- Panel/UI 디자인 변경
+- Windows 지원 (현재 빌드 비활성화 상태 유지)
 
 ### Foldseek 측 기대 동작
-```
-libstructty-render 링크
-→ render_structure_ansi(atoms, width, height, mode)
-→ ANSI 이스케이프 문자열 반환 또는 stdout 출력
-→ 인터랙티브 없음, 패널 없음
+```cpp
+// Foldseek CMakeLists.txt
+set(STRUCTTY_BUILD_APP OFF CACHE BOOL "" FORCE)
+add_subdirectory(lib/structty)
+target_link_libraries(foldseek PRIVATE structty gemmi::gemmi_cpp)
+
+// Foldseek 코드
+#include "structty.h"
+structty::RunOptions opts;
+opts.input_files = { hit_path };
+opts.mode = "plddt";
+structty::run(opts);  // 인터랙티브 뷰어 실행, Q 키로 종료
 ```
 
 ---
@@ -48,10 +55,19 @@ libstructty-render 링크
 |------|---------|
 | `src/visualization/RenderPoint.hpp` | `color_id` 의미 재정의 (ncurses pair# → 논리 팔레트 인덱스) |
 | `src/visualization/Palette.hpp` | ANSI 변환 테이블/함수 추가 (`palette_to_ansi_fg()`) |
-| `src/visualization/Screen.cpp/hpp` | 렌더링 코어 추출 후 Renderer 위임으로 리팩터 |
+| `src/visualization/Screen.cpp/hpp` | 렌더링 코어 추출 후 Renderer 위임으로 리팩터; ncurses 호출 전부 제거 |
+| `src/visualization/Panel.cpp/hpp` | ncurses 출력 함수(`move`, `clrtoeol`, `addnstr`, `attron` 등) → ANSI escape 직접 출력 |
 | `src/visualization/Camera.cpp/hpp` | 투영 로직을 ncurses 무관하게 분리 |
-| `CMakeLists.txt` (루트) | `libstructty-render` 타겟 추가, StrucTTY는 기존 유지 |
+| `src/structty.cpp` | `initscr`/`endwin` → `Terminal::enter/exit_raw_mode`; `main()` → `structty::run()` 래퍼 |
+| `CMakeLists.txt` (루트) | `find_package(Curses)` 및 `CURSES_LIBRARIES` 링크 완전 제거; `structty` 라이브러리 타겟 추가 |
 | `lib/CMakeLists.txt` | lodepng는 StrucTTY 전용으로 분리 (render lib에 불포함) |
+| `.github/workflows/` | ncurses 패키지 설치 단계 제거 |
+| `README.md` | 의존성 목록에서 ncurses 제거; 빌드 안내 업데이트 |
+
+### 삭제 대상
+| 파일 | 이유 |
+|------|------|
+| `src/utils/Curses.hpp` | ncurses 헤더 탐지 파일 — ncurses 제거 후 불필요 |
 
 ### 신규 생성 파일
 | 파일 | 역할 |
@@ -60,8 +76,10 @@ libstructty-render 링크
 | `src/render/Renderer.cpp` | 투영 + Z-버퍼 + 컬러 할당 + 점자 생성 구현 |
 | `src/render/AnsiOutput.hpp` | ANSI 출력 백엔드 헤더 |
 | `src/render/AnsiOutput.cpp` | escape code 생성 및 stdout 출력 구현 |
-| `include/structty_render.h` | Foldseek이 include할 공개 C/C++ API 헤더 |
+| `include/structty_render.h` | 렌더링 전용 편의 API 헤더 (Foldseek 단순 렌더링용) |
 | `src/render/CMakeLists.txt` | render 라이브러리 빌드 설정 |
+| `src/utils/Terminal.hpp/cpp` | **(신규, Phase 6)** termios raw mode, 키/마우스 입력, 터미널 크기 조회 |
+| `include/structty.h` | **(신규, Phase 7)** Foldseek용 전체 인터랙티브 뷰어 진입점 API |
 
 ---
 
@@ -301,6 +319,205 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   - Foldseek이 요구하는 CMake `find_package` 또는 `add_subdirectory` 방식 확인 후 지원 방식 결정
   - 필요 시 `structty_renderConfig.cmake` 패키지 파일 작성
 
+
+---
+
+### Phase 6: TUI 레이어 ncurses 완전 제거
+
+**전제:** Phase 1–5 완료 상태. `src/render/` 에 Renderer + AnsiOutput 존재. Screen.cpp는 Renderer를 통해 픽셀 버퍼를 생성하지만 출력/입력은 여전히 ncurses 사용 중.
+
+- [x] **6-1. handle_input()에서 사용하는 키 목록 감사**
+  - `Screen.cpp`의 `handle_input()` / `handle_input_impl()` 전수 확인
+  - 실제 사용 중인 ncurses `KEY_*` 상수 목록 작성 (KEY_MOUSE, KEY_UP/DOWN 등)
+  - Terminal 모듈에서 구현해야 할 key code 집합 확정
+
+- [x] **6-2. `Terminal` 유틸리티 모듈 작성 (`src/utils/Terminal.hpp/cpp`)**
+
+  ```cpp
+  namespace Terminal {
+      struct Size { int rows; int cols; };
+      struct MouseEvent {
+          int x, y;
+          bool pressed;   // true = button down, false = button up
+          bool moved;     // true = motion event
+      };
+
+      // 터미널 raw mode 진입/복원
+      void enter_raw_mode();   // tcgetattr 저장 + cfmakeraw + 마우스 추적 활성화([?1000h[?1006h) + 커서 숨김([?25l)
+      void exit_raw_mode();    // 저장된 termios 복원 + 마우스 추적 비활성화 + 커서 표시([?25h)
+
+      // 터미널 크기
+      Size get_size();         // ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)
+
+      // 화면 제어 (ANSI escape)
+      void clear();            // write "[2J[H" + fflush(stdout)
+      void move_cursor(int row, int col);  // write "[{row+1};{col+1}H"
+      void clear_to_eol();     // write "[K"
+
+      // 입력 버퍼 비우기
+      void flush_input();      // tcflush(STDIN_FILENO, TCIFLUSH)
+
+      // 키 읽기 (blocking)
+      // 반환값: ASCII char (0x01–0x7F) 또는 아래 KEY_* 상수
+      int read_key();
+
+      // KEY_* 상수 (ncurses KEY_* 대응)
+      constexpr int KEY_UP    = 0x100;
+      constexpr int KEY_DOWN  = 0x101;
+      constexpr int KEY_LEFT  = 0x102;
+      constexpr int KEY_RIGHT = 0x103;
+      constexpr int KEY_MOUSE = 0x104;  // 다음 read_mouse() 호출로 이벤트 소비
+
+      // 마우스 이벤트 읽기 (read_key()가 KEY_MOUSE를 반환한 직후 호출)
+      bool read_mouse(MouseEvent& ev);  // SGR 포맷([<btn;x;yM/m) 파싱
+  }
+  ```
+
+  - `enter_raw_mode()`: `SIGWINCH` 핸들러 등록 포함 (플래그 설정 방식, 다음 입력 루프에서 `get_size()` 재호출)
+  - `exit_raw_mode()`: `atexit` 또는 signal 핸들러로 비정상 종료 시에도 복원 보장
+  - `read_key()`: `read(STDIN_FILENO, buf, 8)` 후 escape sequence 파싱
+    - `[A` → KEY_UP, `[B` → KEY_DOWN 등 표준 VT100 시퀀스
+    - `[<...M` / `[<...m` → KEY_MOUSE (SGR 마우스)
+  - 파싱 대상 키: 6-1에서 감사한 목록만 구현. 미지원 시퀀스는 무시(0 반환)
+
+- [x] **6-3. `structty.cpp` ncurses 제거**
+  - `#include "Curses.hpp"` 제거
+  - `initscr()` 블록 → `Terminal::enter_raw_mode()` 호출
+  - `endwin()` → `Terminal::exit_raw_mode()` 호출
+  - ncurses 설정 코드(`noecho()`, `cbreak()` 등) 제거 (Terminal 모듈이 대응)
+  - SIGWINCH 핸들러는 Terminal::enter_raw_mode() 내부에서 처리
+
+- [x] **6-4. `Screen.cpp` ncurses 호출 전부 교체**
+
+  | 기존 (ncurses) | 교체 (ANSI/termios) |
+  |----------------|---------------------|
+  | `start_color()`, `use_default_colors()` | 제거 |
+  | `init_pair()` × 250+ (`init_color_pairs()` 전체) | 제거 |
+  | `keypad(stdscr, TRUE)` | 제거 (Terminal 모듈이 escape 파싱) |
+  | `mousemask()`, `mouseinterval()` | 제거 (Terminal::enter_raw_mode() 내 처리) |
+  | `getmaxyx(stdscr, rows, cols)` | `Terminal::get_size()` |
+  | `erase()` | `Terminal::clear()` |
+  | `refresh()` | `fflush(stdout)` |
+  | `attron(COLOR_PAIR(id))` / `mvaddstr()` / `attroff()` in `print_screen_braille()` | `AnsiOutput::print_to_stdout(renderer_.get_pixels(), ...)` |
+  | `getch()` in `handle_input()` | `Terminal::read_key()` |
+  | `getmouse(&event)` | `Terminal::read_mouse(ev)` |
+  | `flushinp()` | `Terminal::flush_input()` |
+
+  - `init_color_pairs()` 함수 선언 및 구현 전부 삭제
+  - KEY_MOUSE, KEY_UP 등 ncurses 상수 → Terminal::KEY_* 상수로 교체
+  - `MEVENT event` → `Terminal::MouseEvent ev` 로 교체
+
+- [x] **6-5. `Panel.cpp` ncurses 호출 전부 교체**
+
+  | 기존 (ncurses) | 교체 (ANSI) |
+  |----------------|-------------|
+  | `move(r, c)` | `Terminal::move_cursor(r, c)` |
+  | `clrtoeol()` | `Terminal::clear_to_eol()` |
+  | `addnstr(s, k)` | `fwrite(s, 1, k, stdout)` |
+  | `addch(c)` | `fputc(c, stdout)` |
+  | `attron(COLOR_PAIR(id))` | `fputs(Palettes::palette_to_ansi_fg_str(id).c_str(), stdout)` |
+  | `attroff(COLOR_PAIR(id))` | `fputs("[0m", stdout)` |
+
+  - Panel.hpp의 `#include "Curses.hpp"` 제거
+  - `refresh()` in `update_hover_info()` → `fflush(stdout)`
+
+- [x] **6-6. `Screen.hpp` / `Panel.hpp` include 정리**
+  - `#include "Curses.hpp"` 제거
+  - ncurses 타입(`MEVENT`, `chtype` 등) 사용 부분 정리
+
+- [x] **6-7. `src/utils/Curses.hpp` 삭제**
+  - 모든 참조가 제거된 후 파일 삭제
+
+- [x] **6-8. `CMakeLists.txt` ncurses 링크 완전 제거**
+  - `find_package(Curses REQUIRED)` → 제거 (STRUCTTY_BUILD_APP 조건 블록 포함)
+  - `target_link_libraries(StrucTTY ...)` 에서 `${CURSES_LIBRARIES}` 제거
+  - `target_include_directories`에서 `${CURSES_INCLUDE_DIRS}` 제거
+  - macOS homebrew ncurses 경로 관련 설정 제거
+
+- [x] **6-9. 빌드 검증**
+  - `cmake -B build && cmake --build build` — ncurses 없이 성공 확인
+  - `nm -u build/StrucTTY | grep -i ncurses` → 출력 없음 확인
+  - `ldd build/StrucTTY | grep -i ncurses` → 출력 없음 확인 (Linux)
+
+---
+
+### Phase 7: 라이브러리 패키징 및 Foldseek 진입점
+
+- [ ] **7-1. `src/structty.cpp` 리팩터 — `structty::run()` 분리**
+  - `main()`의 핵심 로직 (Parameters 파싱 이후: 단백질 로딩, TUI 루프 실행)을 `structty::run()` 구현으로 이동
+  - `main()`은 `Parameters::parse()` 후 `structty::run(opts)` 호출하는 thin wrapper로
+
+  ```cpp
+  // src/structty.cpp (재구성 후)
+  namespace structty {
+      void run(const RunOptions& opts) {
+          // 기존 main()의 initscr 이후 로직 전체
+          Terminal::enter_raw_mode();
+          Screen screen(...);
+          // ... 단백질 로딩, TUI 루프 ...
+          Terminal::exit_raw_mode();
+      }
+  }
+
+  int main(int argc, char* argv[]) {
+      structty::RunOptions opts = Parameters::parse(argc, argv);
+      structty::run(opts);
+      return 0;
+  }
+  ```
+
+- [ ] **7-2. `include/structty.h` 공개 API 헤더 작성**
+
+  ```cpp
+  #pragma once
+  #include <string>
+  #include <vector>
+
+  namespace structty {
+
+  struct RunOptions {
+      std::vector<std::string> input_files;   // PDB/mmCIF 경로 목록 (최대 9개)
+      std::string mode        = "protein";    // protein|chain|rainbow|plddt|interface|conservation|aligned
+      bool show_structure     = false;        // 나선/시트 기하학 표시
+      bool no_panel           = false;        // 정보 패널 숨기기
+      bool benchmark          = false;        // 벤치마크 모드
+
+      // 선택적 데이터 파일 경로
+      std::string chains_file;               // -c/--chains TSV
+      std::string ut_matrix_file;            // -ut/--utmatrix TSV
+      std::string msa_file;                  // --msa FASTA/A3M
+      std::string foldseek_file;             // -fs/--foldseek .m8
+      std::string foldseek_db_path;          // --db/--db-path
+      std::string foldmason_file;            // -fm/--foldmason JSON/FASTA
+  };
+
+  // 인터랙티브 뷰어 실행 (Q 키 입력 시 반환)
+  void run(const RunOptions& opts);
+
+  } // namespace structty
+  ```
+
+- [ ] **7-3. `CMakeLists.txt` — `structty` 라이브러리 타겟 추가**
+  - `add_library(structty STATIC ...)` 타겟 정의 (`structty.cpp` + visualization/ + structure/ 소스 포함)
+  - `STRUCTTY_BUILD_APP=ON` 시: `structty` 라이브러리 + `StrucTTY` 실행 파일 빌드
+  - `STRUCTTY_BUILD_APP=OFF` 시: `structty` 라이브러리만 빌드 (ncurses 없음)
+  - `target_link_libraries(structty PUBLIC structty_render gemmi::gemmi_cpp lodepng)`
+  - `target_include_directories(structty PUBLIC ${PROJECT_SOURCE_DIR}/include ...)`
+  - `StrucTTY` 실행 파일은 `structty` 라이브러리에 링크하는 얇은 래퍼
+
+- [ ] **7-4. Foldseek 연동 검증**
+  - `STRUCTTY_BUILD_APP=OFF cmake ... && cmake --build build --target structty`
+  - `nm -u build/libstructty.a | grep -i ncurses` → 출력 없음
+  - `render_test`(Phase 5)가 여전히 동작하는지 회귀 확인
+  - `structty::run()` 호출 시 인터랙티브 뷰어가 정상 실행되고 Q로 종료 후 터미널 상태 복원 확인
+
+- [ ] **7-5. `README.md` 및 `.github/workflows/` 업데이트**
+  - 의존성 섹션에서 ncurses 제거
+  - macOS homebrew ncurses 설치/경로 설정 안내 제거
+  - Linux ncurses 패키지 설치 단계 제거
+  - CI 워크플로우에서 ncurses 설치 step 제거
+
+
 ---
 
 ## 인터페이스 변경사항
@@ -356,6 +573,29 @@ void Screen::draw_screen(bool no_panel) {
 ### 신규: 공개 API (include/structty_render.h)
 위 Phase 4-1 참조.
 
+### 신규: Terminal (src/utils/Terminal.hpp) — Phase 6
+위 Phase 6-2 참조. ncurses의 TUI 입력/화면 제어를 대체하는 termios 기반 유틸리티.
+
+### 수정: Screen — Phase 6
+- `init_color_pairs()` 메서드 삭제 (250개 `init_pair()` 호출 전체 제거)
+- `handle_input()`: `getch()` → `Terminal::read_key()`
+- `handle_input_impl()`: `MEVENT event` → `Terminal::MouseEvent ev`
+- `draw_screen()`: `erase()` → `Terminal::clear()`, `refresh()` → `fflush(stdout)`
+- `print_screen_braille()`: ncurses 출력 3줄 → `AnsiOutput::print_to_stdout()` 1줄
+
+### 수정: Panel — Phase 6
+모든 ncurses 출력 함수(`move`, `clrtoeol`, `addnstr`, `addch`, `attron`, `attroff`)를 ANSI escape + fwrite/fputc 직접 호출로 교체.
+
+### 신규: 공개 API (include/structty.h) — Phase 7
+위 Phase 7-2 참조. Foldseek용 전체 인터랙티브 뷰어 진입점.
+
+```cpp
+structty::RunOptions opts;
+opts.input_files = { "/path/to/protein.cif" };
+opts.mode = "plddt";
+structty::run(opts);
+```
+
 ---
 
 ## 테스트 계획
@@ -387,6 +627,28 @@ void Screen::draw_screen(bool no_panel) {
 ### T7. 최소 연동 테스트 바이너리 (Phase 5-1)
 - `example/render_test.cpp`가 ncurses 링크 없이 빌드되고, 터미널에 구조를 출력하는지 확인
 
+### T8. StrucTTY 앱 ncurses 완전 미의존 검증 (Phase 6-9)
+- `nm -u build/StrucTTY | grep -i ncurses` → 출력 없음 (exit 1)
+- `ldd build/StrucTTY | grep -i ncurses` → 출력 없음 (Linux)
+
+### T9. 인터랙티브 TUI 동작 확인 (Phase 6)
+- W/A/S/D 팬, X/Y/Z 회전, R/F 줌 키 정상 동작
+- 마우스 이동 → 잔기 정보 패널 갱신 (`update_hover_info()`)
+- Q 키 종료 후 터미널 상태 정상 복원 (raw mode 해제, 커서 표시, 마우스 추적 비활성화)
+- SIGWINCH 발생(터미널 리사이즈) 시 화면 크기 재감지 및 재렌더링
+
+### T10. Panel ANSI 출력 시각 확인 (Phase 6-5)
+- Panel.cpp의 ANSI 커서 이동/컬러 출력이 기존 ncurses 출력과 동일하게 보이는지 확인
+- 파일명, 체인 강조 색상, 구분선, 잔기 정보 4행 고정 레이아웃 이상 없음 확인
+
+### T11. `structty::run()` 라이브러리 진입점 (Phase 7)
+- `STRUCTTY_BUILD_APP=OFF` 빌드 → ncurses 없이 `libstructty.a` 성공
+- `nm -u build/libstructty.a | grep -i ncurses` → 출력 없음
+- Foldseek 측 코드에서 `structty::run(opts)` 호출 → 뷰어 정상 실행
+
+### T12. 기존 render_test 회귀 확인 (Phase 7)
+- Phase 5의 `render_test` 바이너리가 Phase 7 리팩터 후에도 동일 출력 유지
+
 ---
 
 ## 예상 리스크 및 주의사항
@@ -416,6 +678,21 @@ Foldseek이 `add_subdirectory` 방식을 요구하는지, 설치된 패키지(`f
 
 **대응:** Phase 3-3에서 UTF-8 로케일 설정(`setlocale(LC_ALL, "")`) 호출 포함.
 
+### R6. 마우스 시퀀스 파싱 복잡도 (높음)
+ncurses는 X10/SGR/URXVT 등 터미널마다 다른 마우스 시퀀스를 자동으로 추상화한다. raw mode에서는 직접 파싱해야 한다.
+
+**대응:** SGR 포맷(`[<btn;x;yM` / `[<btn;x;ym`)을 주요 타겟으로 구현. `[?1006h`(SGR 마우스 활성화)를 `enter_raw_mode()`에서 활성화. 현재 StrucTTY가 사용하는 마우스 이벤트(BUTTON1_PRESSED, REPORT_MOUSE_POSITION)를 먼저 파악하고 해당 이벤트만 파싱.
+
+### R7. 키 시퀀스 파싱 — 터미널별 차이 (중간)
+일부 특수키의 escape sequence가 터미널마다 다르다. 예: `Delete` 키가 `[3~` 또는 ``.
+
+**대응:** Phase 6-1에서 실제 사용 키 목록을 먼저 감사한다. `handle_input()`에서 사용 중인 키는 W/A/S/D/X/Y/Z/R/F/Q/0-9와 마우스뿐임이 예상됨 — 모두 단일 byte ASCII라 시퀀스 파싱 불필요. KEY_MOUSE만 multi-byte.
+
+### R8. 비정상 종료 시 터미널 상태 복원 (중간)
+ncurses는 `endwin()`이 atexit 훅으로 등록되어 비정상 종료(SIGTERM, SIGINT) 시에도 터미널이 복원된다. termios raw mode는 직접 처리해야 한다.
+
+**대응:** `Terminal::enter_raw_mode()`에서 `atexit()` 등록 + SIGTERM/SIGINT 핸들러에서 `Terminal::exit_raw_mode()` 호출. `exit_raw_mode()`는 멱등성(idempotent) 보장 (중복 호출 안전).
+
 ---
 
 ## 작업 순서 요약
@@ -426,35 +703,48 @@ Phase 0 (설계/감사) ✓ 완료
   ├─ 0-2: color_id 의존 경로 파악 + 변환 테이블 초안 ✓
   └─ 0-3: 공개 API 표면 확정 ✓
 
-Phase 1 (컬러 이식)
-  ├─ 1-1: Palette.hpp ANSI 변환 함수 추가
-  ├─ 1-2: 깊이 밴드 ANSI 처리 방식 확정
-  └─ 1-3: 변환 함수 단위 검증
+Phase 1 (컬러 이식) ✓ 완료
+  ├─ 1-1: Palette.hpp ANSI 변환 함수 추가 ✓
+  ├─ 1-2: 깊이 밴드 ANSI 처리 방식 확정 ✓
+  └─ 1-3: 변환 함수 단위 검증 ✓
 
-Phase 2 (코어 추출 — 가장 큰 공수)
-  ├─ 2-1: Renderer 헤더 설계
-  ├─ 2-2: RenderAtom 구조체 정의
-  ├─ 2-3: project_atoms() 추출
-  ├─ 2-4: apply_zbuffer() 추출
-  ├─ 2-5: assign_colors() 추출
-  ├─ 2-6: generate_braille() 추출
-  └─ 2-7: Screen.cpp 리팩터 + 회귀 확인 (T6)
+Phase 2 (코어 추출) ✓ 완료
+  ├─ 2-1~2-6: Renderer 클래스 구현 ✓
+  └─ 2-7: Screen.cpp 리팩터 + 회귀 확인 ✓
 
-Phase 3 (ANSI 출력)
-  ├─ 3-1: AnsiOutput 클래스 구현
-  ├─ 3-2: 점자 + 컬러 결합 로직
-  └─ 3-3: 줄 바꿈 및 커서 처리
+Phase 3 (ANSI 출력) ✓ 완료
+  ├─ 3-1: AnsiOutput 클래스 구현 ✓
+  ├─ 3-2: 점자 + 컬러 결합 로직 ✓
+  └─ 3-3: 줄 바꿈 및 커서 처리 ✓
 
-Phase 4 (CMake 타겟)
-  ├─ 4-1: 공개 API 헤더
-  ├─ 4-2: src/render/CMakeLists.txt
-  ├─ 4-3: 루트 CMakeLists.txt 수정
-  └─ 4-4: ncurses 미링크 검증 (T5)
+Phase 4 (CMake 타겟) ✓ 완료
+  ├─ 4-1: 공개 API 헤더 ✓
+  ├─ 4-2: src/render/CMakeLists.txt ✓
+  ├─ 4-3: 루트 CMakeLists.txt 수정 ✓
+  └─ 4-4: ncurses 미링크 검증 (T5) ✓
 
-Phase 5 (연동 검증)
-  ├─ 5-1: 최소 연동 테스트 바이너리
-  ├─ 5-2: 예제 파일 출력 검증 (T1~T4, T7)
-  └─ 5-3: Foldseek 빌드 연동 확인
+Phase 5 (연동 검증) ✓ 완료
+  ├─ 5-1: 최소 연동 테스트 바이너리 ✓
+  ├─ 5-2: 예제 파일 출력 검증 (T1~T4, T7) ✓
+  └─ 5-3: Foldseek 빌드 연동 확인 ✓
+
+Phase 6 (TUI 레이어 ncurses 완전 제거 — 핵심)
+  ├─ 6-1: handle_input() 사용 키 목록 감사
+  ├─ 6-2: Terminal 유틸리티 모듈 작성 (T9, T10)
+  ├─ 6-3: structty.cpp ncurses 제거
+  ├─ 6-4: Screen.cpp ncurses 호출 전부 교체
+  ├─ 6-5: Panel.cpp ncurses 호출 전부 교체
+  ├─ 6-6: Screen.hpp / Panel.hpp include 정리
+  ├─ 6-7: Curses.hpp 삭제
+  ├─ 6-8: CMakeLists.txt ncurses 링크 완전 제거
+  └─ 6-9: 빌드 검증 (T8)
+
+Phase 7 (라이브러리 패키징 및 Foldseek 진입점)
+  ├─ 7-1: structty::run() 분리 (T11)
+  ├─ 7-2: include/structty.h 공개 API 헤더
+  ├─ 7-3: CMakeLists.txt structty 라이브러리 타겟
+  ├─ 7-4: Foldseek 연동 검증 (T12)
+  └─ 7-5: README.md / CI 워크플로우 업데이트
 ```
 
 ---

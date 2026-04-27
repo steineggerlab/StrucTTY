@@ -1,6 +1,5 @@
 #pragma once
 #include "Palette.hpp"
-#include "Curses.hpp"
 #include <vector>
 #include <map>
 #include <string>

@@ -1,6 +1,7 @@
 #include "Panel.hpp"
+#include "Terminal.hpp"
 #include <cstring>  // strncpy
-#include <cstdio>   // snprintf
+#include <cstdio>   // snprintf, fwrite, fputc, fputs
 
 Panel::Panel(int width, const std::string& mode, bool show_structure)
     : panel_width(width), panel_mode(mode), panel_show_structure(show_structure) {}
@@ -105,15 +106,16 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
     int right_limit = max_cols - 1;
 
     auto clear_ln = [&](int rr) {
-        move(rr, 0);
-        clrtoeol();
-        move(rr, 0);
+        Terminal::move_cursor(rr, 0);
+        Terminal::clear_to_eol();
+        Terminal::move_cursor(rr, 0);
     };
 
     auto put_text = [&](int rr, const char* s) {
+        (void)rr;
         int len = (int)std::strlen(s);
         int k   = std::min(len, right_limit);
-        if (k > 0) addnstr(s, k);
+        if (k > 0) fwrite(s, 1, (size_t)k, stdout);
     };
 
     // "Residue Info" 헤더
@@ -238,17 +240,18 @@ void Panel::draw_panel(int start_row, int start_col,
 
     auto clear_line = [&](int rr){
         if (!in_rows(rr)) return;
-        move(rr, left);
-        clrtoeol();
-        move(rr, left);
+        Terminal::move_cursor(rr, left);
+        Terminal::clear_to_eol();
+        Terminal::move_cursor(rr, left);
     };
 
     auto put_n = [&](int& rr, int& x, const char* s, int n){
+        (void)rr;
         if (!in_rows(rr)) return;
         int rem = remain_cols(x);
         if (rem <= 0 || n <= 0) return;
         int k = std::min(rem, n);
-        addnstr(s, k);
+        fwrite(s, 1, (size_t)k, stdout);
         x += k;
     };
 
@@ -294,10 +297,10 @@ void Panel::draw_panel(int start_row, int start_col,
     // Separator
     clear_line(r);
     {
-        move(r, left);
+        Terminal::move_cursor(r, left);
         int w = std::min(panel_width, max_cols);
         w = std::min(w, max_cols - 1);
-        for (int i = 0; i < w; ++i) addch('-');
+        for (int i = 0; i < w; ++i) fputc('-', stdout);
     }
     ++r;
     if (!in_rows(r)) return;
@@ -332,9 +335,9 @@ void Panel::draw_panel(int start_row, int start_col,
         clear_line(r);
         {
             int x = left;
-            if (protein_pair > 0) attron(COLOR_PAIR(protein_pair));
+            if (protein_pair > 0) fputs(Palettes::palette_to_ansi_fg_str(protein_pair).c_str(), stdout);
             put_str(r, x, file_name);
-            if (protein_pair > 0) attroff(COLOR_PAIR(protein_pair));
+            if (protein_pair > 0) fputs("\033[0m", stdout);
         }
         ++r;
         if (!in_rows(r)) break;
@@ -343,7 +346,7 @@ void Panel::draw_panel(int start_row, int start_col,
         if (compact_level <= 1) {
             // Level 0, 1: 기존 chain 상세 표시
             clear_line(r);
-            move(r, left);
+            Terminal::move_cursor(r, left);
             int x = left;
             put_indent(r, x);
 
@@ -365,7 +368,7 @@ void Panel::draw_panel(int start_row, int start_col,
                     ++r;
                     if (!in_rows(r)) break;
                     clear_line(r);
-                    move(r, left);
+                    Terminal::move_cursor(r, left);
                     x = left;
                     put_indent(r, x);
                 }
@@ -377,9 +380,9 @@ void Panel::draw_panel(int start_row, int start_col,
 
                 int pair_to_use = (panel_mode == "protein" || panel_mode == "aligned") ? protein_pair : chain_pair;
 
-                if (pair_to_use > 0) attron(COLOR_PAIR(pair_to_use));
+                if (pair_to_use > 0) fputs(Palettes::palette_to_ansi_fg_str(pair_to_use).c_str(), stdout);
                 put_n(r, x, buf, token_len);
-                if (pair_to_use > 0) attroff(COLOR_PAIR(pair_to_use));
+                if (pair_to_use > 0) fputs("\033[0m", stdout);
 
                 ++count;
             }
@@ -421,10 +424,10 @@ void Panel::draw_panel(int start_row, int start_col,
             // separator
             clear_line(r);
             {
-                move(r, left);
+                Terminal::move_cursor(r, left);
                 int w = std::min(panel_width, max_cols);
                 w = std::min(w, max_cols - 1);
-                for (int i = 0; i < w; ++i) addch('-');
+                for (int i = 0; i < w; ++i) fputc('-', stdout);
             }
             ++r;
             if (!in_rows(r)) return;
@@ -533,10 +536,10 @@ void Panel::draw_panel(int start_row, int start_col,
             // separator
             clear_line(r);
             {
-                move(r, left);
+                Terminal::move_cursor(r, left);
                 int w = std::min(panel_width, max_cols);
                 w = std::min(w, max_cols - 1);
-                for (int i = 0; i < w; ++i) addch('-');
+                for (int i = 0; i < w; ++i) fputc('-', stdout);
             }
             ++r; if (!in_rows(r)) return;
 
@@ -575,10 +578,10 @@ void Panel::draw_panel(int start_row, int start_col,
     // 기능 6: Residue Info 섹션 separator
     clear_line(r);
     {
-        move(r, left);
+        Terminal::move_cursor(r, left);
         int w = std::min(panel_width, max_cols);
         w = std::min(w, max_cols - 1);
-        for (int i = 0; i < w; ++i) addch('-');
+        for (int i = 0; i < w; ++i) fputc('-', stdout);
     }
     ++r;
     if (!in_rows(r)) return;
