@@ -1,6 +1,9 @@
 #include "Screen.hpp"
+#include "Terminal.hpp"
 #include <cstring>       // strncpy, memset
 #include <unordered_set>
+#include <string>
+#include <limits>
 
 const float FOV = 90.0f;
 const float PI  = 3.14159265359f;
@@ -17,21 +20,8 @@ Screen::Screen(const int& width, const int& height, const bool& show_structure,
     aspect_ratio = (float)screen_width / screen_height;
     zoom_level = 2.0f;
 
-    start_color();
-    use_default_colors();
-    init_color_pairs();
-
     camera = new Camera(width, height, mode);
     panel  = new Panel(width, mode, show_structure);
-
-    // 기능 6: 마우스 hover 초기화
-    // mousemask()는 반환값과 무관하게 항상 escape sequence를 전송한다.
-    // VSCode/Windows Terminal 등 terminfo 불일치 터미널 대응.
-    keypad(stdscr, TRUE);
-    mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
-    mouseinterval(0);
-    printf("\033[?1003h");  // xterm-1003: 모든 마우스 이동 추적 활성화
-    fflush(stdout);
 }
 
 Screen::~Screen() {
@@ -39,10 +29,6 @@ Screen::~Screen() {
     data.clear();
     delete camera;
     delete panel;
-
-    // 기능 6: 마우스 이동 추적 비활성화
-    printf("\033[?1003l");
-    fflush(stdout);
 }
 
 static float compute_scene_radius_from_render_positions(const std::vector<Protein*>& data) {
@@ -64,82 +50,6 @@ static float compute_scene_radius_from_render_positions(const std::vector<Protei
     return std::sqrt(max_r2);
 }
 
-void Screen::init_color_pairs() {
-    // Protein vivid: pairs 1-9
-    for (int i = 0; i < 9; ++i)
-        init_pair(i + 1,  Palettes::PROTEIN_COLORS[i],     -1);
-    // Protein dim (coil in protein+-s): pairs 11-19
-    for (int i = 0; i < 9; ++i)
-        init_pair(i + 11, Palettes::PROTEIN_DIM_COLORS[i], -1);
-    // Chain colors: pairs 21-35
-    for (int i = 0; i < 15; ++i)
-        init_pair(i + 21, Palettes::CHAIN_COLORS[i],       -1);
-    // Rainbow: pairs 51-70
-    for (int i = 0; i < 20; ++i)
-        init_pair(i + 51, Palettes::RAINBOW[i],            -1);
-    // Secondary structure
-    init_pair(41, 226, -1);  // yellow helix
-    init_pair(42,  51, -1);  // cyan sheet
-    // Interface region: pairs 43-44
-    init_pair(43, Palettes::INTERFACE_COLOR,     -1);  // interface residue (bright magenta)
-    init_pair(44, Palettes::INTERFACE_DIM_COLOR, -1);  // non-interface dim
-    // Aligned region: pairs 45-46
-    init_pair(45, Palettes::ALIGNED_COLOR,     -1);  // aligned residue (bright green)
-    init_pair(46, Palettes::ALIGNED_DIM_COLOR, -1);  // non-aligned dim
-    // pLDDT: pairs 71-74
-    for (int i = 0; i < 4; ++i)
-        init_pair(i + 71, Palettes::PLDDT_COLORS[i], -1);
-    // Conservation gradient: pairs 75-84
-    for (int i = 0; i < 10; ++i)
-        init_pair(i + 75, Palettes::CONSERVATION_COLORS[i], -1);
-
-    // Aligned bright: pairs 101-109
-    for (int i = 0; i < 9; ++i)
-        init_pair(i + 101, Palettes::PROTEIN_BRIGHT_COLORS[i], -1);
-    // Aligned non-aligned dim: pair 110
-    init_pair(110, Palettes::ALIGNED_NONALIGNED_DIM, -1);
-
-    // Depth fog: protein near: pairs 120-128
-    for (int i = 0; i < 9; ++i)
-        init_pair(i + 120, Palettes::PROTEIN_NEAR_COLORS[i], -1);
-    // Depth fog: chain near: pairs 130-144
-    for (int i = 0; i < 15; ++i)
-        init_pair(i + 130, Palettes::CHAIN_NEAR_COLORS[i], -1);
-    // Depth fog: chain far: pairs 145-159
-    for (int i = 0; i < 15; ++i)
-        init_pair(i + 145, Palettes::CHAIN_FAR_COLORS[i], -1);
-    // Depth fog: rainbow near: pairs 160-179
-    for (int i = 0; i < 20; ++i)
-        init_pair(i + 160, Palettes::RAINBOW_NEAR[i], -1);
-    // Depth fog: rainbow far: pairs 180-199
-    for (int i = 0; i < 20; ++i)
-        init_pair(i + 180, Palettes::RAINBOW_FAR[i], -1);
-    // Depth fog: protein far (grayscale): pairs 200-208
-    for (int i = 0; i < 9; ++i)
-        init_pair(i + 200, Palettes::PROTEIN_FAR_COLORS[i], -1);
-    // Depth fog: pLDDT near: pairs 209-212
-    for (int i = 0; i < 4; ++i)
-        init_pair(i + 209, Palettes::PLDDT_NEAR[i], -1);
-    // Depth fog: pLDDT far: pairs 213-216
-    for (int i = 0; i < 4; ++i)
-        init_pair(i + 213, Palettes::PLDDT_FAR[i], -1);
-    // Depth fog: conservation near: pairs 217-226
-    for (int i = 0; i < 10; ++i)
-        init_pair(i + 217, Palettes::CONSERVATION_NEAR[i], -1);
-    // Depth fog: conservation far: pairs 227-236
-    for (int i = 0; i < 10; ++i)
-        init_pair(i + 227, Palettes::CONSERVATION_FAR[i], -1);
-    // Depth fog: interface near/far: pairs 237-240
-    init_pair(237, Palettes::INTERFACE_NEAR_COLOR, -1);
-    init_pair(238, Palettes::INTERFACE_DIM_NEAR_COLOR, -1);
-    init_pair(239, Palettes::INTERFACE_FAR_COLOR, -1);
-    init_pair(240, Palettes::INTERFACE_DIM_FAR_COLOR, -1);
-    // Depth fog: aligned bright near: pairs 241-249
-    for (int i = 0; i < 9; ++i)
-        init_pair(i + 241, Palettes::ALIGNED_BRIGHT_NEAR[i], -1);
-    // Depth fog: aligned dim far: pair 250
-    init_pair(250, Palettes::ALIGNED_NONALIGNED_FAR, -1);
-}
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
     Protein* protein = new Protein(in_file, chainVec.at(ii), show_structure);
@@ -147,7 +57,6 @@ void Screen::set_protein(const std::string& in_file, int ii, const bool& show_st
     pan_x.push_back(0.0f);
     pan_y.push_back(0.0f);
 
-    init_color_pairs();
 }
 
 void Screen::set_tmatrix() {
@@ -619,8 +528,9 @@ void Screen::draw_screen(bool no_panel) {
     renderer_.set_depth_params(focal_offset, zoom_level, depth_base_min_z, depth_base_max_z);
     renderer_.render(to_render_atoms());
 
-    int rows, cols;
-    getmaxyx(stdscr, rows, cols);
+    Terminal::Size term_sz = Terminal::get_size();
+    int rows = term_sz.rows;
+    int cols = term_sz.cols;
     int panel_cols = std::min(cols, screen_width);
 
     // compact_level 자동 결정: 패널이 터미널 높이의 40% 이하가 되도록
@@ -647,7 +557,7 @@ void Screen::draw_screen(bool no_panel) {
     }
     if (offset > rows) offset = rows;
 
-    erase();
+    Terminal::clear();
     print_screen(offset);
 
     int start_row = rows;
@@ -664,7 +574,7 @@ void Screen::draw_screen(bool no_panel) {
     last_panel_start_row = no_panel ? rows : start_row;
     last_panel_cols      = panel_cols;
     last_no_panel        = no_panel;
-    refresh();
+    fflush(stdout);
 
     auto t1 = Benchmark::clock::now();
     int64_t render_dt_ms = Benchmark::ms_since(t0, t1);
@@ -694,13 +604,19 @@ void Screen::print_screen_braille(int y_offset) {
         {3, 4, 5, 7}   // right column (subcol=1)
     };
 
-    int rows, cols;
-    getmaxyx(stdscr, rows, cols);
+    Terminal::Size sz = Terminal::get_size();
+    int rows = sz.rows;
+    int cols = sz.cols;
 
     const int logical_w = screen_width * 2;
     const int logical_h = screen_height * 4;
 
     const auto& pixels = renderer_.get_pixels();
+
+    // Accumulate ANSI output into a single buffer, then fwrite once per frame
+    std::string out;
+    out.reserve(static_cast<size_t>(screen_width) * screen_height * 32);
+
     for (int ty = 0; ty < screen_height; ++ty) {
         int row = ty - (y_offset / 2) - 3;
         if (row < 0) continue;
@@ -709,9 +625,9 @@ void Screen::print_screen_braille(int y_offset) {
         int max_cols = std::min(screen_width, cols);
 
         for (int tx = 0; tx < max_cols; ++tx) {
-            int bitmask = 0;
-            int best_color_id = 0;
-            float best_depth = std::numeric_limits<float>::infinity();
+            int   bitmask       = 0;
+            int   best_color_id = 0;
+            float best_depth    = std::numeric_limits<float>::infinity();
 
             for (int sc = 0; sc < 2; ++sc) {
                 for (int sr = 0; sr < 4; ++sr) {
@@ -723,7 +639,7 @@ void Screen::print_screen_braille(int y_offset) {
                     if (lp.color_id > 0) {
                         bitmask |= (1 << dot_bits[sc][sr]);
                         if (lp.depth < best_depth) {
-                            best_depth = lp.depth;
+                            best_depth    = lp.depth;
                             best_color_id = lp.color_id;
                         }
                     }
@@ -731,18 +647,26 @@ void Screen::print_screen_braille(int y_offset) {
             }
 
             if (bitmask > 0 && best_color_id > 0) {
-                // Encode U+2800+bitmask as UTF-8 (3 bytes) directly — faster than setcchar/mvadd_wch
-                char utf8[4];
-                utf8[0] = (char)0xE2;
-                utf8[1] = (char)(0xA0 | (bitmask >> 6));
-                utf8[2] = (char)(0x80 | (bitmask & 0x3F));
-                utf8[3] = '\0';
-                attron(COLOR_PAIR(best_color_id));
-                mvaddstr(row, tx, utf8);
-                attroff(COLOR_PAIR(best_color_id));
+                // Cursor position (1-based)
+                char pos[24];
+                int pn = snprintf(pos, sizeof(pos), "\033[%d;%dH", row + 1, tx + 1);
+                if (pn > 0) out.append(pos, static_cast<size_t>(pn));
+
+                // ANSI fg colour
+                out += Palettes::palette_to_ansi_fg_str(best_color_id);
+
+                // Braille UTF-8: U+2800+bitmask encoded as 3-byte UTF-8
+                out += (char)0xE2;
+                out += (char)(0xA0 | (bitmask >> 6));
+                out += (char)(0x80 | (bitmask & 0x3F));
+
+                // Reset colour
+                out += "\033[0m";
             }
         }
     }
+
+    fwrite(out.data(), 1, out.size(), stdout);
 }
 
 void Screen::print_screen(int y_offset) {
@@ -806,13 +730,13 @@ void Screen::update_hover_info(int mx, int my) {
         int hover_row = panel->get_last_hover_row();
         if (hover_row >= 0) {
             panel->draw_hover_section(hover_row, last_panel_cols);
-            refresh();
+            fflush(stdout);
         }
     }
 }
 
 bool Screen::handle_input(bool& needs_redraw) {
-    int key = getch();
+    int key = Terminal::read_key();
     return handle_input_impl(key, needs_redraw);
 }
 
@@ -824,12 +748,10 @@ bool Screen::handle_input(int key) {
 bool Screen::handle_input_impl(int key, bool& needs_redraw) {
     needs_redraw = true;  // 기본: 전체 재렌더링 필요
 
-    // KEY_MOUSE: flushinp() 호출 전에 getmouse()를 먼저 처리
-    // (flushinp()이 내부 mouse event 큐를 비워 getmouse()가 실패하는 것을 방지)
-    if (key == KEY_MOUSE) {
-        MEVENT event;
-        if (getmouse(&event) == OK) {
-            update_hover_info(event.x, event.y);
+    if (key == Terminal::KEY_MOUSE) {
+        Terminal::MouseEvent ev;
+        if (Terminal::read_mouse(ev)) {
+            update_hover_info(ev.x, ev.y);
         }
         needs_redraw = false;  // 마우스 이동은 전체 재렌더링 불필요
         return true;
@@ -847,7 +769,7 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
     };
 
     if (bm && bm->enabled) bm->mark_event(key);
-    flushinp();
+    Terminal::flush_input();
     switch(key){
         // select protein
         case 48:

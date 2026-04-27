@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <clocale>
 #include <filesystem>
-#include "Curses.hpp"
+#include "Terminal.hpp"
 #include "Common.hpp"
 #include "Protein.hpp"
 #include "Parameters.hpp"
@@ -14,16 +14,15 @@
 
 int main(int argc, char* argv[]) {
     Parameters params(argc, argv);
-    if (!params.check_arg_okay()) return -1; 
+    if (!params.check_arg_okay()) return -1;
     params.print_args();
-    
-    setlocale(LC_ALL, "");
-    initscr();
-    cbreak();
-    noecho();
 
-    int term_rows, term_cols;
-    getmaxyx(stdscr, term_rows, term_cols);
+    setlocale(LC_ALL, "");
+    Terminal::enter_raw_mode();
+
+    Terminal::Size term_sz = Terminal::get_size();
+    int term_rows = term_sz.rows;
+    int term_cols = term_sz.cols;
 
     Screen screen(term_cols, term_rows,
                   params.get_show_structure(),
@@ -257,6 +256,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    endwin();
+    Terminal::exit_raw_mode();
     return 0;
 }
