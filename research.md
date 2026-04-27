@@ -748,3 +748,153 @@ StrucTTY 1_1CRN.cif -m chain -s  → 기존 동작과 동일
 ```
 
 *최종 업데이트: 2026-04-27*
+
+---
+
+## 9. Foldseek 연동 가이드
+
+### 9.1 전제 조건
+
+- Foldseek은 이미 Gemmi를 빌드 시스템에 포함하고 있어야 함 (structty_render의 정적 라이브러리가 Gemmi 심볼을 참조하므로 링크 단계에서 필요)
+- C++17 이상
+- Gemmi, ZLIB는 Foldseek 측에서 이미 제공됨을 가정
+
+### 9.2 방식 A: add_subdirectory (권장)
+
+StrucTTY 저장소를 Foldseek 저장소 안에 서브모듈 또는 복사본으로 포함하는 방식.
+
+```bash
+# Foldseek 저장소 루트에서
+git submodule add https://github.com/steineggerlab/StrucTTY.git lib/structty
+```
+
+Foldseek의 `CMakeLists.txt`에 추가:
+
+```cmake
+# ncurses 없이 render 라이브러리만 빌드
+set(STRUCTTY_BUILD_APP OFF CACHE BOOL "" FORCE)
+add_subdirectory(lib/structty)
+
+# Foldseek 타겟에 링크
+target_link_libraries(foldseek
+    PRIVATE
+        structty_render
+        gemmi::gemmi_cpp   # structty_render가 참조하는 Gemmi 심볼 해결
+)
+```
+
+`STRUCTTY_BUILD_APP OFF`를 설정하면 ncurses `find_package`가 실행되지 않으므로 ncurses가 없는 빌드 환경에서도 안전하다.
+
+### 9.3 방식 B: find_package (설치 후)
+
+StrucTTY를 시스템에 설치한 뒤 `find_package`로 찾는 방식.
+
+```bash
+# StrucTTY 빌드 및 설치
+cmake -B build -DSTRUCTTY_BUILD_APP=OFF -DCMAKE_INSTALL_PREFIX=/opt/structty
+cmake --build build --target structty_render
+cmake --install build --component structty_render
+```
+
+Foldseek의 `CMakeLists.txt`에 추가:
+
+```cmake
+find_package(structty_render REQUIRED
+    PATHS /opt/structty/lib/cmake/structty_render)
+
+target_link_libraries(foldseek
+    PRIVATE
+        structty_render::structty_render
+        gemmi::gemmi_cpp
+)
+```
+
+### 9.4 Foldseek 코드에서의 사용법
+
+```cpp
+#include "structty_render.h"  // 또는 <structty_render.h>
+
+// 1. Foldseek의 내부 구조 데이터 → RenderAtom 변환
+std::vector<RenderAtom> atoms;
+for (const auto& residue : foldseek_hit.residues) {
+    RenderAtom ra{};
+    ra.x              = residue.ca_x;
+    ra.y              = residue.ca_y;
+    ra.z              = residue.ca_z;
+    ra.structure      = 'x';         // 'x'=coil, 'H'=helix, 'S'=sheet
+    ra.bfactor        = residue.plddt;
+    ra.chain_id       = residue.chain_name;
+    ra.protein_index  = 0;
+    ra.pan_x = ra.pan_y = 0.0f;
+    ra.conservation_score = -1.0f;
+    ra.is_interface = ra.is_aligned = false;
+    atoms.push_back(ra);
+}
+
+// 2. 원점 중심화 + 스케일 정규화 (필수)
+//    → example/render_test.cpp의 center_and_scale() 참고
+center_and_scale(atoms);
+
+// 3. 렌더링 (터미널 크기를 width/height로 전달)
+// 간단한 경우: 편의 함수 사용
+structty::render_to_stdout(atoms, term_width, term_height, "protein");
+
+// 깊이 안개 정밀도가 필요한 경우: Renderer 직접 사용
+Renderer r(term_width, term_height, "chain", false);
+r.set_depth_params(focal, zoom, min_z, max_z);  // example/render_test.cpp 참고
+r.render(atoms);
+AnsiOutput::print_to_stdout(r.get_pixels(), r.get_logical_width(), r.get_logical_height());
+```
+
+### 9.5 RenderAtom 필드 설명
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `x, y, z` | `float` | ✅ | Cα 3D 좌표 (정규화 후) |
+| `structure` | `char` | ✅ | `'x'`=coil, `'H'`=helix, `'S'`=sheet |
+| `bfactor` | `float` | plddt 모드 | pLDDT 점수 (0–100). 다른 모드에서는 무시 |
+| `chain_id` | `std::string` | chain 모드 | 체인 이름. 다른 모드에서는 무시 |
+| `protein_index` | `int` | ✅ | 0-based 단백질 인덱스 (단일 구조면 항상 0) |
+| `pan_x, pan_y` | `float` | ✅ | 화면 오프셋 (단일 구조면 0.0) |
+| `is_interface` | `bool` | interface 모드 | 인터페이스 잔기 여부 |
+| `is_aligned` | `bool` | aligned 모드 | 정렬 잔기 여부 |
+| `conservation_score` | `float` | conservation 모드 | 0.0–1.0, 미설정 시 -1.0 |
+| `residue_number` | `int` | 선택 | 잔기 번호 (호버 정보용) |
+| `residue_name[4]` | `char[]` | 선택 | 3-letter code + null (호버 정보용) |
+
+### 9.6 색상 모드별 필요 데이터
+
+| 모드 | 필요 필드 | 용도 |
+|------|----------|------|
+| `protein` | 없음 (protein_index만) | 구조별 9색 순환 |
+| `chain` | `chain_id` | 체인별 15색 |
+| `rainbow` | 없음 | N→C 방향 색상 그라디언트 |
+| `plddt` | `bfactor` (pLDDT 0–100) | AlphaFold 신뢰도 4밴드 |
+| `interface` | `is_interface` | 인터페이스 잔기 강조 |
+| `conservation` | `conservation_score` (0–1) | 보존도 10단계 |
+| `aligned` | `is_aligned` | 정렬 잔기 강조 |
+
+### 9.7 좌표 정규화 유틸리티 (center_and_scale)
+
+`example/render_test.cpp`에 구현된 정규화 함수를 Foldseek 코드에 복사해서 사용:
+
+```cpp
+static void center_and_scale(std::vector<RenderAtom>& atoms) {
+    float min_x = std::numeric_limits<float>::max(), max_x = -min_x;
+    float min_y = min_x, max_y = max_x;
+    float min_z = min_x, max_z = max_x;
+    for (const auto& a : atoms) {
+        min_x = std::min(min_x, a.x); max_x = std::max(max_x, a.x);
+        min_y = std::min(min_y, a.y); max_y = std::max(max_y, a.y);
+        min_z = std::min(min_z, a.z); max_z = std::max(max_z, a.z);
+    }
+    float cx = 0.5f*(min_x+max_x), cy = 0.5f*(min_y+max_y), cz = 0.5f*(min_z+max_z);
+    float ext = std::max({max_x-min_x, max_y-min_y, max_z-min_z});
+    float scale = (ext > 0.0f) ? (2.0f / ext) : 1.0f;
+    for (auto& a : atoms) {
+        a.x = (a.x-cx)*scale;
+        a.y = (a.y-cy)*scale;
+        a.z = (a.z-cz)*scale;
+    }
+}
+```
