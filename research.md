@@ -898,3 +898,45 @@ static void center_and_scale(std::vector<RenderAtom>& atoms) {
     }
 }
 ```
+
+---
+
+## Phase 6 구현 요약 (2026-04-27 완료)
+
+### 목표
+StrucTTY 앱에서 ncurses 의존성을 완전히 제거하고, termios + ANSI escape code 기반 TUI로 교체.
+
+### 구현 내용
+
+**`src/utils/Terminal.hpp/cpp` (신규)**
+- `enter_raw_mode()`: `tcgetattr` 저장 → `cfmakeraw` 적용 → SGR 마우스 추적 활성화(`\033[?1000h\033[?1002h\033[?1003h\033[?1006h`) → 커서 숨김(`\033[?25l`). `atexit`/`SIGTERM`/`SIGINT` 핸들러로 복원 보장.
+- `exit_raw_mode()`: 마우스 추적 비활성화, 커서 표시, termios 복원.
+- `get_size()`: `ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)`, 폴백 24×80.
+- `read_key()`: blocking `read()` 1바이트. ESC 감지 시 50ms `select` 후 SGR 마우스(`\033[<btn;x;yM/m`) 또는 커서 키(`\033[A/B/C/D`) 파싱. 반환값: ASCII 또는 `KEY_UP/DOWN/LEFT/RIGHT/MOUSE` (0x100-0x104).
+- `read_mouse()`: 파싱된 `g_mouse_*` 전역에서 `MouseEvent` 반환.
+
+**`src/visualization/Screen.cpp`**
+- `init_color_pairs()` 함수(~75줄의 `init_pair()` 호출) 전체 삭제.
+- 생성자/소멸자에서 ncurses 초기화/종료 코드 제거.
+- `draw_screen()`: `getmaxyx` → `Terminal::get_size()`, `erase()` → `Terminal::clear()`, `refresh()` → `fflush`.
+- `print_screen_braille()`: `attron/mvaddstr/attroff` 루프 → `std::string` 버퍼에 ANSI 시퀀스 누적 후 `fwrite` 1회 호출 (프레임당 syscall 최소화).
+- `handle_input_impl()`: `getch()` → `Terminal::read_key()`, `MEVENT`+`getmouse()` → `Terminal::MouseEvent`+`Terminal::read_mouse()`.
+
+**`src/visualization/Panel.cpp`**
+- ncurses 출력 람다(`move/addnstr/addch/attron/attroff/clrtoeol`) 전부 `Terminal::*` + `fwrite/fputc/fputs` 로 교체.
+- `palette_to_ansi_fg_str(id)` 반환값을 `fputs`로 직접 출력.
+
+**`CMakeLists.txt`**
+- `find_package(Curses REQUIRED)` 블록 제거.
+- `${CURSES_LIBRARIES}`, `${CURSES_INCLUDE_DIRS}` 제거.
+- `src/utils/*.cpp` glob 추가로 `Terminal.cpp` 자동 컴파일.
+
+**삭제된 파일**
+- `src/utils/Curses.hpp` (cross-platform ncurses 헤더 감지기)
+
+### 검증 결과
+```
+cmake -B build && cmake --build build   # 성공, 경고 없음
+nm -u build/StrucTTY | grep -i ncurses  # 출력 없음
+ldd build/StrucTTY | grep -i ncurses    # 출력 없음
+```
