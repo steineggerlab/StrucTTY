@@ -289,15 +289,15 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
 
 ### Phase 5: Foldseek 연동 검증
 
-- [ ] **5-1. 최소 연동 테스트 바이너리 작성**
+- [x] **5-1. 최소 연동 테스트 바이너리 작성**
   - `example/render_test.cpp`: `structty_render.h`만 include하여 `.cif` 파일 하나를 로드하고 ANSI 출력하는 독립 프로그램 작성
   - CMake 옵션(`BUILD_RENDER_TEST=ON`)으로 선택적 빌드
 
-- [ ] **5-2. 예제 파일로 출력 검증**
+- [x] **5-2. 예제 파일로 출력 검증**
   - `example/1CJK-assembly1.cif` 로드 → `render_to_stdout()` 호출 → 터미널 출력 육안 확인
   - 7가지 색상 모드 각각 출력 확인
 
-- [ ] **5-3. Foldseek 빌드 시스템 연동 확인**
+- [x] **5-3. Foldseek 빌드 시스템 연동 확인**
   - Foldseek이 요구하는 CMake `find_package` 또는 `add_subdirectory` 방식 확인 후 지원 방식 결정
   - 필요 시 `structty_renderConfig.cmake` 패키지 파일 작성
 

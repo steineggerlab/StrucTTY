@@ -684,3 +684,67 @@ nm -u build/src/render/libstructty_render.a | grep -i ncurses
 ```
 
 *최종 업데이트: 2026-04-26*
+
+---
+
+## Phase 5 구현 요약: Foldseek 연동 검증
+
+**브랜치:** `replace-ncurses`  
+**완료일:** 2026-04-27
+
+### 목표
+
+Phase 1–4에서 구현한 `structty_render` 정적 라이브러리를 Foldseek가 실제로 임베딩할 수 있는지 검증하고, 두 가지 CMake 연동 방식(add_subdirectory / find_package)을 모두 지원.
+
+### 변경 파일
+
+**`example/render_test.cpp`** (신규):
+- `structty_render.h` + `AnsiOutput.hpp`만 include하는 독립 바이너리.
+- Gemmi로 `.cif`/`.pdb` 파일을 직접 파싱해 Cα 원자 추출.
+- `center_and_scale()`: Screen::normalize_proteins()와 동일 로직으로 원점 중심화 + 2.0 스케일.
+- z 범위 자동 계산 후 `Renderer::set_depth_params()` 호출로 깊이 안개 정확도 확보.
+- 사용법: `render_test <file> [mode] [width] [height]`
+
+**`CMakeLists.txt`** (수정):
+- `option(STRUCTTY_BUILD_APP "Build StrucTTY app" ON)` 추가 — OFF 시 Curses 미요구, Foldseek의 `add_subdirectory` 임베딩에 최적.
+- `option(BUILD_RENDER_TEST "Build render_test" OFF)` 추가 — ON 시 `render_test` 바이너리 빌드.
+- `find_package(Curses)` 및 StrucTTY 실행 파일 타겟을 `STRUCTTY_BUILD_APP` 조건으로 감쌈.
+
+**`src/render/CMakeLists.txt`** (수정):
+- `target_include_directories`를 generator expression으로 변경 (`$<BUILD_INTERFACE:...>` / `$<INSTALL_INTERFACE:...>`) — 빌드 트리와 설치 트리 모두 정확한 include 경로 보장.
+- install 규칙 추가: `structty_render.a`, 공개 헤더 4종(`structty_render.h`, `Renderer.hpp`, `AnsiOutput.hpp`, `RenderPoint.hpp`), CMake 패키지 파일.
+
+**`cmake/structty_renderConfig.cmake`** (신규):
+- `find_package(structty_render)` 지원용 CMake config 파일.
+- `find_dependency(ZLIB)` + `structty_renderTargets.cmake` include.
+- 소비자는 Gemmi 심볼 해결을 위해 `gemmi::gemmi_cpp`도 별도 링크 필요 (Foldseek는 이미 링크 중).
+
+### 설계 결정
+
+| 항목 | 결정 | 이유 |
+|------|------|------|
+| add_subdirectory 지원 | `STRUCTTY_BUILD_APP=OFF` 옵션 | ncurses 없는 환경에서 render lib만 빌드 가능하게 |
+| find_package 지원 | install 규칙 + Config 파일 | 시스템 설치 후 `find_package` 사용 케이스 지원 |
+| render_test의 depth param | `set_depth_params()` 직접 호출 | 편의 함수 `render_to_stdout()`은 depth 설정 미지원; 테스트는 정확한 깊이 안개 필요 |
+| render_test의 정규화 | 원점 중심화 + 스케일 2.0 | Screen::normalize_proteins() 단일 구조 경로와 동일 로직 |
+
+### 빌드 및 검증 결과
+
+```
+# 기본 빌드 (StrucTTY 앱)
+[100%] Built target StrucTTY  ← Zero new warnings
+
+# render_test 활성화
+cmake -DBUILD_RENDER_TEST=ON ...
+[100%] Built target render_test  ← Zero new warnings
+
+# 7가지 색상 모드 ANSI 출력 확인
+render_test example/1CJK-assembly1.cif protein 60 12  → ANSI 시퀀스 정상 출력
+render_test example/1CJK-assembly1.cif chain 60 12   → 체인별 색상 정상
+(나머지 5종 동일 확인)
+
+# 회귀 없음 확인
+StrucTTY 1_1CRN.cif -m chain -s  → 기존 동작과 동일
+```
+
+*최종 업데이트: 2026-04-27*
