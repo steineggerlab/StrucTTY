@@ -1002,3 +1002,51 @@ nm -u build_libonly/libstructty.a | grep -i ncurses  # 출력 없음
 # render_test 회귀 확인
 build/render_test 1_1CRN.cif protein 60 12     # 정상 ANSI 출력
 ```
+
+---
+
+## Phase 8 구현 요약 (2026-04-30 완료)
+
+### 목표
+키 입력 시 발생하는 깜빡임(flash)과 잔상(ghost)을 동시에 제거.
+
+### 근본 원인
+
+| 문제 | 원인 |
+|------|------|
+| **깜빡임** | `Terminal::clear()` → `\033[2J` 전체 화면 순간 공백 후 재드로우 |
+| **잔상** | `print_screen_braille()` Screen.cpp:649에서 `bitmask == 0`인 빈 셀 완전 스킵 → 이전 프레임 내용이 덮이지 않음 |
+
+### 해결 방식: 행 단위 지우기(row-level erase) + cursor_home
+
+**`src/visualization/Screen.cpp` — print_screen_braille()**
+- 각 행(`ty`) 루프 시작에 `\033[row;1H\033[K` 삽입
+- `\033[K`(커서 위치부터 줄 끝까지 지우기)가 해당 행 전체를 배경색으로 채워 이전 프레임 잔상 제거
+- 비어있지 않은 셀만 절대 좌표 + 점자 + 컬러로 출력 (기존 로직 유지)
+- 빈 셀은 행 시작 `\033[K`로 이미 지워졌으므로 추가 출력 불필요
+
+**`src/visualization/Screen.cpp` — draw_screen()**
+- `Terminal::clear()` → `Terminal::cursor_home()` 교체
+- `cursor_home()`은 `\033[H`(커서 홈)만 전송 — 화면을 공백으로 만들지 않으므로 flash 없음
+- `Terminal::clear()` 함수 자체는 삭제하지 않고 보존
+
+**`src/utils/Terminal.hpp/cpp`**
+- `cursor_home()` 추가: `write(STDOUT_FILENO, "\033[H", 3)`
+- `enter_raw_mode()`: `enable[]`에 `"\033[?1049h"` 추가 → alternate screen buffer 진입 (종료 시 원래 터미널 내용 자동 복원)
+- `do_exit_raw()`: `disable[]` 맨 앞에 `"\033[?1049l"` 추가 → async-signal-safe `write()` 기반으로 안전
+
+### 동작 원리 (매 프레임)
+```
+Terminal::cursor_home()          → \033[H (커서만 (1,1)로)
+for each row:
+    \033[row;1H\033[K            → 행 전체 지우기 (잔상 제거)
+    for each non-empty cell:
+        \033[row;colH + color + braille + \033[0m  (내용 출력)
+fwrite(entire frame in one shot) → 터미널이 완성된 프레임을 한 번에 렌더링
+```
+
+### 검증 결과
+```
+cmake --build build                      # 성공, 새 경고 없음
+nm -u build/StrucTTY | grep -i ncurses  # 출력 없음 (ncurses 회귀 없음)
+```

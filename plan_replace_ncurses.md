@@ -519,6 +519,153 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   - Linux ncurses 패키지 설치 단계 제거
   - CI 워크플로우에서 ncurses 설치 step 제거
 
+---
+
+### Phase 8: 잔상·깜빡임 동시 제거 — 행 단위 지우기 + cursor_home
+
+#### 목표 및 범위
+
+키 입력 시 발생하는 두 가지 렌더링 문제를 동시에 해결한다.
+
+| 문제 | 원인 | 현황 |
+|------|------|------|
+| **깜빡임 (flash)** | `Terminal::clear()` (`\033[2J`)가 화면 전체를 순간 공백으로 만든 후 재드로우 | 현재 발생 |
+| **잔상 (ghost)** | `print_screen_braille()`가 `bitmask == 0`인 빈 셀을 완전히 스킵 → 이전 프레임 내용이 덮이지 않음 | 현재 발생 |
+
+**근본 원인 (Screen.cpp:649)**:
+```cpp
+if (bitmask > 0 && best_color_id > 0) {
+    // 커서 이동 + 문자 출력
+}
+// ← else 없음. 빈 셀은 어떠한 출력도 없이 스킵됨.
+```
+
+**해결 방식: 행 단위 지우기(row-level erase) + cursor_home**
+
+매 프레임 루프의 각 행 시작에서 `\033[row;1H\033[K` (행 이동 + 커서 위치부터 줄 끝까지 지우기)를 먼저 출력한다. 그 후 해당 행의 비어있지 않은 셀만 절대 좌표 지정으로 덮어쓴다.
+
+- `\033[2J` (전체 화면 순간 공백) → 제거
+- `\033[H` (커서만 홈으로) + 행별 `\033[K` (줄 끝까지 지우기) → 교체
+- 출력은 여전히 `fwrite()` 1회로 전송하므로 터미널은 완성된 프레임을 한 번에 받아 렌더링
+
+**부가: alternate screen buffer** (`\033[?1049h`/`\033[?1049l`)
+- 종료 시 원래 터미널 내용 자동 복원 (Q, Ctrl+C 모두)
+- 깜빡임/잔상과 독립적인 UX 개선
+
+범위: `Terminal.hpp/cpp` (cursor_home 추가, alternate screen), `Screen.cpp` (print_screen_braille row-clear + draw_screen cursor_home 교체). 렌더링 로직·데이터 구조 변경 없음.
+
+#### 영향받는 파일
+
+| 파일 | 변경 내용 |
+|------|---------|
+| `src/utils/Terminal.hpp` | `cursor_home()` 선언 추가 |
+| `src/utils/Terminal.cpp` | `cursor_home()` 구현, `enter_raw_mode()`에 `\033[?1049h`, `do_exit_raw()`에 `\033[?1049l` |
+| `src/visualization/Screen.cpp` | `print_screen_braille()` 행 시작마다 `\033[row;1H\033[K` 추가, `draw_screen()`의 `Terminal::clear()` → `Terminal::cursor_home()` |
+
+#### 구현 단계
+
+- [x] **8-1. `Terminal.hpp` — `cursor_home()` 선언 추가**
+  - `void cursor_home();` — 커서만 (1,1)로 이동, 화면을 지우지 않음
+
+- [x] **8-2. `Terminal.cpp` — `cursor_home()` 구현**
+  ```cpp
+  void cursor_home() {
+      write(STDOUT_FILENO, "\033[H", 3);
+  }
+  ```
+
+- [x] **8-3. `Terminal.cpp` — `enter_raw_mode()`에 alternate screen 추가**
+  - `enable[]`에 `"\033[?1049h"` 추가 (SGR 마우스 이후, 커서 숨김 이전)
+
+- [x] **8-4. `Terminal.cpp` — `do_exit_raw()`에 alternate screen 종료 추가**
+  - `disable[]` 맨 앞에 `"\033[?1049l"` 추가
+  - `write()` 기반이므로 async-signal-safe 유지
+
+- [x] **8-5. `Screen.cpp` — `print_screen_braille()` 행 단위 지우기 추가**
+
+  루프 구조 변경 (의사 코드):
+  ```cpp
+  for (int ty = 0; ty < screen_height; ++ty) {
+      int row = ty - (y_offset / 2) - 3;
+      if (row < 0) continue;
+      if (row >= rows) break;
+
+      // ★ 이 행 전체를 먼저 지운다
+      char row_start[32];
+      int rn = snprintf(row_start, sizeof(row_start), "\033[%d;1H\033[K", row + 1);
+      if (rn > 0) out.append(row_start, (size_t)rn);
+
+      for (int tx = 0; tx < max_cols; ++tx) {
+          // bitmask 계산 (기존 로직 동일)
+          if (bitmask > 0 && best_color_id > 0) {
+              // 절대 좌표 + 컬러 + 점자 + reset (기존과 동일)
+          }
+          // 빈 셀: 행 시작에서 이미 \033[K로 지워졌으므로 추가 출력 없음
+      }
+  }
+  ```
+
+  - `Terminal::clear()`를 제거하고도 잔상이 생기지 않는 이유:
+    행 시작의 `\033[K`가 해당 행 전체를 배경색으로 채우므로, 이전 프레임의 모든 셀이 덮힌다.
+
+- [x] **8-6. `Screen.cpp` — `draw_screen()`의 `Terminal::clear()` → `Terminal::cursor_home()`**
+  - `Terminal::clear()`는 헤더·구현 모두 보존 (API 삭제 안 함)
+
+- [x] **8-7. 빌드 검증**
+  - `cmake --build build` — 성공, 새 경고 없음
+  - `nm -u build/StrucTTY | grep -i ncurses` → 출력 없음 확인 (회귀 없음)
+
+#### 인터페이스 변경사항
+
+**`Terminal.hpp` — 추가**
+```cpp
+void cursor_home();  // \033[H — 커서만 (1,1)로, 화면 지우지 않음
+```
+
+**`Terminal.cpp` — enter_raw_mode() enable[] 변경**
+```
+기존: \033[?1006h  →  \033[?25l
+변경: \033[?1006h  →  \033[?1049h  →  \033[?25l
+```
+
+**`Terminal.cpp` — do_exit_raw() disable[] 변경**
+```
+기존:           \033[?1003l  ...  \033[?25h
+변경: \033[?1049l  \033[?1003l  ...  \033[?25h
+```
+
+**`Screen.cpp` — print_screen_braille() 행 루프 변경**
+```
+기존: for each row → for each col → if(bitmask>0) { 출력 }
+변경: for each row → "\033[row;1H\033[K"(행 지우기) → for each col → if(bitmask>0) { 출력 }
+```
+
+**`Screen.cpp` — draw_screen() 변경**
+```
+기존: Terminal::clear();
+변경: Terminal::cursor_home();
+```
+
+#### 테스트 계획
+
+| 케이스 | 검증 방법 |
+|--------|---------|
+| 깜빡임 없음 | `StrucTTY 1_1CRN.cif -m chain -s` 실행 후 W/A/S/D/X/Y/Z/R/F 연속 입력 — flash 없어야 함 |
+| 잔상 없음 | 구조를 회전시켜 단백질이 화면 한쪽으로 치우쳤을 때 반대쪽이 깨끗하게 비어야 함 |
+| 종료 후 복원 | Q 입력 후 원래 터미널 내용 자동 복원 (alternate screen 효과) |
+| Signal 종료 복원 | Ctrl+C 후 터미널 상태 정상 복원 |
+| 패널 정상 렌더링 | 파일명·체인·Foldseek 히트·Residue Info 섹션 이상 없음 |
+| 기존 기능 회귀 없음 | `1_1CRN.cif -m chain -s` 실행 결과가 Phase 7 이전과 동일 |
+
+#### 예상 리스크 및 주의사항
+
+| 항목 | 내용 |
+|------|------|
+| `\033[K` 지우기 색 | 일부 터미널에서 현재 배경색으로 지움. 배경을 default로 사용하므로 문제 없음 |
+| async-signal-safe | `do_exit_raw()`는 SIGINT/SIGTERM handler에서도 호출됨. `\033[?1049l`을 `write()` 기반 static 버퍼에 추가하므로 안전 |
+| alternate screen 순서 | 반드시 `\033[?1049l` → 마우스 추적 비활성화 → 커서 표시 순서여야 함 (이미 이 순서) |
+| 행 범위 밖 처리 | `row < 0` continue, `row >= rows` break — 기존 로직 유지하므로 문제 없음 |
+| `Terminal::clear()` 보존 | 삭제하지 않음. 호출부(`draw_screen`)만 `cursor_home()`으로 교체 |
 
 ---
 
@@ -747,6 +894,16 @@ Phase 7 (라이브러리 패키징 및 Foldseek 진입점)
   ├─ 7-3: CMakeLists.txt structty 라이브러리 타겟
   ├─ 7-4: Foldseek 연동 검증 (T12)
   └─ 7-5: README.md / CI 워크플로우 업데이트
+
+Phase 8 (잔상·깜빡임 제거)
+  ├─ 8-1: Terminal.hpp cursor_home() 선언
+  ├─ 8-2: Terminal.cpp cursor_home() 구현
+  ├─ 8-3: enter_raw_mode() \033[?1049h 추가
+  ├─ 8-4: do_exit_raw() \033[?1049l 추가
+  ├─ 8-5: print_screen_braille() 행 단위 \033[K 추가
+  ├─ 8-6: draw_screen() Terminal::clear() → cursor_home() 교체
+  └─ 8-7: 빌드 검증
+
 ```
 
 ---
