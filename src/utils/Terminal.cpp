@@ -25,8 +25,9 @@ static void do_exit_raw() {
     if (!g_raw_active) return;
     g_raw_active = false;
 
-    // Disable mouse tracking + restore cursor in one write
+    // Exit alternate screen, disable mouse tracking, restore cursor in one write
     static const char disable[] =
+        "\033[?1049l"   // exit alternate screen buffer (restores original content)
         "\033[?1003l"   // any-event off
         "\033[?1002l"   // button-event off
         "\033[?1000l"   // mouse off
@@ -58,12 +59,13 @@ void enter_raw_mode() {
     raw.c_cc[VTIME] = 0;  // no timeout
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 
-    // Enable mouse tracking (any-event + button-event) in SGR extended format
+    // Enable mouse tracking, enter alternate screen, hide cursor
     static const char enable[] =
         "\033[?1000h"   // mouse reporting on
         "\033[?1002h"   // button-event tracking
         "\033[?1003h"   // any-event (all mouse movements)
         "\033[?1006h"   // SGR extended format (supports large coordinates)
+        "\033[?1049h"   // enter alternate screen buffer (clean slate, restores on exit)
         "\033[?25l";    // hide cursor
     write(STDOUT_FILENO, enable, sizeof(enable) - 1);
     fflush(stdout);
@@ -90,6 +92,11 @@ void clear() {
     // Erase display then move cursor to home
     write(STDOUT_FILENO, "\033[2J\033[H", 7);
     fflush(stdout);
+}
+
+void cursor_home() {
+    // Move cursor to (1,1) without erasing — used for flicker-free per-frame redraw
+    write(STDOUT_FILENO, "\033[H", 3);
 }
 
 void move_cursor(int row, int col) {

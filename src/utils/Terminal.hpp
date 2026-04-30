@@ -31,6 +31,7 @@ Size get_size();
 
 // 화면 제어 (ANSI escape)
 void clear();                       // \033[2J\033[H + fflush
+void cursor_home();                 // \033[H — 커서만 (1,1)로, 화면 지우지 않음
 void move_cursor(int row, int col); // \033[row+1;col+1H  (0-based 입력)
 void clear_to_eol();                // \033[K
 
