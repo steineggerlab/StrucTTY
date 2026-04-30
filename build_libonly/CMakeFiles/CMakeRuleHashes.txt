@@ -1,0 +1,3 @@
+# Hashes of file build rules.
+2c852948d07c0f20101150441941c16f lib/gemmi/CMakeFiles/check
+238dea9bc0bf3b1cd8480455e749614e lib/gemmi/CMakeFiles/print-version

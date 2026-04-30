@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects CMakeFiles/auth_label.dir/examples/auth_label.cpp.o -o auth_label  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

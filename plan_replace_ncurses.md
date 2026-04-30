@@ -443,9 +443,11 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
 
 ### Phase 7: 라이브러리 패키징 및 Foldseek 진입점
 
-- [ ] **7-1. `src/structty.cpp` 리팩터 — `structty::run()` 분리**
+- [x] **7-1. `src/structty.cpp` 리팩터 — `structty::run()` 분리**
   - `main()`의 핵심 로직 (Parameters 파싱 이후: 단백질 로딩, TUI 루프 실행)을 `structty::run()` 구현으로 이동
   - `main()`은 `Parameters::parse()` 후 `structty::run(opts)` 호출하는 thin wrapper로
+  - **[구현 변경]** `main()`을 `structty.cpp`에 같이 두면 라이브러리와 실행 파일이 동일 `.cpp`를 공유할 수 없어 duplicate symbol 발생. `run()`만 `structty.cpp`에 두고, `main()`은 신규 `src/main.cpp`로 분리. `structty.cpp`는 라이브러리에, `main.cpp`는 실행 파일에만 컴파일.
+  - **[구현 변경]** `RunOptions.foldseek_db` 필드 추가 (plan 미명시). `Parameters::get_foldseek_db()` (--db 옵션) 값을 전달하기 위해 필요.
 
   ```cpp
   // src/structty.cpp (재구성 후)
@@ -466,7 +468,7 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   }
   ```
 
-- [ ] **7-2. `include/structty.h` 공개 API 헤더 작성**
+- [x] **7-2. `include/structty.h` 공개 API 헤더 작성**
 
   ```cpp
   #pragma once
@@ -497,7 +499,7 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   } // namespace structty
   ```
 
-- [ ] **7-3. `CMakeLists.txt` — `structty` 라이브러리 타겟 추가**
+- [x] **7-3. `CMakeLists.txt` — `structty` 라이브러리 타겟 추가**
   - `add_library(structty STATIC ...)` 타겟 정의 (`structty.cpp` + visualization/ + structure/ 소스 포함)
   - `STRUCTTY_BUILD_APP=ON` 시: `structty` 라이브러리 + `StrucTTY` 실행 파일 빌드
   - `STRUCTTY_BUILD_APP=OFF` 시: `structty` 라이브러리만 빌드 (ncurses 없음)
@@ -505,13 +507,13 @@ Screen.cpp 1942 lines에서 렌더링 파이프라인에 해당하는 로직을 
   - `target_include_directories(structty PUBLIC ${PROJECT_SOURCE_DIR}/include ...)`
   - `StrucTTY` 실행 파일은 `structty` 라이브러리에 링크하는 얇은 래퍼
 
-- [ ] **7-4. Foldseek 연동 검증**
+- [x] **7-4. Foldseek 연동 검증**
   - `STRUCTTY_BUILD_APP=OFF cmake ... && cmake --build build --target structty`
   - `nm -u build/libstructty.a | grep -i ncurses` → 출력 없음
   - `render_test`(Phase 5)가 여전히 동작하는지 회귀 확인
   - `structty::run()` 호출 시 인터랙티브 뷰어가 정상 실행되고 Q로 종료 후 터미널 상태 복원 확인
 
-- [ ] **7-5. `README.md` 및 `.github/workflows/` 업데이트**
+- [x] **7-5. `README.md` 및 `.github/workflows/` 업데이트**
   - 의존성 섹션에서 ncurses 제거
   - macOS homebrew ncurses 설치/경로 설정 안내 제거
   - Linux ncurses 패키지 설치 단계 제거

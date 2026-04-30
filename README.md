@@ -45,33 +45,16 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 7 color modes 
 |-----------|---------|
 | C++ compiler | GCC ≥ 7.1 or Clang ≥ 5.0 (C++17) |
 | CMake | ≥ 3.15 |
-| ncurses | wide character support (`libncursesw`) |
 
 Supported platforms: **Linux**, **macOS**
 
-### Build (Linux)
+### Build (Linux / macOS)
 
 ```bash
 git clone --recurse-submodules https://github.com/steineggerlab/StrucTTY.git
 cd StrucTTY
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-```
-
-### Build (macOS)
-
-```bash
-git clone --recurse-submodules https://github.com/steineggerlab/StrucTTY.git
-cd StrucTTY
-mkdir build && cd build
-brew install ncurses
-cmake .. \
-  -DCURSES_INCLUDE_PATH=/opt/homebrew/opt/ncurses/include \
-  -DCURSES_LIBRARY=/opt/homebrew/opt/ncurses/lib/libncursesw.dylib \
-  -DCMAKE_EXE_LINKER_FLAGS="-L/opt/homebrew/opt/ncurses/lib -lncursesw -Wl,-rpath,/opt/homebrew/opt/ncurses/lib" \
-  -DCMAKE_CXX_FLAGS="-I/opt/homebrew/opt/ncurses/include"
-make -j$(nproc)
+cmake -B build
+cmake --build build -j$(nproc)
 ```
 
 > The output binary will be generated at `build/StrucTTY`.

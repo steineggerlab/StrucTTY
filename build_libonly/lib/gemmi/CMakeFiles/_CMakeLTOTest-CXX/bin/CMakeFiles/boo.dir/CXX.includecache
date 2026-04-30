@@ -1,0 +1,10 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/lunajang/src/StrucTTY/build_libonly/lib/gemmi/CMakeFiles/_CMakeLTOTest-CXX/src/main.cpp
+

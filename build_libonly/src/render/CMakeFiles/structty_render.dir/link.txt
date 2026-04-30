@@ -1,0 +1,2 @@
+/usr/bin/ar qc libstructty_render.a CMakeFiles/structty_render.dir/Renderer.cpp.o CMakeFiles/structty_render.dir/AnsiOutput.cpp.o
+/usr/bin/ranlib libstructty_render.a

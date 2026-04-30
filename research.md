@@ -940,3 +940,65 @@ cmake -B build && cmake --build build   # 성공, 경고 없음
 nm -u build/StrucTTY | grep -i ncurses  # 출력 없음
 ldd build/StrucTTY | grep -i ncurses    # 출력 없음
 ```
+
+---
+
+## Phase 7 구현 요약 (2026-04-30 완료)
+
+### 목표
+StrucTTY 전체 인터랙티브 뷰어를 Foldseek가 `add_subdirectory` + `structty::run(opts)` 두 줄로 임베딩할 수 있는 `structty` 정적 라이브러리로 패키징.
+
+### 구현 내용
+
+**`include/structty.h`** (신규):
+- `structty::RunOptions` 구조체: `input_files`, `mode`, `show_structure`, `no_panel`, `benchmark`, `chains_file`, `ut_matrix_file`, `msa_file`, `foldseek_file`, `foldseek_db_path`, `foldseek_db`, `foldmason_file`.
+- `void structty::run(const RunOptions& opts)` 선언.
+
+**`src/structty.cpp`** (전면 재작성):
+- 기존 `main()` 로직 전체를 `namespace structty { void run(const RunOptions& opts) {...} }` 로 이동.
+- `Parameters` 의존 완전 제거. 모든 `params.get_XXX()` 호출을 `opts.XXX` 필드 참조로 교체.
+- `using namespace std` 등 Parameters.hpp 경유 의존 제거; `namespace fs = std::filesystem` 명시 추가.
+- 로컬 변수 `run` → `running` (함수 이름 `run`과 충돌 방지).
+
+**`src/main.cpp`** (신규 — thin wrapper):
+- `Parameters params(argc, argv)` → `structty::RunOptions` 변환 → `structty::run(opts)` 호출.
+- 12개 필드 매핑 (Parameters getter → RunOptions 멤버).
+
+**`CMakeLists.txt`** (전면 재구성):
+- `structty` 정적 라이브러리 타겟 추가 (`add_library(structty STATIC ...)`).
+  - 소스: `src/structty.cpp` + `src/structure/*.cpp` + `src/visualization/*.cpp` + `src/utils/*.cpp`
+  - PUBLIC 링크: `structty_render gemmi::gemmi_cpp lodepng ZLIB::ZLIB`
+  - PUBLIC include: `include/`, `src/utils/`, `src/structure/`, `src/visualization/`, `src/render/`
+- `structty` 라이브러리는 `STRUCTTY_BUILD_APP` 플래그와 무관하게 항상 빌드.
+- `STRUCTTY_BUILD_APP=ON` 시: `StrucTTY` 실행 파일 = `src/main.cpp` + `target_link_libraries(StrucTTY PRIVATE structty)`.
+- 기존 `STRUCTTY_BUILD_APP` 블록 내부의 APP_SOURCES/APP_HEADERS glob + add_executable 제거.
+
+**`README.md`**:
+- Requirements 표에서 `ncurses` 행 제거.
+- Linux/macOS 빌드 절차 통합 (ncurses 설치/경로 설정 단계 제거).
+
+**`.github/workflows/windows-mingw64.yml`**:
+- `mingw-w64-x86_64-ncurses` 패키지 설치 제거.
+- `terminfo` 디렉터리 복사 및 `TERMINFO` env var 설정 제거.
+
+### 설계 결정 및 plan 이탈 사항
+
+| 항목 | plan 명세 | 실제 구현 | 이유 |
+|------|-----------|-----------|------|
+| `main()` 위치 | `structty.cpp` 하단 | 신규 `src/main.cpp` | `main()`이 라이브러리에 포함되면 duplicate symbol; 분리 필수 |
+| `RunOptions.foldseek_db` | 미명시 | 추가 | `Parameters::get_foldseek_db()` (--db 옵션) 전달 필요 |
+
+### 검증 결과
+```
+cmake -B build && cmake --build build           # 성공, 새 경고 없음
+nm -u build/libstructty.a | grep -i ncurses     # 출력 없음
+ldd build/StrucTTY | grep -i ncurses            # 출력 없음
+
+# STRUCTTY_BUILD_APP=OFF 빌드 (라이브러리만)
+cmake -B build_libonly -DSTRUCTTY_BUILD_APP=OFF
+cmake --build build_libonly --target structty    # libstructty.a 1MB, 성공
+nm -u build_libonly/libstructty.a | grep -i ncurses  # 출력 없음
+
+# render_test 회귀 확인
+build/render_test 1_1CRN.cif protein 60 12     # 정상 ANSI 출력
+```

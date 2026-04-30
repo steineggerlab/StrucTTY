@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects "CMakeFiles/gemmi-cif2json.dir/prog/cif2json.cpp.o" CMakeFiles/options.dir/prog/options.cpp.o -o gemmi-cif2json  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

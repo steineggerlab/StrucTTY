@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects CMakeFiles/doc_example2.dir/docs/code/cif_cc.cpp.o -o doc_example2 
