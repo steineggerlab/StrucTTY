@@ -21,7 +21,6 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-ncurses
             zip
 
       - name: Configure
@@ -55,17 +54,10 @@ jobs:
 
           ldd dist/StrucTTY.exe | awk '{print $3}' | grep -E '^/mingw64/bin/.*\.dll$' | xargs -r -I{} cp -n {} dist/
 
-          if [ -d /mingw64/share/terminfo ]; then
-            cp -r /mingw64/share/terminfo dist/terminfo
-          fi
-
           cat > dist/run_structty.sh <<'SH'
           #!/usr/bin/env bash
           set -e
           export PATH="$(cd "$(dirname "$0")" && pwd):$PATH"
-          if [ -d "$(dirname "$0")/terminfo" ]; then
-            export TERMINFO="$(cd "$(dirname "$0")" && pwd)/terminfo"
-          fi
           exec "$(dirname "$0")/StrucTTY.exe" "$@"
           SH
           chmod +x dist/run_structty.sh

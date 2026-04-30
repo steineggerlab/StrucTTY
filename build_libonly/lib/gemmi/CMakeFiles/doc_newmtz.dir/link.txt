@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects CMakeFiles/doc_newmtz.dir/docs/code/newmtz.cpp.o -o doc_newmtz  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

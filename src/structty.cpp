@@ -1,22 +1,21 @@
 #include <iostream>
-#include <unistd.h>
 #include <clocale>
 #include <filesystem>
+#include <memory>
+#include "structty.h"
 #include "Terminal.hpp"
 #include "Common.hpp"
-#include "Protein.hpp"
-#include "Parameters.hpp"
 #include "Screen.hpp"
 #include "MSAParser.hpp"
 #include "FoldseekParser.hpp"
 #include "FoldMasonParser.hpp"
 #include "Benchmark.hpp"
 
-int main(int argc, char* argv[]) {
-    Parameters params(argc, argv);
-    if (!params.check_arg_okay()) return -1;
-    params.print_args();
+namespace fs = std::filesystem;
 
+namespace structty {
+
+void run(const RunOptions& opts) {
     setlocale(LC_ALL, "");
     Terminal::enter_raw_mode();
 
@@ -24,61 +23,57 @@ int main(int argc, char* argv[]) {
     int term_rows = term_sz.rows;
     int term_cols = term_sz.cols;
 
-    Screen screen(term_cols, term_rows,
-                  params.get_show_structure(),
-                  params.get_mode());
-    
+    Screen screen(term_cols, term_rows, opts.show_structure, opts.mode);
+
     Benchmark bm;
-    const bool bench = params.get_benchmark_mode();
+    const bool bench = opts.benchmark;
     using BenchClock = Benchmark::clock;
     BenchClock::time_point t_load0;
 
     if (bench) {
-        fs::path in_file(params.get_in_file(0));
-        bm.start(std::filesystem::current_path().string() + "/structty_bench_" + current_timestamp() + "_" + in_file.stem().string() + ".csv");
+        fs::path in_file(opts.input_files[0]);
+        bm.start(std::filesystem::current_path().string() + "/structty_bench_"
+                 + current_timestamp() + "_" + in_file.stem().string() + ".csv");
         std::cout << "CWD = " << std::filesystem::current_path() << std::endl;
         screen.set_benchmark(&bm);
         t_load0 = Benchmark::clock::now();
     }
 
-    screen.set_chainfile(params.get_chainfile(), params.get_in_file().size());
-    for (int i = 0; i < params.get_in_file().size(); i++){
-        screen.set_protein(params.get_in_file(i), i, params.get_show_structure());
+    screen.set_chainfile(opts.chains_file, (int)opts.input_files.size());
+    for (int i = 0; i < (int)opts.input_files.size(); i++) {
+        screen.set_protein(opts.input_files[i], i, opts.show_structure);
     }
-    screen.set_tmatrix();    
-    if (params.get_utmatrix() != ""){
-        screen.set_utmatrix(params.get_utmatrix(),0);
+    screen.set_tmatrix();
+    if (!opts.ut_matrix_file.empty()) {
+        screen.set_utmatrix(opts.ut_matrix_file, 0);
     }
-    screen.normalize_proteins(params.get_utmatrix());
+    screen.normalize_proteins(opts.ut_matrix_file);
     screen.update_total_len_ca();
 
     // 기능 1: interface 모드일 때 inter-chain interface 계산 (threshold=8.0Å)
-    if (params.get_mode() == "interface") {
+    if (opts.mode == "interface") {
         screen.compute_interface_all();
     }
 
     // 기능 4: aligned 모드 — -ut 만 있는 경우 (nearest-neighbor fallback)
-    // -fs 있는 경우는 load_next_hit() 내부에서 U/T + aligned region 계산을 수행하므로 여기서 처리 안 함
-    if (params.get_mode() == "aligned" && params.get_foldseek_file().empty()
-        && params.get_foldmason_file().empty()) {
+    if (opts.mode == "aligned" && opts.foldseek_file.empty() && opts.foldmason_file.empty()) {
         screen.compute_aligned_all();
     }
 
     // Foldseek DB 직접 읽기 모드 (--db 옵션)
-    if (!params.get_foldseek_db().empty()) {
-        screen.open_foldseek_db(params.get_foldseek_db());
+    if (!opts.foldseek_db.empty()) {
+        screen.open_foldseek_db(opts.foldseek_db);
     }
 
     // 기능 3: Foldseek hit 탐색 설정 (-fs 파일이 있을 때)
-    // load_next_hit() 내부에서 U/T 적용 + aligned region 계산 + align_method 설정 모두 수행
-    if (!params.get_foldseek_file().empty()) {
+    if (!opts.foldseek_file.empty()) {
         FoldseekParser fs_nav_parser;
-        if (fs_nav_parser.load(params.get_foldseek_file()) && fs_nav_parser.hit_count() > 0) {
-            if ((int)params.get_in_file().size() > 1) {
+        if (fs_nav_parser.load(opts.foldseek_file) && fs_nav_parser.hit_count() > 0) {
+            if ((int)opts.input_files.size() > 1) {
                 // 작업 3-A: 다중 타겟 — m8 hit을 CLI target 파일명 기준으로 필터링
                 std::vector<std::string> target_stems;
-                for (int i = 1; i < (int)params.get_in_file().size(); i++) {
-                    fs::path p(params.get_in_file(i));
+                for (int i = 1; i < (int)opts.input_files.size(); i++) {
+                    fs::path p(opts.input_files[i]);
                     target_stems.push_back(p.stem().string());
                 }
 
@@ -94,12 +89,12 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 screen.set_foldseek_hits(filtered_hits);
-                screen.set_fs_db_path(params.get_db_path());
+                screen.set_fs_db_path(opts.foldseek_db_path);
                 screen.prepare_foldseek_db(filtered_hits);
 
                 // 작업 3-B: 각 target protein에 매칭 hit의 transform 적용
-                for (int ti = 1; ti < (int)params.get_in_file().size(); ti++) {
-                    fs::path tp(params.get_in_file(ti));
+                for (int ti = 1; ti < (int)opts.input_files.size(); ti++) {
+                    fs::path tp(opts.input_files[ti]);
                     std::string tstem = tp.stem().string();
 
                     for (const FoldseekHit& hit : filtered_hits) {
@@ -113,7 +108,7 @@ int main(int argc, char* argv[]) {
             } else {
                 // 단일 입력: 기존 동작 유지
                 screen.set_foldseek_hits(fs_nav_parser.get_hits());
-                screen.set_fs_db_path(params.get_db_path());
+                screen.set_fs_db_path(opts.foldseek_db_path);
                 screen.prepare_foldseek_db(fs_nav_parser.get_hits());
                 screen.load_next_hit(+1);
             }
@@ -121,23 +116,22 @@ int main(int argc, char* argv[]) {
     }
 
     // 기능 5: conservation 모드일 때 MSA 파일 로드 및 conservation score 계산
-    if (params.get_mode() == "conservation" && !params.get_msa_file().empty()) {
+    if (opts.mode == "conservation" && !opts.msa_file.empty()) {
         MSAParser msa_parser;
-        if (msa_parser.load(params.get_msa_file())) {
+        if (msa_parser.load(opts.msa_file)) {
             std::vector<float> scores = msa_parser.compute_conservation();
             screen.apply_msa_conservation(0, scores);
         } else {
-            std::cerr << "Warning: Failed to load MSA file: " << params.get_msa_file() << std::endl;
+            std::cerr << "Warning: Failed to load MSA file: " << opts.msa_file << std::endl;
         }
     }
 
     // 기능 8: FoldMason MSA 기반 superposition + conservation
-    if (!params.get_foldmason_file().empty()) {
+    if (!opts.foldmason_file.empty()) {
         auto fm_parser = std::make_unique<FoldMasonParser>();
-        const std::string& fm_path = params.get_foldmason_file();
+        const std::string& fm_path = opts.foldmason_file;
         bool fm_loaded = false;
 
-        // 확장자 판별
         std::string ext;
         {
             size_t dot = fm_path.rfind('.');
@@ -158,8 +152,8 @@ int main(int argc, char* argv[]) {
             int fm_query_idx = 0;
             int fm_target_idx = 1;
             const auto& entries = fm_parser->get_entries();
-            if ((int)params.get_in_file().size() >= 1) {
-                fs::path qp(params.get_in_file(0));
+            if ((int)opts.input_files.size() >= 1) {
+                fs::path qp(opts.input_files[0]);
                 std::string qstem = qp.stem().string();
                 for (int ei = 0; ei < fm_parser->entry_count(); ei++) {
                     if (entries[ei].name.find(qstem) != std::string::npos) {
@@ -167,8 +161,8 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
-            if ((int)params.get_in_file().size() >= 2) {
-                fs::path tp(params.get_in_file(1));
+            if ((int)opts.input_files.size() >= 2) {
+                fs::path tp(opts.input_files[1]);
                 std::string tstem = tp.stem().string();
                 for (int ei = 0; ei < fm_parser->entry_count(); ei++) {
                     if (ei == fm_query_idx) continue;
@@ -181,10 +175,9 @@ int main(int argc, char* argv[]) {
             int total_entries = fm_parser->entry_count();
 
             // conservation 색상 (단일/다중 구조 모두)
-            if (params.get_mode() == "conservation") {
+            if (opts.mode == "conservation") {
                 std::vector<float> entropy = fm_parser->compute_column_entropy(false);
                 auto col_map = fm_parser->build_query_col_map(fm_query_idx);
-                // col_map: 잔기 인덱스 → MSA 열 인덱스; 잔기 순서대로 entropy 값 매핑
                 std::vector<float> mapped_scores(col_map.size(), 0.0f);
                 for (int ri = 0; ri < (int)col_map.size(); ri++) {
                     int col = col_map[ri];
@@ -199,9 +192,9 @@ int main(int argc, char* argv[]) {
             fm_info.entry_count = total_entries;
 
             // 두 구조 superposition (두 번째 PDB 있을 때만)
-            bool do_superposition = ((int)params.get_in_file().size() >= 2 && total_entries >= 2);
+            bool do_superposition = ((int)opts.input_files.size() >= 2 && total_entries >= 2);
             if (do_superposition) {
-                fm_info.align_method = (params.get_mode() == "aligned") ? "msa-col" : "-";
+                fm_info.align_method = (opts.mode == "aligned") ? "msa-col" : "-";
             } else {
                 fm_info.align_method = "-";
             }
@@ -214,7 +207,7 @@ int main(int argc, char* argv[]) {
             }
         }
     }
-    
+
     if (bench) {
         auto t_load1 = Benchmark::clock::now();
         bm.log("load", -1, Benchmark::ms_since(t_load0, t_load1));
@@ -223,14 +216,14 @@ int main(int argc, char* argv[]) {
             'X','Y','Z','A','D','W','S','R','F'
         };
 
-        const int warmup = 200;   
-        const int events = 2000; 
+        const int warmup = 200;
+        const int events = 2000;
 
         // Warmup run (not measured)
         bool old_enabled = bm.enabled;
         bm.enabled = false;
         for (int i = 0; i < warmup; i++) {
-            screen.draw_screen(params.get_no_panel());
+            screen.draw_screen(opts.no_panel);
             screen.handle_input(script[i % script.size()]);
         }
         bm.enabled = old_enabled;
@@ -238,24 +231,24 @@ int main(int argc, char* argv[]) {
         // Measured run
         bm.log("bench_begin", -1, 0.0);
         for (int i = 0; i < events; i++) {
-            screen.draw_screen(params.get_no_panel());
+            screen.draw_screen(opts.no_panel);
             screen.handle_input(script[i % script.size()]);
         }
         bm.log("bench_end", -1, 0.0);
-    }
-    else{
-        bool run = true;
+    } else {
+        bool running = true;
         bool needs_redraw = true;
-        while(run) {
+        while (running) {
             if (needs_redraw) {
-                screen.draw_screen(params.get_no_panel());
+                screen.draw_screen(opts.no_panel);
             }
             // KEY_MOUSE 이벤트 시 needs_redraw=false: 패널 부분 갱신만 수행
             // 키보드 이벤트 시 needs_redraw=true: 전체 재렌더링
-            run = screen.handle_input(needs_redraw);
+            running = screen.handle_input(needs_redraw);
         }
     }
 
     Terminal::exit_raw_mode();
-    return 0;
 }
+
+} // namespace structty

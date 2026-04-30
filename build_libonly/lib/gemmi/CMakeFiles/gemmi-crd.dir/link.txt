@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects "CMakeFiles/gemmi-crd.dir/prog/crd.cpp.o" "CMakeFiles/gemmi-crd.dir/prog/monlib_opt.cpp.o" CMakeFiles/options.dir/prog/options.cpp.o -o gemmi-crd  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects "CMakeFiles/gemmi-contents.dir/prog/contents.cpp.o" CMakeFiles/options.dir/prog/options.cpp.o -o gemmi-contents  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 
