@@ -557,7 +557,7 @@ void Screen::draw_screen(bool no_panel) {
     }
     if (offset > rows) offset = rows;
 
-    Terminal::clear();
+    Terminal::cursor_home();
     print_screen(offset);
 
     int start_row = rows;
@@ -622,6 +622,11 @@ void Screen::print_screen_braille(int y_offset) {
         if (row < 0) continue;
         if (row >= rows) break;
 
+        // Erase this terminal row before drawing — prevents ghosting from prior frames
+        char row_clear[32];
+        int rn = snprintf(row_clear, sizeof(row_clear), "\033[%d;1H\033[K", row + 1);
+        if (rn > 0) out.append(row_clear, static_cast<size_t>(rn));
+
         int max_cols = std::min(screen_width, cols);
 
         for (int tx = 0; tx < max_cols; ++tx) {
@@ -663,6 +668,7 @@ void Screen::print_screen_braille(int y_offset) {
                 // Reset colour
                 out += "\033[0m";
             }
+            // Empty cells: already cleared by \033[K at row start, no extra output needed
         }
     }
 
