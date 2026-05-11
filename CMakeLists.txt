@@ -14,7 +14,7 @@ option(STRUCTTY_BUILD_APP  "Build StrucTTY terminal application" ON)
 # Set ON to also build the render_test integration test binary.
 option(BUILD_RENDER_TEST   "Build render_test integration test binary" OFF)
 
-find_package(ZLIB REQUIRED)
+find_package(ZLIB)  # optional — gemmi bundles its own zlib when not found
 
 # Third-party deps are built in lib/
 add_subdirectory(lib)
@@ -60,8 +60,10 @@ target_link_libraries(structty
         structty_render
         gemmi::gemmi_cpp
         lodepng
-        ZLIB::ZLIB
 )
+if(ZLIB_FOUND)
+    target_link_libraries(structty PUBLIC ZLIB::ZLIB)
+endif()
 
 # -----------------------------------------------------------------------
 # StrucTTY executable — thin wrapper around structty::run()

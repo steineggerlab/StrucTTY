@@ -15,11 +15,6 @@ target_include_directories(structty_render
 
 # No ncurses linkage — intentional; consumers verify with:
 #   nm -u libstructty_render.a | grep -i ncurses
-target_link_libraries(structty_render
-    PRIVATE
-        gemmi::gemmi_cpp
-)
-
 # ── Install rules ──────────────────────────────────────────────────────────────
 include(GNUInstallDirs)
 
