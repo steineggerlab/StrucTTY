@@ -3,7 +3,9 @@
 # --------------------------------------------------
 
 # gemmi: provides CMake targets (e.g., gemmi::gemmi_cpp)
-add_subdirectory(gemmi)
+if(NOT TARGET gemmi_cpp)
+    add_subdirectory(gemmi)
+endif()
 
 # lodepng: simple single-translation-unit library
 add_library(lodepng STATIC
