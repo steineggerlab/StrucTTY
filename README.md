@@ -192,7 +192,7 @@ All modes support **3-band depth fog**: near (vivid), mid (normal), far (dark, h
 StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12, 17, 21, and 29 column formats. Features include:
 
 - Interactive hit navigation with automatic structure downloading
-- **Direct Foldseek DB reading** (`--db`) — read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Uses hit-based selective scanning for minimal memory usage (~152KB for 1000 hits, even on AFDB50)
+- Direct Foldseek DB reading (`--db`) read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Uses hit-based selective scanning for minimal memory usage (~152KB for 1000 hits, even on AFDB50)
 - Structural superposition using U/T rotation-translation matrices
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
