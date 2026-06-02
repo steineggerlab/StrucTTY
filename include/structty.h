@@ -17,6 +17,7 @@ struct RunOptions {
     std::string foldseek_file;
     std::string foldseek_db_path;  // --db-path (PDB download directory)
     std::string foldseek_db;       // --db (direct Foldseek DB path)
+    std::string foldseek_query_db; // query tmp DB path (read query structures from DB)
     std::string foldmason_file;
 };
 
