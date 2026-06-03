@@ -40,8 +40,35 @@ void run(const RunOptions& opts) {
     }
 
     screen.set_chainfile(opts.chains_file, (int)opts.input_files.size());
-    for (int i = 0; i < (int)opts.input_files.size(); i++) {
-        screen.set_protein(opts.input_files[i], i, opts.show_structure);
+
+    // Query-from-DB (D3/D4): when a query tmp DB is provided, read the query
+    // structure from the Foldseek query DB instead of parsing the original CLI
+    // path. This handles folder/tar/gz query inputs that gemmi's single-file
+    // reader cannot open. Step 4 loads the first query (single-query); multi-
+    // query navigation is Step 5.
+    bool query_from_db = false;
+    if (!opts.foldseek_query_db.empty() && !opts.foldseek_file.empty()) {
+        FoldseekParser q_parser;
+        if (q_parser.load(opts.foldseek_file) && q_parser.hit_count() > 0) {
+            const std::string& query_acc = q_parser.get_hits()[0].query;
+            if (screen.set_query_from_db(opts.foldseek_query_db, query_acc,
+                                         opts.show_structure)) {
+                query_from_db = true;
+            }
+        }
+    }
+
+    if (query_from_db) {
+        // Query is data[0] (loaded from DB above). Any remaining plaintext inputs
+        // are treated as targets; the workflow handoff passes only the query, so
+        // this loop is usually empty.
+        for (int i = 1; i < (int)opts.input_files.size(); i++) {
+            screen.set_protein(opts.input_files[i], i, opts.show_structure);
+        }
+    } else {
+        for (int i = 0; i < (int)opts.input_files.size(); i++) {
+            screen.set_protein(opts.input_files[i], i, opts.show_structure);
+        }
     }
     screen.set_tmatrix();
     if (!opts.ut_matrix_file.empty()) {
