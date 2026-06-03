@@ -32,6 +32,14 @@ public:
 
 
     void set_protein(const std::string& in_file, int ii, const bool& show_structure);
+
+    // Step 4 (D3/D4): load the query structure (data[0]) from a Foldseek query
+    // tmp DB by accession, instead of parsing a plaintext CLI path. Returns true
+    // on success. Used for folder/tar/gz query inputs.
+    bool set_query_from_db(const std::string& query_db_path,
+                           const std::string& accession,
+                           const bool& show_structure);
+
     void normalize_proteins(const std::string& utmatrix);
 
     void set_tmatrix();
@@ -152,6 +160,9 @@ private:
 
     // Foldseek DB 직접 읽기
     FoldseekDBReader fs_db_reader_;
+
+    // Step 4: query 구조를 query tmp DB 에서 읽기 (target 용 fs_db_reader_ 와 별도)
+    FoldseekDBReader query_db_reader_;
 
     // 기능 8: FoldMason MSA
     std::unique_ptr<FoldMasonParser> foldmason_parser;
