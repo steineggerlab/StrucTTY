@@ -2,6 +2,9 @@
 #include <clocale>
 #include <filesystem>
 #include <memory>
+#include <map>
+#include <vector>
+#include <string>
 #include "structty.h"
 #include "Terminal.hpp"
 #include "Common.hpp"
@@ -41,34 +44,40 @@ void run(const RunOptions& opts) {
 
     screen.set_chainfile(opts.chains_file, (int)opts.input_files.size());
 
-    // Query-from-DB (D3/D4): when a query tmp DB is provided, read the query
-    // structure from the Foldseek query DB instead of parsing the original CLI
-    // path. This handles folder/tar/gz query inputs that gemmi's single-file
-    // reader cannot open. Step 4 loads the first query (single-query); multi-
-    // query navigation is Step 5.
+    // Query-from-DB (D3/D4) + multi-query nav (D7/D8/D9): when a query tmp DB is
+    // provided, read the query structure(s) from the Foldseek query DB instead of
+    // parsing the original CLI path. Handles folder/tar/gz query inputs that
+    // gemmi's single-file reader cannot open. Hits are grouped by the .m8 query
+    // column so ]/[ can navigate between queries.
     bool query_from_db = false;
+    std::vector<std::string> query_ids;                              // .m8 순서
+    std::map<std::string, std::vector<FoldseekHit>> hits_by_query;   // query별 hit 그룹
     if (!opts.foldseek_query_db.empty() && !opts.foldseek_file.empty()) {
         FoldseekParser q_parser;
         if (q_parser.load(opts.foldseek_file) && q_parser.hit_count() > 0) {
-            const std::string& query_acc = q_parser.get_hits()[0].query;
-            if (screen.set_query_from_db(opts.foldseek_query_db, query_acc,
-                                         opts.show_structure)) {
-                query_from_db = true;
+            for (const FoldseekHit& h : q_parser.get_hits()) {
+                auto it = hits_by_query.find(h.query);
+                if (it == hits_by_query.end()) {
+                    query_ids.push_back(h.query);
+                    hits_by_query.emplace(h.query, std::vector<FoldseekHit>{ h });
+                } else {
+                    it->second.push_back(h);
+                }
             }
+            query_from_db = !query_ids.empty();
         }
     }
 
     if (query_from_db) {
-        // Query is data[0] (loaded from DB above). Any remaining plaintext inputs
-        // are treated as targets; the workflow handoff passes only the query, so
-        // this loop is usually empty.
-        for (int i = 1; i < (int)opts.input_files.size(); i++) {
-            screen.set_protein(opts.input_files[i], i, opts.show_structure);
-        }
+        // Screen owns the full per-query setup (load query from DB, normalize,
+        // open target DB, load first hit). Query switching via ]/[ reuses the
+        // same path. The workflow handoff passes only the query as input_files,
+        // so plaintext targets are not loaded here.
+        screen.set_query_nav(query_ids, hits_by_query, opts.foldseek_query_db,
+                             opts.foldseek_db, opts.show_structure);
     } else {
-        for (int i = 0; i < (int)opts.input_files.size(); i++) {
-            screen.set_protein(opts.input_files[i], i, opts.show_structure);
-        }
+    for (int i = 0; i < (int)opts.input_files.size(); i++) {
+        screen.set_protein(opts.input_files[i], i, opts.show_structure);
     }
     screen.set_tmatrix();
     if (!opts.ut_matrix_file.empty()) {
@@ -234,6 +243,7 @@ void run(const RunOptions& opts) {
             }
         }
     }
+    } // end else (non-query-from-DB scene setup)
 
     if (bench) {
         auto t_load1 = Benchmark::clock::now();
