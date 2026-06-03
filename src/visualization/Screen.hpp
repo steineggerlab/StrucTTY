@@ -40,6 +40,19 @@ public:
                            const std::string& accession,
                            const bool& show_structure);
 
+    // Step 5 (D7/D8/D9): register multi-query navigation state and activate the
+    // first query. query_ids is in .m8 order; hits_by_query groups hits per query.
+    // Owns the full per-query setup (load query, normalize, target hits, first hit)
+    // so query switching reuses one code path. target_db_path may be empty.
+    void set_query_nav(const std::vector<std::string>& query_ids,
+                       const std::map<std::string, std::vector<FoldseekHit>>& hits_by_query,
+                       const std::string& query_db_path,
+                       const std::string& target_db_path,
+                       const bool& show_structure);
+    // delta=+1 (next, ']'), delta=-1 (prev, '['). No-op if <2 queries.
+    void switch_query(int delta);
+    int  query_count() const { return (int)query_ids_.size(); }
+
     void normalize_proteins(const std::string& utmatrix);
 
     void set_tmatrix();
@@ -163,6 +176,22 @@ private:
 
     // Step 4: query 구조를 query tmp DB 에서 읽기 (target 용 fs_db_reader_ 와 별도)
     FoldseekDBReader query_db_reader_;
+
+    // Step 5: multi-query 내비게이션 상태
+    std::vector<std::string> query_ids_;                            // .m8 순서
+    std::map<std::string, std::vector<FoldseekHit>> hits_by_query_; // query별 hit 그룹
+    int  current_query_idx_ = -1;
+    std::string query_db_path_;
+    std::string target_db_path_;
+    bool multi_query_show_structure_ = false;
+
+    // 현재 query_ids_[idx] 를 활성화: scene teardown → query 로드 → 정규화 → target hit 셋업
+    void activate_query(int idx);
+    // query_db_reader_ 에서 accession 읽어 data[0] 로 push (set_query_from_db/activate_query 공유)
+    bool load_query_into_data0(const std::string& accession, const bool& show_structure);
+    // set_tmatrix 재호출 시 이전 vectorpointer 해제 (leak 방지)
+    void free_tmatrix();
+    size_t vectorpointer_len_ = 0;
 
     // 기능 8: FoldMason MSA
     std::unique_ptr<FoldMasonParser> foldmason_parser;

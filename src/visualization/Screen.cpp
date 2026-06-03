@@ -27,8 +27,17 @@ Screen::Screen(const int& width, const int& height, const bool& show_structure,
 Screen::~Screen() {
     for (Protein* p : data) delete p;
     data.clear();
+    free_tmatrix();
     delete camera;
     delete panel;
+}
+
+void Screen::free_tmatrix() {
+    if (!vectorpointer) return;
+    for (size_t i = 0; i < vectorpointer_len_; i++) delete[] vectorpointer[i];
+    delete[] vectorpointer;
+    vectorpointer = nullptr;
+    vectorpointer_len_ = 0;
 }
 
 static float compute_scene_radius_from_render_positions(const std::vector<Protein*>& data) {
@@ -59,19 +68,8 @@ void Screen::set_protein(const std::string& in_file, int ii, const bool& show_st
 
 }
 
-bool Screen::set_query_from_db(const std::string& query_db_path,
-                               const std::string& accession,
-                               const bool& show_structure) {
-    if (!query_db_reader_.open(query_db_path)) {
-        std::cerr << "Warning: Failed to open query Foldseek DB: " << query_db_path << "\n";
-        return false;
-    }
-    std::unordered_set<std::string> q_ids = { accession };
-    if (!query_db_reader_.prepare(q_ids)) {
-        std::cerr << "Warning: Failed to prepare query DB for accession: " << accession << "\n";
-        return false;
-    }
-
+bool Screen::load_query_into_data0(const std::string& accession,
+                                   const bool& show_structure) {
     std::vector<float> coords;
     std::string aa_seq;
     size_t n_res = query_db_reader_.read_entry(accession, coords, aa_seq);
@@ -90,7 +88,106 @@ bool Screen::set_query_from_db(const std::string& query_db_path,
     return true;
 }
 
+bool Screen::set_query_from_db(const std::string& query_db_path,
+                               const std::string& accession,
+                               const bool& show_structure) {
+    if (!query_db_reader_.open(query_db_path)) {
+        std::cerr << "Warning: Failed to open query Foldseek DB: " << query_db_path << "\n";
+        return false;
+    }
+    std::unordered_set<std::string> q_ids = { accession };
+    if (!query_db_reader_.prepare(q_ids)) {
+        std::cerr << "Warning: Failed to prepare query DB for accession: " << accession << "\n";
+        return false;
+    }
+    return load_query_into_data0(accession, show_structure);
+}
+
+void Screen::set_query_nav(const std::vector<std::string>& query_ids,
+                           const std::map<std::string, std::vector<FoldseekHit>>& hits_by_query,
+                           const std::string& query_db_path,
+                           const std::string& target_db_path,
+                           const bool& show_structure) {
+    query_ids_ = query_ids;
+    hits_by_query_ = hits_by_query;
+    query_db_path_ = query_db_path;
+    target_db_path_ = target_db_path;
+    multi_query_show_structure_ = show_structure;
+
+    // Open + prepare the query DB once for all query accessions.
+    if (!query_db_reader_.is_open()) {
+        if (!query_db_reader_.open(query_db_path)) {
+            std::cerr << "Warning: Failed to open query Foldseek DB: " << query_db_path << "\n";
+            return;
+        }
+    }
+    std::unordered_set<std::string> q_set(query_ids.begin(), query_ids.end());
+    query_db_reader_.prepare(q_set);
+
+    // Open the target DB once (targets are read per-hit in load_next_hit).
+    if (!target_db_path.empty() && !fs_db_reader_.is_open()) {
+        open_foldseek_db(target_db_path);
+    }
+
+    current_query_idx_ = -1;
+    activate_query(0);
+}
+
+void Screen::activate_query(int idx) {
+    if (idx < 0 || idx >= (int)query_ids_.size()) return;
+    current_query_idx_ = idx;
+    const std::string& acc = query_ids_[idx];
+
+    // Tear down the current scene (query + any loaded targets).
+    for (Protein* p : data) delete p;
+    data.clear();
+    pan_x.clear();
+    pan_y.clear();
+    chainVec.clear();
+    chainVec.push_back("-");
+    if (panel) panel->reset_entries();
+
+    // Load the new query structure as data[0] from the (already prepared) query DB.
+    if (!load_query_into_data0(acc, multi_query_show_structure_)) return;
+
+    // Re-normalize for this query: set_tmatrix re-sizes vectorpointer, and
+    // normalize_proteins() recomputes norm_scale / centroid from data[0] and
+    // re-adds the query panel entry (entries were cleared above).
+    set_tmatrix();
+    normalize_proteins("");
+    update_total_len_ca();
+
+    // Set this query's hit list and load its first target (which applies the
+    // per-hit superposition using the freshly computed norm_scale / centroid).
+    const auto it = hits_by_query_.find(acc);
+    if (it != hits_by_query_.end() && !it->second.empty()) {
+        set_foldseek_hits(it->second);
+        prepare_foldseek_db(it->second);
+        current_hit_idx = -1;
+        load_next_hit(+1);
+    } else {
+        foldseek_hits.clear();
+        current_hit_idx = -1;
+        if (panel) {
+            FoldseekHitInfo fi;
+            fi.valid = true;
+            fi.query_idx = current_query_idx_ + 1;
+            fi.total_queries = (int)query_ids_.size();
+            panel->set_foldseek_hit_info(fi);
+        }
+    }
+}
+
+void Screen::switch_query(int delta) {
+    if ((int)query_ids_.size() < 2) return;
+    int new_idx = current_query_idx_ + delta;
+    new_idx = std::max(0, std::min((int)query_ids_.size() - 1, new_idx));
+    if (new_idx == current_query_idx_) return;
+    activate_query(new_idx);
+}
+
 void Screen::set_tmatrix() {
+    free_tmatrix();  // release previous allocation (multi-query re-setup)
     size_t filenum = data.size();
     vectorpointer = new float*[filenum];
     for (size_t i = 0; i < filenum; i++) {
@@ -99,6 +196,7 @@ void Screen::set_tmatrix() {
         vectorpointer[i][1] = 0;
         vectorpointer[i][2] = 0;
     }
+    vectorpointer_len_ = filenum;
 }
 
 void Screen::set_chainfile(const std::string& chainfile, int filesize) {
@@ -926,6 +1024,16 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             if (!foldseek_hits.empty()) load_next_hit(-1);
             break;
 
+        // ] (next query — Step 5 multi-query nav)
+        case 93:
+            switch_query(+1);
+            break;
+
+        // [ (prev query)
+        case 91:
+            switch_query(-1);
+            break;
+
         // Q, q
         case 81:
         case 113:
@@ -1161,6 +1269,8 @@ void Screen::set_foldseek_hits(const std::vector<FoldseekHit>& hits) {
         fi.valid = true;
         fi.current_idx = 0;
         fi.total_hits = (int)hits.size();
+        fi.query_idx = (current_query_idx_ >= 0) ? current_query_idx_ + 1 : 0;
+        fi.total_queries = (int)query_ids_.size();
         panel->set_foldseek_hit_info(fi);
     }
 }
@@ -1213,6 +1323,8 @@ void Screen::load_next_hit(int delta) {
     fs_info.prob        = hit.prob;
     fs_info.lddt        = hit.lddt;
     fs_info.qtmscore    = hit.qtmscore;
+    fs_info.query_idx     = (current_query_idx_ >= 0) ? current_query_idx_ + 1 : 0;
+    fs_info.total_queries = (int)query_ids_.size();
 
     // 기존 target protein (index 1+) 제거
     while ((int)data.size() > 1) {

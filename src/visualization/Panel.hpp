@@ -25,6 +25,8 @@ struct FoldseekHitInfo {
     bool     valid        = false;
     int      current_idx  = 0;   // 1-based
     int      total_hits   = 0;
+    int      query_idx    = 0;   // 1-based (Step 5: multi-query nav); 0 = single query
+    int      total_queries = 0;  // >1 enables query i/N display + ]/[ hint
     std::string target;
     float    evalue       = 0.0f;
     float    prob         = -1.0f;
@@ -41,6 +43,9 @@ public:
     void add_panel_info(const std::string& file_name,
                         const std::map<std::string, int>& chain_info,
                         const std::map<std::string, int>& chain_residue_info);
+
+    // Step 5: clear all protein entries (used when switching query in multi-query mode)
+    void reset_entries() { entries.clear(); }
 
     // 기능 3: 두 번째 항목(target protein) entry 갱신
     void update_entry(int idx, const std::string& file_name,
