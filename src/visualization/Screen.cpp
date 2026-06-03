@@ -59,6 +59,37 @@ void Screen::set_protein(const std::string& in_file, int ii, const bool& show_st
 
 }
 
+bool Screen::set_query_from_db(const std::string& query_db_path,
+                               const std::string& accession,
+                               const bool& show_structure) {
+    if (!query_db_reader_.open(query_db_path)) {
+        std::cerr << "Warning: Failed to open query Foldseek DB: " << query_db_path << "\n";
+        return false;
+    }
+    std::unordered_set<std::string> q_ids = { accession };
+    if (!query_db_reader_.prepare(q_ids)) {
+        std::cerr << "Warning: Failed to prepare query DB for accession: " << accession << "\n";
+        return false;
+    }
+
+    std::vector<float> coords;
+    std::string aa_seq;
+    size_t n_res = query_db_reader_.read_entry(accession, coords, aa_seq);
+    if (n_res == 0) {
+        std::cerr << "Warning: query accession not found in query DB: " << accession << "\n";
+        return false;
+    }
+
+    Protein* query_protein = new Protein(accession, show_structure);
+    query_protein->load_from_ca(coords, n_res, aa_seq);
+    data.push_back(query_protein);
+    pan_x.push_back(0.0f);
+    pan_y.push_back(0.0f);
+    // chainVec was sized by set_chainfile(); ensure an entry exists for data[0].
+    if ((int)chainVec.size() < (int)data.size()) chainVec.push_back("-");
+    return true;
+}
+
 void Screen::set_tmatrix() {
     size_t filenum = data.size();
     vectorpointer = new float*[filenum];
@@ -172,7 +203,12 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
     const bool hasUT = !utmatrix.empty();
     for (size_t i = 0; i < data.size(); i++) {
         auto* p = data[i];
-        p->load_data(vectorpointer[i], yesUT);
+        // Cα-only proteins (loaded from a Foldseek DB via load_from_ca, e.g. the
+        // query-from-DB path) already have init_atoms/screen_atoms populated and
+        // have no plaintext file to parse — skip the gemmi load_data step.
+        if (!p->is_ca_only()) {
+            p->load_data(vectorpointer[i], yesUT);
+        }
         panel->add_panel_info(p->get_file_name(),
                               p->get_chain_length(),
                               p->get_residue_count());
