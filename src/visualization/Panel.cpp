@@ -434,9 +434,18 @@ void Panel::draw_panel(int start_row, int start_col,
 
             const FoldseekHitInfo& fi = fs_hit_info;
 
-            // Line 1: "Foldseek Hits"
+            // Line 1: "Foldseek Hits" (+ "Q[i/N]" when multiple queries)
             clear_line(r);
-            { int x = left; put_cstr(r, x, "Foldseek Hits"); }
+            {
+                int x = left;
+                put_cstr(r, x, "Foldseek Hits");
+                if (fi.total_queries > 1) {
+                    char qbuf[32];
+                    std::snprintf(qbuf, sizeof(qbuf), " Q[%d/%d]",
+                                  fi.query_idx, fi.total_queries);
+                    put_cstr(r, x, qbuf);
+                }
+            }
             ++r; if (!in_rows(r)) return;
 
             // Line 2: "[X / Y]" or hit count
@@ -519,11 +528,15 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 8: nav hint
+            // Line 8: nav hint ( ]/[ query hint when multiple queries )
             clear_line(r);
             {
                 int x = left;
-                put_cstr(r, x, "[N]ext  [P]rev");
+                if (fi.total_queries > 1) {
+                    put_cstr(r, x, "[N]/[P] hit  ]/[ qry");
+                } else {
+                    put_cstr(r, x, "[N]ext  [P]rev");
+                }
             }
             ++r; if (!in_rows(r)) return;
         }
