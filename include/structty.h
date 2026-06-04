@@ -19,6 +19,7 @@ struct RunOptions {
     std::string foldseek_db;       // --db (direct Foldseek DB path)
     std::string foldseek_query_db; // query tmp DB path (read query structures from DB)
     std::string foldmason_file;
+    bool report_format     = false; // foldseek_file is a multimer _report (14-col tsv), not .m8 (D6)
 };
 
 // Launch the interactive viewer. Blocks until the user presses Q.

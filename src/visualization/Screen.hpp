@@ -11,11 +11,13 @@
 #include "../structure/PDBDownloader.hpp"
 #include "../structure/FoldMasonParser.hpp"
 #include "../structure/FoldseekDBReader.hpp"
+#include "../structure/MultimerReportParser.hpp"
 #include <vector>
 #include <cmath>
 #include <iostream>
 #include <algorithm>   // clamp, max
 #include <limits>      // numeric_limits
+#include <map>
 #include <memory>
 #include <string>
 
@@ -52,6 +54,14 @@ public:
     // delta=+1 (next, ']'), delta=-1 (prev, '['). No-op if <2 queries.
     void switch_query(int delta);
     int  query_count() const { return (int)query_ids_.size(); }
+
+    // Step 7 (D6): multimer `_report` 경로. complex 단위로 query/target 전체 체인을
+    // 로드하고 complex U/T 로 target 을 query frame 에 겹침. query complex 간 ]/[ 이동,
+    // target complex hit 간 n/p 순회. query/target DB 는 complex DB(체인별 엔트리).
+    void set_multimer_report(const std::vector<MultimerHit>& hits,
+                             const std::string& query_db_path,
+                             const std::string& target_db_path,
+                             const bool& show_structure);
 
     void normalize_proteins(const std::string& utmatrix);
 
@@ -189,6 +199,26 @@ private:
     void activate_query(int idx);
     // query_db_reader_ 에서 accession 읽어 data[0] 로 push (set_query_from_db/activate_query 공유)
     bool load_query_into_data0(const std::string& accession, const bool& show_structure);
+
+    // Step 7: multimer 상태 + 헬퍼
+    bool multimer_mode_ = false;
+    std::vector<std::string> mm_query_complexes_;                       // 등장 순서(유니크)
+    std::map<std::string, std::vector<MultimerHit>> mm_hits_by_query_;  // query complex별 hit
+    int mm_current_query_idx_ = -1;
+    int mm_current_hit_idx_ = -1;
+    int mm_query_chain_count_ = 0;   // data[0..count) = 현재 query complex 체인
+    // query complex idx 활성화: teardown → query 체인 전체 로드 → 정규화 → 첫 target complex
+    void activate_multimer_query(int idx);
+    // 현재 query complex 의 target complex hit 간 순회(n/p) / query complex 간 이동(]/[)
+    void load_multimer_hit(int delta);
+    void switch_multimer_query(int delta);
+    // 공유 centroid/scale 로 현재 data(=query 체인들) 정규화 (grid 없이 overlay 프레임)
+    void normalize_complex();
+    // complex DB 에서 accession 체인을 읽어 data 끝에 push. 실패 시 false.
+    bool load_chain_into_data(FoldseekDBReader& reader, const std::string& accession,
+                              const bool& show_structure);
+    // 이미 로드된 target 체인(data[idx])에 complex U/T(Å) 적용 + query frame 정규화
+    void transform_target_chain(int idx, const float U[9], const float T[3]);
     // set_tmatrix 재호출 시 이전 vectorpointer 해제 (leak 방지)
     void free_tmatrix();
     size_t vectorpointer_len_ = 0;

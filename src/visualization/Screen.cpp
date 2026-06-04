@@ -186,6 +186,224 @@ void Screen::switch_query(int delta) {
     activate_query(new_idx);
 }
 
+// ── Step 7 (D6): multimer `_report` 경로 ──────────────────────────────────────
+
+bool Screen::load_chain_into_data(FoldseekDBReader& reader,
+                                  const std::string& accession,
+                                  const bool& show_structure) {
+    std::vector<float> coords;
+    std::string aa_seq;
+    size_t n_res = reader.read_entry(accession, coords, aa_seq);
+    if (n_res == 0) {
+        std::cerr << "Warning: complex chain not found in DB: " << accession << "\n";
+        return false;
+    }
+    Protein* p = new Protein(accession, show_structure);
+    p->load_from_ca(coords, n_res, aa_seq);
+    data.push_back(p);
+    pan_x.push_back(0.0f);
+    pan_y.push_back(0.0f);
+    if ((int)chainVec.size() < (int)data.size()) chainVec.push_back("-");
+    return true;
+}
+
+void Screen::normalize_complex() {
+    // 모든 query 체인을 하나의 공유 centroid/scale 로 정규화 (상대 위치 보존, grid 없음).
+    global_bb = BoundingBox();
+    for (auto* p : data) {
+        p->set_bounding_box();
+        global_bb = global_bb + p->get_bounding_box();
+    }
+    float max_ext = std::max(global_bb.max_x - global_bb.min_x,
+                             global_bb.max_y - global_bb.min_y);
+    max_ext = std::max(max_ext, global_bb.max_z - global_bb.min_z);
+    float scale = (max_ext > 0.f) ? (2.0f / max_ext) : 1.0f;
+
+    float gx = 0.5f * (global_bb.min_x + global_bb.max_x);
+    float gy = 0.5f * (global_bb.min_y + global_bb.max_y);
+    float gz = 0.5f * (global_bb.min_z + global_bb.max_z);
+    float shift[3] = { -gx, -gy, -gz };
+    for (auto* p : data) {
+        p->set_scale(scale);
+        p->do_shift(shift);
+        p->do_scale(scale);
+    }
+
+    norm_scale = scale;
+    norm_cx = gx; norm_cy = gy; norm_cz = gz;
+    for (size_t i = 0; i < pan_x.size(); i++) { pan_x[i] = 0.0f; pan_y[i] = 0.0f; }
+    yesUT = true;             // overlay 프레임 (grid layout 비활성)
+    depth_calibrated = false;
+
+    float radius = compute_scene_radius_from_render_positions(data);
+    focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
+}
+
+void Screen::transform_target_chain(int idx, const float U[9], const float T[3]) {
+    if (idx < 0 || idx >= (int)data.size() || !data[idx]) return;
+    Protein* tp = data[idx];
+    tp->set_bounding_box();
+    float t_cx = tp->cx, t_cy = tp->cy, t_cz = tp->cz;
+    // query 와 동일한 norm_scale 로 우선 중심+스케일 (per-chain centroid 는 아래 공식에서 상쇄)
+    tp->set_scale(norm_scale);
+    float t_shift[3] = { -t_cx, -t_cy, -t_cz };
+    tp->do_shift(t_shift);
+    tp->do_scale(norm_scale);
+
+    // complex U/T(Å, target→query) → norm 공간 T. 공식은 load_next_hit 29컬럼 경로와 동일:
+    // result = (U*orig + T - norm_c) * norm_scale (per-chain t_cen 상쇄).
+    float Utc[3] = {
+        U[0]*t_cx + U[1]*t_cy + U[2]*t_cz,
+        U[3]*t_cx + U[4]*t_cy + U[5]*t_cz,
+        U[6]*t_cx + U[7]*t_cy + U[8]*t_cz
+    };
+    float Tn[3] = {
+        (Utc[0] + T[0] - norm_cx) * norm_scale,
+        (Utc[1] + T[1] - norm_cy) * norm_scale,
+        (Utc[2] + T[2] - norm_cz) * norm_scale
+    };
+    float Ta[3] = { T[0], T[1], T[2] };
+    apply_foldseek_transform(idx, U, Tn, Ta);
+}
+
+void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
+                                 const std::string& query_db_path,
+                                 const std::string& target_db_path,
+                                 const bool& show_structure) {
+    multimer_mode_ = true;
+    multi_query_show_structure_ = show_structure;
+    query_db_path_ = query_db_path;
+    target_db_path_ = target_db_path;
+
+    // query complex 별로 그룹화 (등장 순서 보존)
+    for (const auto& h : hits) {
+        auto it = mm_hits_by_query_.find(h.qComplex);
+        if (it == mm_hits_by_query_.end()) {
+            mm_query_complexes_.push_back(h.qComplex);
+            mm_hits_by_query_.emplace(h.qComplex, std::vector<MultimerHit>{ h });
+        } else {
+            it->second.push_back(h);
+        }
+    }
+    if (mm_query_complexes_.empty()) { multimer_mode_ = false; return; }
+
+    // query complex DB 열고 모든 query 체인 accession 인덱싱
+    if (!query_db_reader_.open(query_db_path)) {
+        std::cerr << "Warning: Failed to open query complex DB: " << query_db_path << "\n";
+        multimer_mode_ = false;
+        return;
+    }
+    std::unordered_set<std::string> q_acc;
+    for (const auto& qc : mm_query_complexes_)
+        for (const auto& ch : mm_hits_by_query_[qc].front().qChains)
+            q_acc.insert(qc + "_" + ch);
+    query_db_reader_.prepare(q_acc);
+
+    // target complex DB 열고 모든 target 체인 accession 인덱싱
+    if (!target_db_path.empty() && fs_db_reader_.open(target_db_path)) {
+        std::unordered_set<std::string> t_acc;
+        for (const auto& h : hits)
+            for (const auto& ch : h.tChains)
+                t_acc.insert(h.tComplex + "_" + ch);
+        fs_db_reader_.prepare(t_acc);
+    }
+
+    mm_current_query_idx_ = -1;
+    activate_multimer_query(0);
+}
+
+void Screen::activate_multimer_query(int idx) {
+    if (idx < 0 || idx >= (int)mm_query_complexes_.size()) return;
+    mm_current_query_idx_ = idx;
+    const std::string& qc = mm_query_complexes_[idx];
+
+    // scene teardown
+    for (Protein* p : data) delete p;
+    data.clear();
+    pan_x.clear();
+    pan_y.clear();
+    chainVec.clear();
+    chainVec.push_back("-");
+    if (panel) panel->reset_entries();
+
+    // query complex 의 모든 체인 로드 (체인 목록은 같은 query 의 모든 hit 가 동일 → front 사용)
+    const std::vector<std::string>& qChains = mm_hits_by_query_[qc].front().qChains;
+    for (const auto& ch : qChains) {
+        load_chain_into_data(query_db_reader_, qc + "_" + ch, multi_query_show_structure_);
+    }
+    mm_query_chain_count_ = (int)data.size();
+    if (mm_query_chain_count_ == 0) return;
+
+    set_tmatrix();
+    normalize_complex();
+    update_total_len_ca();
+
+    mm_current_hit_idx_ = -1;
+    load_multimer_hit(+1);
+}
+
+void Screen::load_multimer_hit(int delta) {
+    if (mm_current_query_idx_ < 0) return;
+    const std::string& qc = mm_query_complexes_[mm_current_query_idx_];
+    auto it = mm_hits_by_query_.find(qc);
+    if (it == mm_hits_by_query_.end() || it->second.empty()) return;
+    const std::vector<MultimerHit>& hits = it->second;
+
+    int new_idx;
+    if (mm_current_hit_idx_ < 0) {
+        new_idx = (delta >= 0) ? 0 : (int)hits.size() - 1;
+    } else {
+        new_idx = mm_current_hit_idx_ + delta;
+        new_idx = std::max(0, std::min((int)hits.size() - 1, new_idx));
+        if (new_idx == mm_current_hit_idx_) return;
+    }
+    mm_current_hit_idx_ = new_idx;
+    const MultimerHit& h = hits[new_idx];
+
+    // 이전 target 체인 제거 (query 체인 보존)
+    while ((int)data.size() > mm_query_chain_count_) {
+        delete data.back();
+        data.pop_back();
+        pan_x.pop_back();
+        pan_y.pop_back();
+    }
+    while ((int)chainVec.size() > mm_query_chain_count_) chainVec.pop_back();
+
+    // target complex 체인 로드 + complex U/T 적용
+    for (const auto& ch : h.tChains) {
+        if (load_chain_into_data(fs_db_reader_, h.tComplex + "_" + ch, screen_show_structure)) {
+            if (h.has_transform) transform_target_chain((int)data.size() - 1, h.U, h.T);
+        }
+    }
+
+    // 패널 재구성: query+target 전체 entry + hit 정보
+    if (panel) {
+        panel->reset_entries();
+        for (auto* p : data) {
+            panel->add_panel_info(p->get_file_name(),
+                                  p->get_chain_length(),
+                                  p->get_residue_count());
+        }
+        FoldseekHitInfo fi;
+        fi.valid = true;
+        fi.current_idx = mm_current_hit_idx_ + 1;
+        fi.total_hits = (int)hits.size();
+        fi.target = h.tComplex;
+        fi.qtmscore = h.qTMScore;
+        fi.query_idx = mm_current_query_idx_ + 1;
+        fi.total_queries = (int)mm_query_complexes_.size();
+        panel->set_foldseek_hit_info(fi);
+    }
+}
+
+void Screen::switch_multimer_query(int delta) {
+    if ((int)mm_query_complexes_.size() < 2) return;
+    int new_idx = mm_current_query_idx_ + delta;
+    new_idx = std::max(0, std::min((int)mm_query_complexes_.size() - 1, new_idx));
+    if (new_idx == mm_current_query_idx_) return;
+    activate_multimer_query(new_idx);
+}
+
 void Screen::set_tmatrix() {
     free_tmatrix();  // release previous allocation (multi-query re-setup)
     size_t filenum = data.size();
@@ -1012,26 +1230,30 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             camera->screenshot(renderer_.get_pixels(), screen_width * 2, screen_height * 4);
             break;
         }
-        // N, n (next Foldseek hit)
+        // N, n (next Foldseek hit / target complex)
         case 78:
         case 110:
-            if (!foldseek_hits.empty()) load_next_hit(+1);
+            if (multimer_mode_) load_multimer_hit(+1);
+            else if (!foldseek_hits.empty()) load_next_hit(+1);
             break;
 
-        // P, p (prev Foldseek hit)
+        // P, p (prev Foldseek hit / target complex)
         case 80:
         case 112:
-            if (!foldseek_hits.empty()) load_next_hit(-1);
+            if (multimer_mode_) load_multimer_hit(-1);
+            else if (!foldseek_hits.empty()) load_next_hit(-1);
             break;
 
-        // ] (next query — Step 5 multi-query nav)
+        // ] (next query — Step 5 multi-query / Step 7 multimer nav)
         case 93:
-            switch_query(+1);
+            if (multimer_mode_) switch_multimer_query(+1);
+            else switch_query(+1);
             break;
 
         // [ (prev query)
         case 91:
-            switch_query(-1);
+            if (multimer_mode_) switch_multimer_query(-1);
+            else switch_query(-1);
             break;
 
         // Q, q
