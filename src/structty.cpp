@@ -11,6 +11,7 @@
 #include "Screen.hpp"
 #include "MSAParser.hpp"
 #include "FoldseekParser.hpp"
+#include "MultimerReportParser.hpp"
 #include "FoldMasonParser.hpp"
 #include "Benchmark.hpp"
 
@@ -49,10 +50,28 @@ void run(const RunOptions& opts) {
     // parsing the original CLI path. Handles folder/tar/gz query inputs that
     // gemmi's single-file reader cannot open. Hits are grouped by the .m8 query
     // column so ]/[ can navigate between queries.
+    // Step 7 (D6): multimer `_report` 경로. 14컬럼 tsv 를 complex 단위로 파싱해
+    // query/target complex 전체 체인을 로드하고 complex U/T 로 겹침. query/target DB 는
+    // complex DB(체인별 엔트리). report_format 가 켜졌을 때만 진입(.m8 경로와 배타적).
+    bool multimer_report = false;
+    if (opts.report_format && !opts.foldseek_query_db.empty() &&
+        !opts.foldseek_file.empty()) {
+        MultimerReportParser mr_parser;
+        if (mr_parser.load(opts.foldseek_file) && mr_parser.hit_count() > 0) {
+            screen.set_multimer_report(mr_parser.get_hits(), opts.foldseek_query_db,
+                                       opts.foldseek_db, opts.show_structure);
+            multimer_report = true;
+        } else {
+            std::cerr << "Warning: failed to parse multimer report: "
+                      << opts.foldseek_file << std::endl;
+        }
+    }
+
     bool query_from_db = false;
     std::vector<std::string> query_ids;                              // .m8 순서
     std::map<std::string, std::vector<FoldseekHit>> hits_by_query;   // query별 hit 그룹
-    if (!opts.foldseek_query_db.empty() && !opts.foldseek_file.empty()) {
+    if (!multimer_report &&
+        !opts.foldseek_query_db.empty() && !opts.foldseek_file.empty()) {
         FoldseekParser q_parser;
         if (q_parser.load(opts.foldseek_file) && q_parser.hit_count() > 0) {
             for (const FoldseekHit& h : q_parser.get_hits()) {
@@ -68,7 +87,10 @@ void run(const RunOptions& opts) {
         }
     }
 
-    if (query_from_db) {
+    if (multimer_report) {
+        // Scene already set up by set_multimer_report() above (complex chains
+        // loaded + superposed). Nothing more to do here.
+    } else if (query_from_db) {
         // Screen owns the full per-query setup (load query from DB, normalize,
         // open target DB, load first hit). Query switching via ]/[ reuses the
         // same path. The workflow handoff passes only the query as input_files,
