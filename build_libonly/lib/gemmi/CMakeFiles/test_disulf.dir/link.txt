@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects CMakeFiles/test_disulf.dir/tests/disulf.cpp.o -o test_disulf  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

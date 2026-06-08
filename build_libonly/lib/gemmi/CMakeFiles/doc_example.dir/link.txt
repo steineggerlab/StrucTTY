@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects CMakeFiles/doc_example.dir/docs/code/sym.cpp.o CMakeFiles/doc_example.dir/docs/code/elem.cpp.o CMakeFiles/doc_example.dir/docs/code/resinfo.cpp.o CMakeFiles/doc_example.dir/docs/code/cell.cpp.o CMakeFiles/doc_example.dir/docs/code/mutate.cpp.o -o doc_example  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 
