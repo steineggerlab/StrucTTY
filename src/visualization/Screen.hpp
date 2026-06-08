@@ -229,6 +229,7 @@ private:
     float norm_cx = 0.0f;      // query protein 정규화 전 centroid
     float norm_cy = 0.0f;
     float norm_cz = 0.0f;
+    float rot_pivot_[3] = {0.f, 0.f, 0.f}; // yesUT 회전 pivot: 비-UT → norm_c*norm_scale, UT/multimer → {0,0,0}
 
     void calibrate_depth_baseline_first_view();
 
