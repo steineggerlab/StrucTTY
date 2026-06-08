@@ -231,6 +231,7 @@ void Screen::normalize_complex() {
 
     norm_scale = scale;
     norm_cx = gx; norm_cy = gy; norm_cz = gz;
+    rot_pivot_[0] = rot_pivot_[1] = rot_pivot_[2] = 0.f;
     for (size_t i = 0; i < pan_x.size(); i++) { pan_x[i] = 0.0f; pan_y[i] = 0.0f; }
     yesUT = true;             // overlay 프레임 (grid layout 비활성)
     depth_calibrated = false;
@@ -578,6 +579,10 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         norm_cy = data[0]->cy;
         norm_cz = data[0]->cz;
     }
+
+    rot_pivot_[0] = hasUT ? 0.f : norm_cx * norm_scale;
+    rot_pivot_[1] = hasUT ? 0.f : norm_cy * norm_scale;
+    rot_pivot_[2] = hasUT ? 0.f : norm_cz * norm_scale;
 
     float radius = compute_scene_radius_from_render_positions(data);
 
@@ -1180,7 +1185,12 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             } else if (yesUT) {
                 float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
                 float m[9] = {1,0,0, 0,c,-s, 0,s,c};
-                for (auto* p : data) p->do_naive_rotation(m);
+                float neg_piv[3] = { -rot_pivot_[0], -rot_pivot_[1], -rot_pivot_[2] };
+                for (auto* p : data) {
+                    p->do_shift(neg_piv);
+                    p->do_naive_rotation(m);
+                    p->do_shift(rot_pivot_);
+                }
             } else {
                 for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(1, 0, 0);
             }
@@ -1193,7 +1203,12 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             } else if (yesUT) {
                 float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
                 float m[9] = {c,0,s, 0,1,0, -s,0,c};
-                for (auto* p : data) p->do_naive_rotation(m);
+                float neg_piv[3] = { -rot_pivot_[0], -rot_pivot_[1], -rot_pivot_[2] };
+                for (auto* p : data) {
+                    p->do_shift(neg_piv);
+                    p->do_naive_rotation(m);
+                    p->do_shift(rot_pivot_);
+                }
             } else {
                 for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(0, 1, 0);
             }
@@ -1206,7 +1221,12 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             } else if (yesUT) {
                 float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
                 float m[9] = {c,-s,0, s,c,0, 0,0,1};
-                for (auto* p : data) p->do_naive_rotation(m);
+                float neg_piv[3] = { -rot_pivot_[0], -rot_pivot_[1], -rot_pivot_[2] };
+                for (auto* p : data) {
+                    p->do_shift(neg_piv);
+                    p->do_naive_rotation(m);
+                    p->do_shift(rot_pivot_);
+                }
             } else {
                 for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(0, 0, 1);
             }

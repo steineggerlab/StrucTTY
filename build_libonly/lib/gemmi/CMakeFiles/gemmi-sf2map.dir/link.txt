@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects "CMakeFiles/gemmi-sf2map.dir/prog/sf2map.cpp.o" "CMakeFiles/gemmi-sf2map.dir/prog/mapcoef.cpp.o" CMakeFiles/options.dir/prog/options.cpp.o -o gemmi-sf2map  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

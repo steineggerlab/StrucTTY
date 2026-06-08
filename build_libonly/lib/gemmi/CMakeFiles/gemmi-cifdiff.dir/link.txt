@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects "CMakeFiles/gemmi-cifdiff.dir/prog/cifdiff.cpp.o" CMakeFiles/options.dir/prog/options.cpp.o -o gemmi-cifdiff  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects "CMakeFiles/gemmi-sg.dir/prog/sg.cpp.o" CMakeFiles/options.dir/prog/options.cpp.o -o gemmi-sg  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 
