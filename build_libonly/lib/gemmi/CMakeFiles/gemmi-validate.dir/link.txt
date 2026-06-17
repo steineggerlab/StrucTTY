@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects "CMakeFiles/gemmi-validate.dir/prog/validate.cpp.o" "CMakeFiles/gemmi-validate.dir/prog/validate_mon.cpp.o" CMakeFiles/options.dir/prog/options.cpp.o -o gemmi-validate  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

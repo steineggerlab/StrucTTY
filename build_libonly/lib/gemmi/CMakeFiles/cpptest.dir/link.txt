@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects CMakeFiles/cpptest.dir/tests/main.cpp.o CMakeFiles/cpptest.dir/tests/cif.cpp.o CMakeFiles/cpptest.dir/tests/windowsh.cpp.o -o cpptest  -Wl,-rpath,"\$ORIGIN" libgemmi_cpp.so 

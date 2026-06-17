@@ -1,4 +1,0 @@
-/home/lunajang/src/StrucTTY/build_libonly/lib/gemmi/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/foo.dir
-/home/lunajang/src/StrucTTY/build_libonly/lib/gemmi/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/boo.dir
-/home/lunajang/src/StrucTTY/build_libonly/lib/gemmi/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/edit_cache.dir
-/home/lunajang/src/StrucTTY/build_libonly/lib/gemmi/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/rebuild_cache.dir
