@@ -267,6 +267,17 @@ void Screen::transform_target_chain(int idx, const float U[9], const float T[3])
     apply_foldseek_transform(idx, U, Tn, Ta);
 }
 
+std::pair<int,int> Screen::mm_complex_range(int complex_idx) const {
+    const int dsz = (int)data.size();
+    if (complex_idx == 0) {
+        int hi = std::min(mm_query_chain_count_ - 1, dsz - 1);
+        return {0, hi};
+    } else {
+        if (mm_query_chain_count_ >= dsz) return {dsz, dsz - 1}; // empty range: no target loaded
+        return {mm_query_chain_count_, dsz - 1};
+    }
+}
+
 void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
                                  const std::string& query_db_path,
                                  const std::string& target_db_path,
@@ -1134,8 +1145,10 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
     if (bm && bm->enabled) bm->mark_event(key);
     Terminal::flush_input();
     switch(key){
-        // select protein
+        // select protein / complex
         case 48:
+            structNum = -1;
+            break;
         case 49:
         case 50:
         case 51:
@@ -1145,42 +1158,70 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
         case 55:
         case 56:
         case 57:
-            if (key == 48){
-                structNum = -1;
-            }
-            else if (key - 48 <= data.size()) {
-                structNum = key - 49;
+            if (multimer_mode_) {
+                // 1 = query complex (idx 0), 2 = target complex (idx 1); 3+ ignored
+                int requested = key - 49;
+                if (requested < 2) structNum = requested;
+            } else {
+                if (key - 48 <= (int)data.size()) structNum = key - 49;
             }
             break;
         // A, a (minus x-axis)
         case 65:
         case 97:
-            if (structNum != -1) apply_pan(structNum, -pan_step_x, 0.0f);
-            else for (int i = 0; i < (int)data.size(); i++) apply_pan(i, -pan_step_x, 0.0f);
+            if (multimer_mode_ && structNum >= 0) {
+                auto [lo, hi] = mm_complex_range(structNum);
+                for (int i = lo; i <= hi; i++) apply_pan(i, -pan_step_x, 0.0f);
+            } else if (structNum != -1) {
+                apply_pan(structNum, -pan_step_x, 0.0f);
+            } else {
+                for (int i = 0; i < (int)data.size(); i++) apply_pan(i, -pan_step_x, 0.0f);
+            }
             break;
         // D, d (plus x-axis)
         case 68:
         case 100:
-            if (structNum != -1) apply_pan(structNum, +pan_step_x, 0.0f);
-            else for (int i = 0; i < (int)data.size(); i++) apply_pan(i, +pan_step_x, 0.0f);
+            if (multimer_mode_ && structNum >= 0) {
+                auto [lo, hi] = mm_complex_range(structNum);
+                for (int i = lo; i <= hi; i++) apply_pan(i, +pan_step_x, 0.0f);
+            } else if (structNum != -1) {
+                apply_pan(structNum, +pan_step_x, 0.0f);
+            } else {
+                for (int i = 0; i < (int)data.size(); i++) apply_pan(i, +pan_step_x, 0.0f);
+            }
             break;
         // S, s (minus y-axis)
         case 83:
         case 115:
-            if (structNum != -1) apply_pan(structNum, 0.0f, -pan_step_y);
-            else for (int i = 0; i < (int)data.size(); i++) apply_pan(i, 0.0f, -pan_step_y);
-            break;    
+            if (multimer_mode_ && structNum >= 0) {
+                auto [lo, hi] = mm_complex_range(structNum);
+                for (int i = lo; i <= hi; i++) apply_pan(i, 0.0f, -pan_step_y);
+            } else if (structNum != -1) {
+                apply_pan(structNum, 0.0f, -pan_step_y);
+            } else {
+                for (int i = 0; i < (int)data.size(); i++) apply_pan(i, 0.0f, -pan_step_y);
+            }
+            break;
         // W, w (plus y-axis)
         case 87:
         case 119:
-            if (structNum != -1) apply_pan(structNum, 0.0f, +pan_step_y);
-            else for (int i = 0; i < (int)data.size(); i++) apply_pan(i, 0.0f, +pan_step_y);
+            if (multimer_mode_ && structNum >= 0) {
+                auto [lo, hi] = mm_complex_range(structNum);
+                for (int i = lo; i <= hi; i++) apply_pan(i, 0.0f, +pan_step_y);
+            } else if (structNum != -1) {
+                apply_pan(structNum, 0.0f, +pan_step_y);
+            } else {
+                for (int i = 0; i < (int)data.size(); i++) apply_pan(i, 0.0f, +pan_step_y);
+            }
             break;
 
         // X, x (rotate x-centered)
         case 88:
         case 120:
-            if (structNum != -1) {
+            if (multimer_mode_ && structNum >= 0) {
+                auto [lo, hi] = mm_complex_range(structNum);
+                for (int i = lo; i <= hi; i++) data[i]->set_rotate(1, 0, 0);
+            } else if (structNum != -1) {
                 data[structNum]->set_rotate(1, 0, 0);
             } else if (yesUT) {
                 float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
@@ -1198,7 +1239,10 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
         // Y, y (rotate y-centered)
         case 89:
         case 121:
-            if (structNum != -1) {
+            if (multimer_mode_ && structNum >= 0) {
+                auto [lo, hi] = mm_complex_range(structNum);
+                for (int i = lo; i <= hi; i++) data[i]->set_rotate(0, 1, 0);
+            } else if (structNum != -1) {
                 data[structNum]->set_rotate(0, 1, 0);
             } else if (yesUT) {
                 float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
@@ -1216,7 +1260,10 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
         // Z, z (rotate z-centered)
         case 90:
         case 122:
-            if (structNum != -1) {
+            if (multimer_mode_ && structNum >= 0) {
+                auto [lo, hi] = mm_complex_range(structNum);
+                for (int i = lo; i <= hi; i++) data[i]->set_rotate(0, 0, 1);
+            } else if (structNum != -1) {
                 data[structNum]->set_rotate(0, 0, 1);
             } else if (yesUT) {
                 float c = cos(PI / 48.0f), s = sin(PI / 48.0f);
