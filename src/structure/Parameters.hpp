@@ -24,6 +24,8 @@ class Parameters{
         string db_path = "";
         string foldmason_file = "";
         string foldseek_db = "";
+        bool report_format = false;
+        std::string foldseek_query_db = "";
     public:
         Parameters(int argc, char* argv[]);
 
@@ -74,5 +76,11 @@ class Parameters{
         }
         string get_foldseek_db(){
             return foldseek_db;
+        }
+        bool get_report_format(){
+            return report_format;
+        }
+        std::string get_foldseek_query_db(){
+            return foldseek_query_db;
         }
 };

@@ -18,7 +18,9 @@ int main(int argc, char* argv[]) {
     opts.foldseek_file  = params.get_foldseek_file();
     opts.foldseek_db_path = params.get_db_path();
     opts.foldseek_db    = params.get_foldseek_db();
-    opts.foldmason_file = params.get_foldmason_file();
+    opts.foldmason_file    = params.get_foldmason_file();
+    opts.report_format     = params.get_report_format();
+    opts.foldseek_query_db = params.get_foldseek_query_db();
 
     structty::run(opts);
     return 0;
