@@ -221,6 +221,8 @@ private:
     void transform_target_chain(int idx, const float U[9], const float T[3]);
     // set_tmatrix 재호출 시 이전 vectorpointer 해제 (leak 방지)
     void free_tmatrix();
+    // multimer mode에서 complex_idx(0=query, 1=target) → data[] 범위 {lo, hi} (inclusive)
+    std::pair<int,int> mm_complex_range(int complex_idx) const;
     size_t vectorpointer_len_ = 0;
 
     // 기능 8: FoldMason MSA

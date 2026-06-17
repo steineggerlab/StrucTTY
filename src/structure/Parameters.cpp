@@ -16,6 +16,8 @@ void print_help(){
     std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSA)\n";
     std::cout << "  -n, --nopanel           Hide info panel\n";
     std::cout << "  -b, --benchmark         Benchmark mode (measure FPS/latency)\n";
+    std::cout << "  --report-format         Input is a Foldseek multimer _report file (14-col TSV)\n";
+    std::cout << "  --query-db <PATH>       Query complex Foldseek DB (required with --report-format)\n";
     std::cout << "  --help                  Show this help message\n";
 }
 Parameters::Parameters(int argc, char* argv[]) {
@@ -101,6 +103,14 @@ Parameters::Parameters(int argc, char* argv[]) {
             } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
                 benchmark_mode = true;
                 show_structure = true;
+            } else if (!strcmp(argv[i], "--report-format")) {
+                report_format = true;
+            } else if (!strcmp(argv[i], "--query-db")) {
+                if (i + 1 < argc) {
+                    foldseek_query_db = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --query-db.");
+                }
             } else {
                 throw std::runtime_error("Error: Unknown parameter: " + std::string(argv[i]));
             }
@@ -112,10 +122,14 @@ Parameters::Parameters(int argc, char* argv[]) {
             return;
         }
     }
-    if (in_file.size() == 0){
+    if (in_file.size() == 0 && !report_format) {
         std::cerr << "Error: Need input file dir" << std::endl;
         arg_okay = false;
         return;
+    }
+    if (report_format && (foldseek_file.empty() || foldseek_query_db.empty())) {
+        std::cerr << "Error: --report-format requires both --foldseek <_report> and --query-db <DB>." << std::endl;
+        arg_okay = false;
     }
     return;
 }
