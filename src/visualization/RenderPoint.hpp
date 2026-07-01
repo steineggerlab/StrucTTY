@@ -8,7 +8,7 @@ struct RenderPoint {
     float       depth = std::numeric_limits<float>::infinity();
     char        pixel = ' ';
     int         color_id = 0;
-    std::string chainID;
+    int         chainID = -1;   // 인터닝된 chain index (Screen::chain_name 로 역참조). was std::string
     char        structure = 0;
 
     // 기능 1: interface region

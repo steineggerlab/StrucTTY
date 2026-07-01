@@ -18,6 +18,7 @@
 #include <algorithm>   // clamp, max
 #include <limits>      // numeric_limits
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <string>
 
@@ -116,16 +117,7 @@ public:
 
     // 기능 6: 마우스 hover — 현재 커서 위치의 잔기 정보를 패널에 반영
     void update_hover_info(int mx, int my);
-    void assign_colors_to_points(std::vector<RenderPoint>& points, int protein_idx);
 
-    void draw_line(std::vector<RenderPoint>& points,
-                   int x1, int x2,
-                   int y1, int y2,
-                   float z1, float z2,
-                   const std::string& chainID, char structure,
-                   float min_z, float max_z,
-                   int max_x = -1, int max_y = -1, int half = 0);
-    
     void set_benchmark(Benchmark* b) { bm = b; }
     
     void update_total_len_ca() {
@@ -148,6 +140,14 @@ private:
     // Braille sub-pixel rendering (logical pixels now owned by renderer_)
     Renderer renderer_;
     void print_screen_braille(int y_offset);
+
+    // Chain id 인터닝: RenderPoint/RenderAtom 이 std::string 대신 int index 를 들고
+    // 다니도록 하기 위한 string↔int 매핑 (단계 3 에서 사용). chain id 는 multi-char
+    // 이므로 char 로 축약 불가 — int index + 역참조 테이블로 무손실 유지.
+    std::vector<std::string> chain_names_;              // index → chain 문자열
+    std::unordered_map<std::string, int> chain_intern_; // chain 문자열 → index
+    int intern_chain(const std::string& id);            // 없으면 등록 후 index 반환
+    const std::string& chain_name(int idx) const;       // index → 문자열 (범위 밖이면 빈 문자열)
 
     float focal_offset = 3.0f;
     float zoom_level;
