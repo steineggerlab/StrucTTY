@@ -683,181 +683,19 @@ void Screen::calibrate_depth_baseline_first_view() {
     depth_calibrated = true;
 }
 
-void Screen::draw_line(std::vector<RenderPoint>& points,
-                       int x1, int x2,
-                       int y1, int y2,
-                       float z1, float z2,
-                       const std::string& chainID, char structure,
-                       float min_z, float max_z,
-                       int max_x, int max_y, int half) {
-    if (max_x < 0) max_x = screen_width;
-    if (max_y < 0) max_y = screen_height;
-
-    int dx = x2 - x1;
-    int dy = y2 - y1;
-    float dz = z2 - z1;
-
-    int steps = std::max(std::abs(dx), std::abs(dy));
-    if (steps == 0) steps = 1;
-
-    float xIncrement = (float)dx / steps;
-    float yIncrement = (float)dy / steps;
-    float zIncrement = (float)dz / steps;
-
-    float x = (float)x1;
-    float y = (float)y1;
-    float z = z1;
-
-    for (int i = 0; i <= steps; ++i) {
-        int ix = (int)x;
-        int iy = (int)y;
-
-        int band = 1;
-        {
-            float range = max_z - min_z;
-            if (range > 0.0f) {
-                float t = (z - min_z) / range;
-                if      (t < 0.25f) band = 0;
-                else if (t < 0.60f) band = 1;
-                else                band = 2;
-            }
-        }
-        for (int oy = -half; oy <= half; oy++) {
-            for (int ox = -half; ox <= half; ox++) {
-                if (ox != 0 && oy != 0) continue;  // cross (+) pattern, not square
-                int nx = ix + ox, ny = iy + oy;
-                if (nx >= 0 && nx < max_x && ny >= 0 && ny < max_y) {
-                    RenderPoint rp{nx, ny, z, ' ', 0, chainID, structure};
-                    rp.depth_band = band;
-                    points.push_back(rp);
-                }
-            }
-        }
-
-        x += xIncrement;
-        y += yIncrement;
-        z += zIncrement;
-    }
+int Screen::intern_chain(const std::string& id) {
+    auto it = chain_intern_.find(id);
+    if (it != chain_intern_.end()) return it->second;
+    int idx = (int)chain_names_.size();
+    chain_names_.push_back(id);
+    chain_intern_.emplace(id, idx);
+    return idx;
 }
 
-void Screen::assign_colors_to_points(std::vector<RenderPoint>& points, int protein_idx) {
-    if (points.empty()) return;
-
-    if (screen_mode == "protein") {
-        int idx = protein_idx % 9;
-        for (auto& pt : points) {
-            if (pt.depth_band == 1) {
-                pt.color_id = idx + 1;       // mid: pairs 1-9
-            } else if (pt.depth_band == 0) {
-                pt.color_id = idx + 120;     // near: pairs 120-128
-            } else {
-                pt.color_id = idx + 200;     // far: pairs 200-208 (grayscale)
-            }
-        }
-    } else if (screen_mode == "chain") {
-        std::string cur_chain = points[0].chainID;
-        int color_idx  = 0;
-        for (auto& pt : points) {
-            if (pt.chainID != cur_chain) { color_idx++; cur_chain = pt.chainID; }
-            int ci = (protein_idx * 10 + color_idx) % 15;
-            if (pt.depth_band == 1) {
-                pt.color_id = 21 + ci;       // mid: pairs 21-35
-            } else if (pt.depth_band == 0) {
-                pt.color_id = 130 + ci;      // near: pairs 130-144
-            } else {
-                pt.color_id = 145 + ci;      // far: pairs 145-159
-            }
-        }
-    } else if (screen_mode == "rainbow") {
-        int num_points = (int)points.size();
-        for (int i = 0; i < num_points; i++) {
-            int color_idx = (i * 20) / std::max(1, num_points);
-            if (points[i].depth_band == 1) {
-                points[i].color_id = color_idx + 51;   // mid: pairs 51-70
-            } else if (points[i].depth_band == 0) {
-                points[i].color_id = color_idx + 160;  // near: pairs 160-179
-            } else {
-                points[i].color_id = color_idx + 180;  // far: pairs 180-199
-            }
-        }
-    } else if (screen_mode == "plddt") {
-        for (auto& pt : points) {
-            float plddt = pt.bfactor;
-            int base;
-            if      (plddt >= 90) base = 0;
-            else if (plddt >= 70) base = 1;
-            else if (plddt >= 50) base = 2;
-            else                  base = 3;
-            if (pt.depth_band == 1) {
-                pt.color_id = 71 + base;       // mid: pairs 71-74
-            } else if (pt.depth_band == 0) {
-                pt.color_id = 209 + base;      // near: pairs 209-212
-            } else {
-                pt.color_id = 213 + base;      // far: pairs 213-216
-            }
-        }
-    } else if (screen_mode == "interface") {
-        for (auto& pt : points) {
-            if (pt.depth_band == 1) {
-                pt.color_id = pt.is_interface ? 43 : 44;
-            } else if (pt.depth_band == 0) {
-                pt.color_id = pt.is_interface ? 237 : 238;  // near
-            } else {
-                pt.color_id = pt.is_interface ? 239 : 240;  // far
-            }
-        }
-    } else if (screen_mode == "aligned") {
-        int bright_id = (protein_idx % 9) + 101;  // pairs 101-109
-        int near_id   = (protein_idx % 9) + 241;  // pairs 241-249
-        for (auto& pt : points) {
-            if (pt.is_aligned) {
-                if (pt.depth_band == 1) {
-                    pt.color_id = bright_id;           // mid
-                } else if (pt.depth_band == 0) {
-                    pt.color_id = near_id;             // near: brighter
-                } else {
-                    pt.color_id = bright_id;           // far: same bright (aligned always visible)
-                }
-            } else {
-                if (pt.depth_band == 1) {
-                    pt.color_id = 110;                 // mid: dim gray
-                } else if (pt.depth_band == 0) {
-                    pt.color_id = 110;                 // near: dim gray (non-aligned stays dim)
-                } else {
-                    pt.color_id = 250;                 // far: darker gray
-                }
-            }
-        }
-    } else if (screen_mode == "conservation") {
-        for (auto& pt : points) {
-            float score = pt.conservation_score;
-            if (score < 0) {
-                pt.color_id = 11;  // 미설정: olive dim
-            } else {
-                int idx = std::max(0, std::min(9, (int)(score * 9.0f)));
-                if (pt.depth_band == 1) {
-                    pt.color_id = 75 + idx;        // mid: pairs 75-84
-                } else if (pt.depth_band == 0) {
-                    pt.color_id = 217 + idx;       // near: pairs 217-226
-                } else {
-                    pt.color_id = 227 + idx;       // far: pairs 227-236
-                }
-            }
-        }
-    } else {
-        std::cerr << "Unknown mode: " << screen_mode << std::endl;
-    }
-
-    // In protein+-s mode: H=yellow(41), S=cyan(42), coil=dimmed protein color(11-19).
-    // Chain and rainbow are never overridden.
-    if (screen_show_structure && screen_mode == "protein") {
-        int dim_id = (protein_idx % 9) + 11;
-        for (auto& pt : points) {
-            if      (pt.structure == 'H') pt.color_id = 41;
-            else if (pt.structure == 'S') pt.color_id = 42;
-            else                          pt.color_id = dim_id;
-        }
-    }
+const std::string& Screen::chain_name(int idx) const {
+    static const std::string empty;
+    if (idx < 0 || idx >= (int)chain_names_.size()) return empty;
+    return chain_names_[idx];
 }
 
 std::vector<RenderAtom> Screen::to_render_atoms() {
@@ -878,7 +716,7 @@ std::vector<RenderAtom> Screen::to_render_atoms() {
                 ra.residue_number     = a.residue_number;
                 strncpy(ra.residue_name, a.residue_name.c_str(), 3);
                 ra.residue_name[3]    = '\0';
-                ra.chain_id           = chainID;
+                ra.chain_id           = intern_chain(chainID);
                 ra.protein_index      = (int)ii;
                 ra.pan_x              = pan_x[ii];
                 ra.pan_y              = pan_y[ii];
@@ -1118,7 +956,7 @@ void Screen::update_hover_info(int mx, int my) {
     }
 
     if (best) {
-        panel->set_hover_residue(best->chainID, best->residue_name,
+        panel->set_hover_residue(chain_name(best->chainID), best->residue_name,
                                  best->residue_number, best->structure,
                                  best->bfactor, best->conservation_score);
     } else {
