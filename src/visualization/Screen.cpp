@@ -891,10 +891,19 @@ std::vector<RenderAtom> Screen::to_render_atoms() {
 
 
 void Screen::draw_screen(bool no_panel) {
+    const bool prof = (bm && bm->enabled);
     auto t0 = Benchmark::clock::now();
+
     calibrate_depth_baseline_first_view();
+    auto t_cal = Benchmark::clock::now();
+
     renderer_.set_depth_params(focal_offset, zoom_level, depth_base_min_z, depth_base_max_z);
-    renderer_.render(to_render_atoms());
+
+    std::vector<RenderAtom> render_atoms = to_render_atoms();
+    auto t_tra = Benchmark::clock::now();
+
+    renderer_.render(render_atoms);
+    auto t_ren = Benchmark::clock::now();
 
     Terminal::Size term_sz = Terminal::get_size();
     int rows = term_sz.rows;
@@ -925,8 +934,11 @@ void Screen::draw_screen(bool no_panel) {
     }
     if (offset > rows) offset = rows;
 
+    auto t_layout = Benchmark::clock::now();
+
     Terminal::cursor_home();
     print_screen(offset);
+    auto t_print = Benchmark::clock::now();
 
     int start_row = rows;
     if (!no_panel) {
@@ -947,7 +959,17 @@ void Screen::draw_screen(bool no_panel) {
     auto t1 = Benchmark::clock::now();
     int64_t render_dt_ms = Benchmark::ms_since(t0, t1);
 
-    if (bm && bm->enabled) {
+    if (prof) {
+        // 서브페이즈 계측 (µs). dt_ms 컬럼에 µs 값, num_ca 컬럼에 보조 수치.
+        bm->log("ph_calibrate", -1, Benchmark::us_since(t0,       t_cal),    total_len_ca);
+        bm->log("ph_torender",  -1, Benchmark::us_since(t_cal,    t_tra),    total_len_ca);
+        bm->log("ph_render",    -1, Benchmark::us_since(t_tra,    t_ren),    total_len_ca);
+        bm->log("ph_layout",    -1, Benchmark::us_since(t_ren,    t_layout), total_len_ca);
+        bm->log("ph_print",     -1, Benchmark::us_since(t_layout, t_print),  total_len_ca);
+        bm->log("ph_panel",     -1, Benchmark::us_since(t_print,  t1),       total_len_ca);
+        // project_and_fill 이 생성한 RenderPoint 총 개수 (num_ca 컬럼 재활용).
+        bm->log("points",       -1, (int64_t)renderer_.get_last_point_count(), total_len_ca);
+
         if (!ttff_logged) {
             bm->log("ttff", -1, Benchmark::ms_since(bm->t0, t1), total_len_ca, (int64_t)data.size());
             ttff_logged = true;
