@@ -29,6 +29,10 @@ public:
     int get_logical_width()  const;
     int get_logical_height() const;
 
+    // 계측용: 직전 render() 에서 project_and_fill 이 생성한 RenderPoint 총 개수
+    // (coil→catmull 점 폭발 가설 검증용).
+    size_t get_last_point_count() const { return last_point_count_; }
+
 private:
     int         width_, height_;
     std::string mode_;
@@ -39,6 +43,7 @@ private:
     float       depth_base_max_z_ = 1.0f;
 
     std::vector<RenderPoint> logical_pixels_;
+    size_t                   last_point_count_ = 0;  // 계측용
 
     static constexpr float FOV_ = 90.0f;
     static constexpr float PI_  = 3.14159265359f;
