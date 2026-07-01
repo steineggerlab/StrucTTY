@@ -9,6 +9,14 @@ Renderer::Renderer(int width, int height, const std::string& mode, bool show_str
     : width_(width), height_(height), mode_(mode), show_structure_(show_structure)
 {
     logical_pixels_.resize(width_ * 2 * height_ * 4);
+    // per-point 문자열 비교를 피하기 위해 모드를 enum 으로 1회 캐시.
+    if      (mode_ == "chain")        mode_id_ = Mode::Chain;
+    else if (mode_ == "rainbow")      mode_id_ = Mode::Rainbow;
+    else if (mode_ == "plddt")        mode_id_ = Mode::Plddt;
+    else if (mode_ == "interface")    mode_id_ = Mode::Interface;
+    else if (mode_ == "aligned")      mode_id_ = Mode::Aligned;
+    else if (mode_ == "conservation") mode_id_ = Mode::Conservation;
+    else                              mode_id_ = Mode::Protein;
 }
 
 void Renderer::set_depth_params(float focal_offset, float zoom_level,
@@ -22,21 +30,16 @@ void Renderer::set_depth_params(float focal_offset, float zoom_level,
 void Renderer::render(const std::vector<RenderAtom>& atoms) {
     t_enter_ = std::chrono::steady_clock::now();  // 계측: clear 이전 시각
     clear();
-    std::vector<RenderPoint> final_points;
-    final_points.reserve(50000);
-    auto t_clear = std::chrono::steady_clock::now();  // clear() 는 render() 진입부에서 이미 수행됨
+    auto t_clear = std::chrono::steady_clock::now();
 
-    project_and_fill(atoms, final_points);
-    last_point_count_ = final_points.size();  // 계측
+    last_point_count_ = 0;
+    project_and_fill(atoms);  // 생성 즉시 logical_pixels_ 에 z-test 기록 (중간 벡터 없음)
     auto t_fill = std::chrono::steady_clock::now();
 
-    zbuffer_resolve(final_points);
-    auto t_zbuf = std::chrono::steady_clock::now();
-
-    // 계측: render 내부 3분할 (µs). clear 는 render 첫 줄이므로 별도 시각 필요.
+    // 계측: clear / fill. zbuffer 는 fill 에 흡수되어 0.
     last_us_clear_ = std::chrono::duration_cast<std::chrono::microseconds>(t_clear - t_enter_).count();
     last_us_fill_  = std::chrono::duration_cast<std::chrono::microseconds>(t_fill  - t_clear).count();
-    last_us_zbuf_  = std::chrono::duration_cast<std::chrono::microseconds>(t_zbuf  - t_fill ).count();
+    last_us_zbuf_  = 0;
 }
 
 const std::vector<RenderPoint>& Renderer::get_pixels() const {
@@ -59,11 +62,99 @@ int Renderer::compute_depth_band(float z) const {
     else                return 2;
 }
 
-void Renderer::draw_line_impl(std::vector<RenderPoint>& out,
-                              int x1, int x2, int y1, int y2,
+
+int Renderer::color_from_style(const PlotStyle& s, int band) const {
+    const RenderAtom& a = *s.a;
+
+    // show_structure 는 protein 모드에서만 SS 색으로 override (원본 assign_colors_impl 과 동일).
+    if (show_structure_ && mode_id_ == Mode::Protein) {
+        if (a.structure == 'H') return 41;
+        if (a.structure == 'S') return 42;
+        return (s.protein_idx % 9) + 11;
+    }
+
+    switch (mode_id_) {
+        case Mode::Protein: {
+            int idx = s.protein_idx % 9;
+            if (band == 0) return idx + 120;
+            if (band == 1) return idx + 1;
+            return idx + 200;
+        }
+        case Mode::Chain: {
+            int ci = (s.protein_idx * 10 + s.chain_color_idx) % 15;
+            if (band == 0) return 130 + ci;
+            if (band == 1) return 21 + ci;
+            return 145 + ci;
+        }
+        case Mode::Rainbow: {
+            int ci = (int)(s.rainbow_frac * 20.0f);
+            if (ci < 0) ci = 0;
+            if (ci > 19) ci = 19;
+            if (band == 0) return ci + 160;
+            if (band == 1) return ci + 51;
+            return ci + 180;
+        }
+        case Mode::Plddt: {
+            float plddt = a.bfactor;
+            int base = (plddt >= 90) ? 0 : (plddt >= 70) ? 1 : (plddt >= 50) ? 2 : 3;
+            if (band == 0) return 209 + base;
+            if (band == 1) return 71 + base;
+            return 213 + base;
+        }
+        case Mode::Interface: {
+            if (band == 0) return a.is_interface ? 237 : 238;
+            if (band == 1) return a.is_interface ? 43 : 44;
+            return a.is_interface ? 239 : 240;
+        }
+        case Mode::Aligned: {
+            if (a.is_aligned) {
+                if (band == 0) return (s.protein_idx % 9) + 241;
+                return (s.protein_idx % 9) + 101;  // band 1,2 모두 bright (원본과 동일)
+            }
+            return (band == 2) ? 250 : 110;
+        }
+        case Mode::Conservation: {
+            float score = a.conservation_score;
+            if (score < 0) return 11;
+            int idx = (int)(score * 9.0f);
+            if (idx < 0) idx = 0;
+            if (idx > 9) idx = 9;
+            if (band == 0) return 217 + idx;
+            if (band == 1) return 75 + idx;
+            return 227 + idx;
+        }
+    }
+    return 0;
+}
+
+void Renderer::plot(int x, int y, float depth, const PlotStyle& s) {
+    ++last_point_count_;  // 계측: 생성 시도한 점 수
+    const int logical_w = width_  * 2;
+    const int logical_h = height_ * 4;
+    if (x < 0 || x >= logical_w || y < 0 || y >= logical_h) return;
+
+    RenderPoint& p = logical_pixels_[y * logical_w + x];
+    if (depth >= p.depth) return;  // 뒤쪽/동일 → 버림 (frontmost 유지 = 기존 zbuffer 시맨틱)
+
+    int band = compute_depth_band(depth);  // 통과한 점만 band/color 계산 (오버드로 절약)
+    const RenderAtom& a = *s.a;
+    p.x = x; p.y = y; p.depth = depth; p.pixel = ' ';
+    p.color_id           = color_from_style(s, band);
+    p.chainID            = a.chain_id;
+    p.structure          = a.structure;
+    p.depth_band         = band;
+    p.bfactor            = a.bfactor;
+    p.is_interface       = a.is_interface;
+    p.is_aligned         = a.is_aligned;
+    p.conservation_score = a.conservation_score;
+    p.residue_number     = a.residue_number;
+    std::strncpy(p.residue_name, a.residue_name, 3);
+    p.residue_name[3]    = '\0';
+}
+
+void Renderer::draw_line_impl(int x1, int x2, int y1, int y2,
                               float z1, float z2,
-                              int chain_id, char structure,
-                              int max_x, int max_y, int half) const {
+                              const PlotStyle& s, int half) {
     int dx = x2 - x1;
     int dy = y2 - y1;
     float dz = z2 - z1;
@@ -75,43 +166,25 @@ void Renderer::draw_line_impl(std::vector<RenderPoint>& out,
     float yInc = (float)dy / steps;
     float zInc = dz / steps;
 
-    float fx = (float)x1;
-    float fy = (float)y1;
-    float fz = z1;
-
+    float fx = (float)x1, fy = (float)y1, fz = z1;
     for (int i = 0; i <= steps; ++i) {
-        int ix = (int)fx;
-        int iy = (int)fy;
-        int band = compute_depth_band(fz);
-
+        int ix = (int)fx, iy = (int)fy;
         for (int oy = -half; oy <= half; oy++) {
             for (int ox = -half; ox <= half; ox++) {
                 if (ox != 0 && oy != 0) continue;
-                int nx = ix + ox, ny = iy + oy;
-                if (nx >= 0 && nx < max_x && ny >= 0 && ny < max_y) {
-                    RenderPoint rp{nx, ny, fz, ' ', 0, chain_id, structure};
-                    rp.depth_band = band;
-                    out.push_back(rp);
-                }
+                plot(ix + ox, iy + oy, fz, s);  // plot 이 경계검사 + z-test 수행
             }
         }
-
-        fx += xInc;
-        fy += yInc;
-        fz += zInc;
+        fx += xInc; fy += yInc; fz += zInc;
     }
 }
 
-void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms,
-                                std::vector<RenderPoint>& out) const {
+void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
     const float nearPlane = 0.05f;
     float fovRads = 1.0f / std::tan((FOV_ / zoom_level_) * 0.5f / 180.0f * PI_);
 
     const int logical_w = width_  * 2;
     const int logical_h = height_ * 4;
-
-    std::vector<RenderPoint> chain_points;
-    chain_points.reserve(8000);
 
     size_t n = atoms.size();
     size_t protein_start = 0;
@@ -121,9 +194,9 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms,
         size_t protein_end = protein_start;
         while (protein_end < n && atoms[protein_end].protein_index == cur_protein)
             ++protein_end;
+        int protein_atoms = (int)(protein_end - protein_start);
 
-        chain_points.clear();
-
+        int chain_color_idx = 0;  // protein 내 chain 순번 (chain 모드)
         size_t chain_start = protein_start;
         while (chain_start < protein_end) {
             int cur_chain = atoms[chain_start].chain_id;
@@ -150,12 +223,15 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms,
                 char structure = a.structure;
                 float projectedX = (x / z) * fovRads + a.pan_x;
                 float projectedY = (y / z) * fovRads + a.pan_y;
-
                 int screenX = (int)((projectedX + 1.0f) * 0.5f * logical_w);
                 int screenY = (int)((1.0f - projectedY) * 0.5f * logical_h);
 
+                // rainbow: protein 내 원자 진행도 (원본 point-index 기반 → atom-index 기반, deviation)
+                int local = (int)((chain_start + i) - protein_start);
+                float frac = (protein_atoms > 1) ? (float)local / (protein_atoms - 1) : 0.0f;
+                PlotStyle style{ &a, cur_protein, chain_color_idx, frac };
+
                 if (prevScreenX != -1 && prevScreenY != -1) {
-                    size_t before_draw = chain_points.size();
                     if (structure != 'H' && structure != 'S') {
                         const RenderAtom& P0 = atoms[chain_start + std::max(0, i - 2)];
                         const RenderAtom& P1 = atoms[chain_start + (i - 1)];
@@ -180,57 +256,24 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms,
                             float cpY = (cy / cz) * fovRads + a.pan_y;
                             int cX = (int)((cpX + 1.0f) * 0.5f * logical_w);
                             int cY = (int)((1.0f - cpY) * 0.5f * logical_h);
-                            draw_line_impl(chain_points, cr_prevX, cX, cr_prevY, cY,
-                                          cr_prevZ, cz, cur_chain, structure,
-                                          logical_w, logical_h, 1);
+                            draw_line_impl(cr_prevX, cX, cr_prevY, cY, cr_prevZ, cz, style, 1);
                             cr_prevX = cX; cr_prevY = cY; cr_prevZ = cz;
                         }
                     } else {
-                        draw_line_impl(chain_points, prevScreenX, screenX, prevScreenY, screenY,
-                                      prevZ, z, cur_chain, structure,
-                                      logical_w, logical_h, 1);
-                    }
-                    for (size_t k = before_draw; k < chain_points.size(); ++k) {
-                        chain_points[k].bfactor            = a.bfactor;
-                        chain_points[k].is_interface       = a.is_interface;
-                        chain_points[k].is_aligned         = a.is_aligned;
-                        chain_points[k].conservation_score = a.conservation_score;
-                        chain_points[k].residue_number     = a.residue_number;
-                        std::strncpy(chain_points[k].residue_name, a.residue_name, 3);
-                        chain_points[k].residue_name[3]    = '\0';
+                        draw_line_impl(prevScreenX, screenX, prevScreenY, screenY, prevZ, z, style, 1);
                     }
                 }
 
                 if (screenX >= 0 && screenX < logical_w && screenY >= 0 && screenY < logical_h) {
-                    int band = compute_depth_band(z);
                     if (structure == 'x') {
-                        RenderPoint rp{screenX, screenY, z, ' ', 0, cur_chain, structure};
-                        rp.bfactor = a.bfactor; rp.is_interface = a.is_interface;
-                        rp.is_aligned = a.is_aligned; rp.conservation_score = a.conservation_score;
-                        rp.residue_number = a.residue_number;
-                        std::strncpy(rp.residue_name, a.residue_name, 3);
-                        rp.residue_name[3] = '\0';
-                        rp.depth_band = band;
-                        chain_points.push_back(rp);
-                        rp.y = screenY - 1;
-                        if (rp.y >= 0) chain_points.push_back(rp);
-                        rp.y = screenY + 1;
-                        if (rp.y < logical_h) chain_points.push_back(rp);
+                        plot(screenX, screenY,     z, style);
+                        plot(screenX, screenY - 1, z, style);
+                        plot(screenX, screenY + 1, z, style);
                     } else {
                         for (int oy = -1; oy <= 1; oy++)
                             for (int ox = -1; ox <= 1; ox++) {
                                 if (ox != 0 && oy != 0) continue;
-                                int nx = screenX + ox, ny = screenY + oy;
-                                if (nx >= 0 && nx < logical_w && ny >= 0 && ny < logical_h) {
-                                    RenderPoint rp{nx, ny, z, ' ', 0, cur_chain, structure};
-                                    rp.bfactor = a.bfactor; rp.is_interface = a.is_interface;
-                                    rp.is_aligned = a.is_aligned; rp.conservation_score = a.conservation_score;
-                                    rp.residue_number = a.residue_number;
-                                    std::strncpy(rp.residue_name, a.residue_name, 3);
-                                    rp.residue_name[3] = '\0';
-                                    rp.depth_band = band;
-                                    chain_points.push_back(rp);
-                                }
+                                plot(screenX + ox, screenY + oy, z, style);
                             }
                     }
                 }
@@ -241,105 +284,9 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms,
             }
 
             chain_start = chain_end;
+            ++chain_color_idx;
         }
-
-        assign_colors_impl(chain_points, cur_protein);
-        out.insert(out.end(), chain_points.begin(), chain_points.end());
 
         protein_start = protein_end;
-    }
-}
-
-void Renderer::assign_colors_impl(std::vector<RenderPoint>& points, int protein_idx) const {
-    if (points.empty()) return;
-
-    if (mode_ == "protein") {
-        int idx = protein_idx % 9;
-        for (auto& pt : points) {
-            if      (pt.depth_band == 0) pt.color_id = idx + 120;
-            else if (pt.depth_band == 1) pt.color_id = idx + 1;
-            else                         pt.color_id = idx + 200;
-        }
-    } else if (mode_ == "chain") {
-        int cur_chain = points[0].chainID;
-        int color_idx = 0;
-        for (auto& pt : points) {
-            if (pt.chainID != cur_chain) { color_idx++; cur_chain = pt.chainID; }
-            int ci = (protein_idx * 10 + color_idx) % 15;
-            if      (pt.depth_band == 0) pt.color_id = 130 + ci;
-            else if (pt.depth_band == 1) pt.color_id = 21  + ci;
-            else                         pt.color_id = 145 + ci;
-        }
-    } else if (mode_ == "rainbow") {
-        int num_points = (int)points.size();
-        for (int i = 0; i < num_points; i++) {
-            int color_idx = (i * 20) / std::max(1, num_points);
-            if      (points[i].depth_band == 0) points[i].color_id = color_idx + 160;
-            else if (points[i].depth_band == 1) points[i].color_id = color_idx + 51;
-            else                                points[i].color_id = color_idx + 180;
-        }
-    } else if (mode_ == "plddt") {
-        for (auto& pt : points) {
-            float plddt = pt.bfactor;
-            int base;
-            if      (plddt >= 90) base = 0;
-            else if (plddt >= 70) base = 1;
-            else if (plddt >= 50) base = 2;
-            else                  base = 3;
-            if      (pt.depth_band == 0) pt.color_id = 209 + base;
-            else if (pt.depth_band == 1) pt.color_id = 71  + base;
-            else                         pt.color_id = 213 + base;
-        }
-    } else if (mode_ == "interface") {
-        for (auto& pt : points) {
-            if      (pt.depth_band == 0) pt.color_id = pt.is_interface ? 237 : 238;
-            else if (pt.depth_band == 1) pt.color_id = pt.is_interface ? 43  : 44;
-            else                         pt.color_id = pt.is_interface ? 239 : 240;
-        }
-    } else if (mode_ == "aligned") {
-        int bright_id = (protein_idx % 9) + 101;
-        int near_id   = (protein_idx % 9) + 241;
-        for (auto& pt : points) {
-            if (pt.is_aligned) {
-                if      (pt.depth_band == 0) pt.color_id = near_id;
-                else if (pt.depth_band == 1) pt.color_id = bright_id;
-                else                         pt.color_id = bright_id;
-            } else {
-                pt.color_id = (pt.depth_band == 2) ? 250 : 110;
-            }
-        }
-    } else if (mode_ == "conservation") {
-        for (auto& pt : points) {
-            float score = pt.conservation_score;
-            if (score < 0) {
-                pt.color_id = 11;
-            } else {
-                int idx = std::max(0, std::min(9, (int)(score * 9.0f)));
-                if      (pt.depth_band == 0) pt.color_id = 217 + idx;
-                else if (pt.depth_band == 1) pt.color_id = 75  + idx;
-                else                         pt.color_id = 227 + idx;
-            }
-        }
-    }
-
-    if (show_structure_ && mode_ == "protein") {
-        int dim_id = (protein_idx % 9) + 11;
-        for (auto& pt : points) {
-            if      (pt.structure == 'H') pt.color_id = 41;
-            else if (pt.structure == 'S') pt.color_id = 42;
-            else                          pt.color_id = dim_id;
-        }
-    }
-}
-
-void Renderer::zbuffer_resolve(const std::vector<RenderPoint>& points) {
-    const int logical_w = width_  * 2;
-    const int logical_h = height_ * 4;
-    for (const auto& pt : points) {
-        if (pt.x < 0 || pt.x >= logical_w || pt.y < 0 || pt.y >= logical_h) continue;
-        int idx = pt.y * logical_w + pt.x;
-        if (pt.depth < logical_pixels_[idx].depth) {
-            logical_pixels_[idx] = pt;
-        }
     }
 }
