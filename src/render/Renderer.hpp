@@ -14,7 +14,7 @@ struct RenderAtom {
     float conservation_score;
     int   residue_number;
     char  residue_name[4];
-    std::string chain_id;
+    int   chain_id = -1;   // 인터닝된 chain index. was std::string
     int   protein_index;
     float pan_x, pan_y;
 };
@@ -64,7 +64,7 @@ private:
     void draw_line_impl(std::vector<RenderPoint>& out,
                         int x1, int x2, int y1, int y2,
                         float z1, float z2,
-                        const std::string& chain_id, char structure,
+                        int chain_id, char structure,
                         int max_x, int max_y, int half) const;
     void project_and_fill(const std::vector<RenderAtom>& atoms,
                           std::vector<RenderPoint>& out) const;
