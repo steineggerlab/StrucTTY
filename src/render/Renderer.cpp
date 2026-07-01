@@ -20,12 +20,23 @@ void Renderer::set_depth_params(float focal_offset, float zoom_level,
 }
 
 void Renderer::render(const std::vector<RenderAtom>& atoms) {
+    t_enter_ = std::chrono::steady_clock::now();  // 계측: clear 이전 시각
     clear();
     std::vector<RenderPoint> final_points;
     final_points.reserve(50000);
+    auto t_clear = std::chrono::steady_clock::now();  // clear() 는 render() 진입부에서 이미 수행됨
+
     project_and_fill(atoms, final_points);
     last_point_count_ = final_points.size();  // 계측
+    auto t_fill = std::chrono::steady_clock::now();
+
     zbuffer_resolve(final_points);
+    auto t_zbuf = std::chrono::steady_clock::now();
+
+    // 계측: render 내부 3분할 (µs). clear 는 render 첫 줄이므로 별도 시각 필요.
+    last_us_clear_ = std::chrono::duration_cast<std::chrono::microseconds>(t_clear - t_enter_).count();
+    last_us_fill_  = std::chrono::duration_cast<std::chrono::microseconds>(t_fill  - t_clear).count();
+    last_us_zbuf_  = std::chrono::duration_cast<std::chrono::microseconds>(t_zbuf  - t_fill ).count();
 }
 
 const std::vector<RenderPoint>& Renderer::get_pixels() const {

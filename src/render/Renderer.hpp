@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <chrono>
+#include <cstdint>
 #include "RenderPoint.hpp"
 
 struct RenderAtom {
@@ -33,6 +35,11 @@ public:
     // (coil→catmull 점 폭발 가설 검증용).
     size_t get_last_point_count() const { return last_point_count_; }
 
+    // 계측용: 직전 render() 내부 3분할 소요시간 (µs).
+    int64_t get_last_us_clear() const { return last_us_clear_; }
+    int64_t get_last_us_fill()  const { return last_us_fill_;  }
+    int64_t get_last_us_zbuf()  const { return last_us_zbuf_;  }
+
 private:
     int         width_, height_;
     std::string mode_;
@@ -44,6 +51,10 @@ private:
 
     std::vector<RenderPoint> logical_pixels_;
     size_t                   last_point_count_ = 0;  // 계측용
+    std::chrono::steady_clock::time_point t_enter_;  // 계측용: render 진입 시각
+    int64_t                  last_us_clear_ = 0;     // 계측용
+    int64_t                  last_us_fill_  = 0;     // 계측용
+    int64_t                  last_us_zbuf_  = 0;     // 계측용
 
     static constexpr float FOV_ = 90.0f;
     static constexpr float PI_  = 3.14159265359f;

@@ -964,6 +964,10 @@ void Screen::draw_screen(bool no_panel) {
         bm->log("ph_calibrate", -1, Benchmark::us_since(t0,       t_cal),    total_len_ca);
         bm->log("ph_torender",  -1, Benchmark::us_since(t_cal,    t_tra),    total_len_ca);
         bm->log("ph_render",    -1, Benchmark::us_since(t_tra,    t_ren),    total_len_ca);
+        // render 내부 3분할 (µs): clear / project_and_fill / zbuffer_resolve
+        bm->log("ph_r_clear",   -1, renderer_.get_last_us_clear(), total_len_ca);
+        bm->log("ph_r_fill",    -1, renderer_.get_last_us_fill(),  total_len_ca);
+        bm->log("ph_r_zbuf",    -1, renderer_.get_last_us_zbuf(),  total_len_ca);
         bm->log("ph_layout",    -1, Benchmark::us_since(t_ren,    t_layout), total_len_ca);
         bm->log("ph_print",     -1, Benchmark::us_since(t_layout, t_print),  total_len_ca);
         bm->log("ph_panel",     -1, Benchmark::us_since(t_print,  t1),       total_len_ca);
