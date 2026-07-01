@@ -62,7 +62,7 @@ int Renderer::compute_depth_band(float z) const {
 void Renderer::draw_line_impl(std::vector<RenderPoint>& out,
                               int x1, int x2, int y1, int y2,
                               float z1, float z2,
-                              const std::string& chain_id, char structure,
+                              int chain_id, char structure,
                               int max_x, int max_y, int half) const {
     int dx = x2 - x1;
     int dy = y2 - y1;
@@ -126,7 +126,7 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms,
 
         size_t chain_start = protein_start;
         while (chain_start < protein_end) {
-            const std::string& cur_chain = atoms[chain_start].chain_id;
+            int cur_chain = atoms[chain_start].chain_id;
             size_t chain_end = chain_start;
             while (chain_end < protein_end && atoms[chain_end].chain_id == cur_chain)
                 ++chain_end;
@@ -261,7 +261,7 @@ void Renderer::assign_colors_impl(std::vector<RenderPoint>& points, int protein_
             else                         pt.color_id = idx + 200;
         }
     } else if (mode_ == "chain") {
-        std::string cur_chain = points[0].chainID;
+        int cur_chain = points[0].chainID;
         int color_idx = 0;
         for (auto& pt : points) {
             if (pt.chainID != cur_chain) { color_idx++; cur_chain = pt.chainID; }
