@@ -41,8 +41,19 @@ public:
     int64_t get_last_us_zbuf()  const { return last_us_zbuf_;  }
 
 private:
+    enum class Mode { Protein, Chain, Rainbow, Plddt, Interface, Aligned, Conservation };
+
+    // 점 하나를 logical_pixels_ 에 기록할 때 필요한 원자 단위 색/속성 컨텍스트.
+    struct PlotStyle {
+        const RenderAtom* a;      // 원자 속성(bfactor/interface/aligned/conservation/residue/structure/chain)
+        int   protein_idx;
+        int   chain_color_idx;    // protein 내 chain 순번 (chain 모드 색)
+        float rainbow_frac;       // 0..1, protein 내 원자 진행도 (rainbow 모드 색)
+    };
+
     int         width_, height_;
     std::string mode_;
+    Mode        mode_id_ = Mode::Protein;
     bool        show_structure_;
     float       focal_offset_     = 3.0f;
     float       zoom_level_       = 2.0f;
@@ -50,24 +61,22 @@ private:
     float       depth_base_max_z_ = 1.0f;
 
     std::vector<RenderPoint> logical_pixels_;
-    size_t                   last_point_count_ = 0;  // 계측용
+    size_t                   last_point_count_ = 0;  // 계측용: 생성 시도한 점 수
     std::chrono::steady_clock::time_point t_enter_;  // 계측용: render 진입 시각
     int64_t                  last_us_clear_ = 0;     // 계측용
     int64_t                  last_us_fill_  = 0;     // 계측용
-    int64_t                  last_us_zbuf_  = 0;     // 계측용
+    int64_t                  last_us_zbuf_  = 0;     // 계측용(직접 rasterize 로 0)
 
     static constexpr float FOV_ = 90.0f;
     static constexpr float PI_  = 3.14159265359f;
 
     void clear();
     int  compute_depth_band(float z) const;
-    void draw_line_impl(std::vector<RenderPoint>& out,
-                        int x1, int x2, int y1, int y2,
+    int  color_from_style(const PlotStyle& s, int band) const;
+    // 점 하나를 logical_pixels_ 에 z-test 후 직접 기록 (통과 시에만 color 계산).
+    void plot(int x, int y, float depth, const PlotStyle& s);
+    void draw_line_impl(int x1, int x2, int y1, int y2,
                         float z1, float z2,
-                        int chain_id, char structure,
-                        int max_x, int max_y, int half) const;
-    void project_and_fill(const std::vector<RenderAtom>& atoms,
-                          std::vector<RenderPoint>& out) const;
-    void assign_colors_impl(std::vector<RenderPoint>& points, int protein_idx) const;
-    void zbuffer_resolve(const std::vector<RenderPoint>& points);
+                        const PlotStyle& s, int half);
+    void project_and_fill(const std::vector<RenderAtom>& atoms);
 };
