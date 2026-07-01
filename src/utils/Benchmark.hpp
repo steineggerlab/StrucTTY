@@ -38,6 +38,11 @@ struct Benchmark {
         return std::chrono::duration_cast<std::chrono::milliseconds>(b - a).count();
     }
 
+    // 서브페이즈 계측용: ms 는 소형 구조에서 0 으로 뭉개지므로 µs 해상도 사용.
+    static inline int64_t us_since(clock::time_point a, clock::time_point b) {
+        return std::chrono::duration_cast<std::chrono::microseconds>(b - a).count();
+    }
+
     void log(const char* tag, int key, int64_t dt_ms, int64_t num_ca = 0, int64_t num_file = 0) {
         if (!enabled) return;
         auto now = clock::now();
@@ -76,5 +81,6 @@ struct Benchmark {
 
         // per-frame render time
         log("frame", -1, render_dt_ms, total_ca, structs);
+        out.flush();  // 부분 실행(중단) 시에도 계측 데이터 보존
     }
 };

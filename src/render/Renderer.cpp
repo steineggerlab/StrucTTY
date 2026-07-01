@@ -24,6 +24,7 @@ void Renderer::render(const std::vector<RenderAtom>& atoms) {
     std::vector<RenderPoint> final_points;
     final_points.reserve(50000);
     project_and_fill(atoms, final_points);
+    last_point_count_ = final_points.size();  // 계측
     zbuffer_resolve(final_points);
 }
 
