@@ -196,18 +196,30 @@ StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12,
 - Structural superposition using U/T rotation-translation matrices
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
+- Multi-query navigation (`]`/`[`) across queries in a single `.m8`
+- Multimer (complex-level) report viewing with per-complex superposition
 
-#### Launch from Foldseek (`--view`)
+#### Launch from Foldseek
 
-Foldseek can launch StrucTTY directly after search completion using the `--view` flag. This automatically passes the query structure, result file, and target database to StrucTTY:
+StrucTTY is **embedded directly into Foldseek as a static library** (`add_subdirectory(lib/structty)`), so no external binary or `PATH` lookup is required — Foldseek calls `structty::run()` in-process.
+
+**Automatic launch after a search** — add the `--view-structty` flag (it takes no value) to any structure search workflow:
 
 ```bash
-foldseek easy-search query.pdb targetDB result.m8 tmp --view 1
-# Equivalent to running:
-# StrucTTY query.pdb --foldseek result.m8 --db targetDB
+foldseek easy-search query.cif targetDir result.m8 tmp --view-structty
+foldseek search queryDB targetDB result tmp --view-structty
+foldseek easy-rbh query.cif targetDir result.m8 tmp --view-structty
 ```
 
-> Requires `StrucTTY` to be available in `PATH`. If not found, Foldseek prints a warning and exits normally — search results are always preserved regardless.
+The viewer opens automatically once the search finishes, reading the query and target structures directly from the search's temporary databases (folder/tar/gz inputs supported). Temporary DBs are kept alive for the viewer and cleaned up after it closes. Supported workflows: `easy-search`, `easy-rbh`, `search`, and `easy-multimersearch`.
+
+**Multimer (complex-level) search** — the viewer works out of the box, since the per-complex report (`--multimer-report-mode 1`) is the default; setting `--multimer-report-mode 0` skips the launch:
+
+```bash
+foldseek easy-multimersearch queryDir targetDir result tmp --view-structty
+```
+
+> If a search runs without `--view-structty`, results are written normally and no viewer is launched.
 
 #### Standalone usage
 
@@ -233,6 +245,24 @@ StrucTTY loads FoldMason MSA results (JSON with Cα coordinates or FASTA) for:
 ### MSA Conservation
 
 Load FASTA or A3M multiple sequence alignments to compute per-residue conservation scores via Shannon entropy, visualized with the `conservation` color mode.
+
+## Performance
+
+StrucTTY renders interactively even for large complexes. The table below measures load time, time-to-first-frame (TTFF), per-frame render time, and input-to-frame latency across structures of increasing size:
+
+| Structure | Cα | Load (ms) | TTFF (ms) | Frame mean (ms) | Frame p95 (ms) | Latency mean (ms) | Latency p95 (ms) |
+|-----------|----:|----------:|----------:|----------------:|---------------:|------------------:|-----------------:|
+| 1CRN | 46 | 8.6 | 142.0 | 0.01 | <0.5 | 0.01 | <0.5 |
+| 1STP | 121 | 16.2 | 296.2 | 0.72 | 1.00 | 0.73 | 1.00 |
+| 3BIK | 446 | 50.2 | 288.6 | 0.99 | 1.00 | 1.00 | 1.00 |
+| 6VXX | 2916 | 253.0 | 1129.4 | 4.01 | 4.00 | 4.01 | 4.00 |
+| 4V4Q | 11463 | 3278.8 | 6383.6 | 14.61 | 16.00 | 14.93 | 16.00 |
+
+- **Frame time stays under the 16 ms (60 fps) budget** even at 11,463 Cα — interaction remains smooth for structures spanning three orders of magnitude in size.
+- **Input latency tracks frame time closely**, so rotation/zoom feels responsive with no perceptible input lag.
+- Load and TTFF scale with atom count; the immediate z-test rasterizer keeps per-frame cost roughly linear in Cα count.
+
+Benchmarks are reproducible via the built-in benchmark mode, which replays a fixed key script and logs per-frame timings to a `structty_bench_*.csv` file.
 
 ## Third-Party Libraries
 
