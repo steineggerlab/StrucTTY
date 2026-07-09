@@ -66,7 +66,7 @@ cmake --build build -j$(nproc)
 ```bash
 ./StrucTTY ../example/1NPL-assembly1.cif --mode chain
 ```
-![1NPL chain mode](.github/StrucTTY_main_1NPL.gif)
+![1NPL chain mode](.github/Single_structure.gif)
 
 ### Secondary structure visualization
 
@@ -74,7 +74,7 @@ cmake --build build -j$(nproc)
 ./StrucTTY ../example/3HGM-assembly1.cif --mode chain
 ./StrucTTY ../example/3HGM-assembly1.cif --mode chain -s
 ```
-![Secondary structure](.github/3HGM_ss_option.gif)
+![Secondary structure](.github/Secondary_structure_visualization.gif)
 
 ### Color modes
 
@@ -82,12 +82,12 @@ cmake --build build -j$(nproc)
 ./StrucTTY ../example/3A0C-assembly1.cif                  # protein (default)
 ./StrucTTY ../example/3A0C-assembly1.cif --mode chain
 ./StrucTTY ../example/3A0C-assembly1.cif --mode rainbow
-./StrucTTY  ../example/colabfold_result/3A0C_e7fa1_unrelaxed_rank_005_alphafold2_ptm_model_5_seed_000.pdb --mode plddt
+./StrucTTY  ../example/test_e7fa1_unrelaxed_rank_003_alphafold2_ptm_model_5_seed_000 --mode plddt
 ./StrucTTY ../example/3A0C-assembly1.cif --mode interface
 ./StrucTTY ../example/3A0C-assembly1.cif --mode conservation \
-  --msa /home/lunajang/src/StrucTTY_luna/example/msa_result/query.a3m
+  --msa ../example/msa_result/query.a3m
 ```
-![Color modes](.github/3A0C_modes.gif)
+![Color modes](.github/Color_modes.gif)
 
 ### Multiple structures
 
@@ -98,11 +98,11 @@ cmake --build build -j$(nproc)
   ../example/3HGM-assembly1.cif \
   ../example/3OAG-assembly1.cif \
   ../example/9FL9-assembly1.cif \
-  ../example/A0A0K2SDS1_CONEP_23_61_90b02_unrelaxed_rank_1_model_5.pdb \
   ../example/AF-A0A233SAX3-F1-model_v6.cif \
-  ../example/AF-E3NU62-F1-model_v4_TED02.pdb
+  ../example/9N47-assembly1.cif \
+  ../example/8KGM-assembly1.cif
 ```
-![Multi-structure comparison](.github/multi_input.gif)
+![Multi-structure comparison](.github/Multiple_structures.gif)
 
 ### Structural alignment with UT matrix
 
@@ -111,7 +111,7 @@ cmake --build build -j$(nproc)
 ./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif \
   -ut ../example/utfile_1npl_3a0c.tsv
 ```
-![UT_Alignment](.github/1NPL_3A0C_ut_aligned.png)
+![UT_Alignment](.github/Structural_alignment_with_UT_matrix.png)
 
 ### Chain selection
 
@@ -119,7 +119,7 @@ cmake --build build -j$(nproc)
 ./StrucTTY ../example/9N47-assembly1.cif -m chain
 ./StrucTTY ../example/9N47-assembly1.cif -c ../example/chainfile_9N47.tsv -m chain
 ```
-![Chain_selection](.github/9N47_chain_select.gif)
+![Chain_selection](.github/Chain_selection.gif)
 
 ### Foldseek hit navigation
 
@@ -128,7 +128,7 @@ cmake --build build -j$(nproc)
   -fs ../example/foldseek_result/alis_afdb50.m8 \
   --db-path /path/to/pdb/
 ```
-![Foldseek_navigation](.github/3A0C_foldseek_hits.gif)
+![Foldseek_navigation](.github/Foldseek_hit_navigation.gif)
 
 ### FoldMason MSA superposition
 
@@ -137,7 +137,6 @@ cmake --build build -j$(nproc)
 ./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb \
   -fm ../example/foldmason_result/foldmason.json -m aligned
 ```
-![FoldMason_superposition](.github/3A0C_L7RCY6_foldmason_aligned.gif)
 
 ## Usage
 
@@ -167,6 +166,8 @@ cmake --build build -j$(nproc)
 | `W` / `A` / `S` / `D` | Move up / left / down / right |
 | `X` / `Y` / `Z` | Rotate around X / Y / Z axis |
 | `R` / `F` | Zoom in / out |
+| `N` / `P` | Next hit / Previous hit |
+| `[` / `]` | Next query / Previous query |
 | `Q` | Quit |
 
 > Mouse hover displays residue information in the info panel.
