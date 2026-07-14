@@ -131,10 +131,12 @@ namespace Palettes {
          23,  24,  24,  18,  18,  18,  54,  54,  90, 127
     };
 
-    // Depth fog: pLDDT near (brighter), pairs 209-212
-    inline const std::array<int, 4> PLDDT_NEAR = {57, 87, 229, 216};
-    // Depth fog: pLDDT far (dark hue-retaining), pairs 213-216
-    inline const std::array<int, 4> PLDDT_FAR = {18, 30, 58, 94};
+    // Depth fog: pLDDT near (brighter, hue-retaining), pairs 209-212
+    // 26->69 #5f87ff, 81->117 #87d7ff, 220->229 #ffffaf, 209->216 #ffaf87
+    inline const std::array<int, 4> PLDDT_NEAR = {69, 117, 229, 216};
+    // Depth fog: pLDDT far (dark, hue-retaining), pairs 213-216
+    // 26->24 #005f87, 81->31 #0087af, 220->58 #5f5f00, 209->95 #875f5f
+    inline const std::array<int, 4> PLDDT_FAR = {24, 31, 58, 95};
 
     // Depth fog: conservation near (brighter), pairs 217-226
     inline const std::array<int, 10> CONSERVATION_NEAR = {57, 63, 69, 75, 85, 157, 192, 229, 221, 210};
@@ -175,10 +177,12 @@ namespace Palettes {
     inline constexpr int ALIGNED_COLOR     = 46;
     inline constexpr int ALIGNED_DIM_COLOR = 58;
 
-    // pLDDT colors: pairs 71-74
-    // 71: Very High (>=90) blue, 72: Confident (70-90) cyan
-    // 73: Low (50-70) yellow, 74: Very Low (<50) orange
-    inline const std::array<int, 4> PLDDT_COLORS = {21, 51, 226, 208};
+    // pLDDT colors: pairs 71-74 (matches AlphaFold DB confidence legend)
+    // 71: Very High (>=90) xterm-26  #005fd7 (dark/royal blue,  official #0053D6)
+    // 72: Confident  (70-90) xterm-81  #5fd7ff (light sky blue,  official #65CBF3)
+    // 73: Low        (50-70) xterm-220 #ffd700 (golden yellow,   official #FFDB13)
+    // 74: Very Low   (<50)   xterm-209 #ff875f (salmon orange,   official #FF7D45)
+    inline const std::array<int, 4> PLDDT_COLORS = {26, 81, 220, 209};
 
     // Conservation gradient: pairs 75-84 (blue→red, 10 steps, variable→conserved)
     inline const std::array<int, 10> CONSERVATION_COLORS = {21, 27, 33, 39, 49, 118, 190, 226, 214, 196};

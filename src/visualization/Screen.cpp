@@ -651,7 +651,9 @@ void Screen::calibrate_depth_baseline_first_view() {
                 float* position = chain_atoms[i].get_position();
                 float x = position[0];
                 float y = position[1];
-                float z = position[2] + focal_offset;
+                // 카메라 Z 부호 통일: Renderer::project_and_fill() 과 동일한 관례 사용
+                // (회전행렬은 +Z가 시청자 쪽인 표준 오른손좌표계를 가정하므로 부호 반전 필요).
+                float z = -position[2] + focal_offset;
 
                 if (z < nearPlane) continue;
 
