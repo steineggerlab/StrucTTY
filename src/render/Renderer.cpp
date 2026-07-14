@@ -212,7 +212,9 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
                 const RenderAtom& a = atoms[chain_start + i];
                 float x = a.x;
                 float y = a.y;
-                float z = a.z + focal_offset_;
+                // 카메라 Z 부호 통일: 회전행렬(Protein::set_rotate)은 표준 오른손좌표계(+Z가 시청자 쪽)를
+                // 가정하므로, 카메라 공간에서는 로컬 Z가 클수록(=시청자에 가까울수록) near가 되어야 함.
+                float z = -a.z + focal_offset_;
 
                 if (z < nearPlane) {
                     prevScreenX = prevScreenY = -1;
@@ -248,9 +250,11 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
                             float cy = 0.5f * ((-P0.y + 3*P1.y - 3*P2.y + P3.y)*t3
                                              + ( 2*P0.y - 5*P1.y + 4*P2.y - P3.y)*t2
                                              + (-P0.y + P2.y)*t + 2*P1.y);
-                            float cz = 0.5f * ((-P0.z + 3*P1.z - 3*P2.z + P3.z)*t3
+                            // 카메라 Z 부호 통일: 위 단일-원자 투영과 동일하게 블렌드된 로컬 Z 전체를
+                            // 음수화한 뒤 focal_offset_ 를 더함 (focal_offset_ 자체는 부호 반전 대상 아님).
+                            float cz = -(0.5f * ((-P0.z + 3*P1.z - 3*P2.z + P3.z)*t3
                                              + ( 2*P0.z - 5*P1.z + 4*P2.z - P3.z)*t2
-                                             + (-P0.z + P2.z)*t + 2*P1.z) + focal_offset_;
+                                             + (-P0.z + P2.z)*t + 2*P1.z)) + focal_offset_;
                             if (cz < nearPlane) break;
                             float cpX = (cx / cz) * fovRads + a.pan_x;
                             float cpY = (cy / cz) * fovRads + a.pan_y;
