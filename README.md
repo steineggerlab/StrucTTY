@@ -137,6 +137,7 @@ cmake --build build -j$(nproc)
 ./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb \
   -fm ../example/foldmason_result/foldmason.json -m aligned
 ```
+![FoldMason_alignment](.github/FoldMason_MSA_superposition.png)
 
 ## Usage
 
