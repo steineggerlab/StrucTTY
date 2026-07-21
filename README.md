@@ -254,11 +254,11 @@ StrucTTY renders interactively even for large complexes. The table below measure
 
 | Structure | Cα | Load (ms) | TTFF (ms) | Frame mean (ms) | Frame p95 (ms) | Latency mean (ms) | Latency p95 (ms) |
 |-----------|----:|----------:|----------:|----------------:|---------------:|------------------:|-----------------:|
-| 1CRN | 46 | 8.6 | 142.0 | 0.01 | <0.5 | 0.01 | <0.5 |
-| 1STP | 121 | 16.2 | 296.2 | 0.72 | 1.00 | 0.73 | 1.00 |
-| 3BIK | 446 | 50.2 | 288.6 | 0.99 | 1.00 | 1.00 | 1.00 |
-| 6VXX | 2916 | 253.0 | 1129.4 | 4.01 | 4.00 | 4.01 | 4.00 |
-| 4V4Q | 11463 | 3278.8 | 6383.6 | 14.61 | 16.00 | 14.93 | 16.00 |
+| 1CRN | 46 | 5.4 | 44.6 | <0.5 | <0.5 | <0.5 | <0.5 |
+| 1STP | 121 | 12.4 | 106.0 | <0.5 | <0.5 | <0.5 | <0.5 |
+| 3BIK | 446 | 47.0 | 205.8 | 0.01 | <0.5 | 0.01 | <0.5 |
+| 6VXX | 2916 | 255.0 | 894.4 | 2.97 | 3.00 | 2.99 | 3.00 |
+| 4V4Q | 11463 | 3336.8 | 6199.2 | 13.36 | 14.00 | 13.68 | 14.80 |
 
 - **Frame time stays under the 16 ms (60 fps) budget** even at 11,463 Cα — interaction remains smooth for structures spanning three orders of magnitude in size.
 - **Input latency tracks frame time closely**, so rotation/zoom feels responsive with no perceptible input lag.
