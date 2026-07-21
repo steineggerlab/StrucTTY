@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/logo_temp.png" alt="StrucTTY Logo" width="320"/>
+  <img src=".github/logo_final.png" alt="StrucTTY Logo" width="320"/>
 </p>
 
 <h1 align="center">StrucTTY</h1>
