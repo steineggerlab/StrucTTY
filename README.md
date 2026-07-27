@@ -53,8 +53,9 @@ Supported platforms: **Linux**, **macOS**
 ```bash
 git clone --recurse-submodules https://github.com/steineggerlab/StrucTTY.git
 cd StrucTTY
-cmake -B build
-cmake --build build -j$(nproc)
+mkdir build && cd build
+cmake ../ -DCMAKE_BUILD_TYPE=Release
+make -j $(nproc)
 ```
 
 > The output binary will be generated at `build/StrucTTY`.
@@ -82,7 +83,7 @@ cmake --build build -j$(nproc)
 ./StrucTTY ../example/3A0C-assembly1.cif                  # protein (default)
 ./StrucTTY ../example/3A0C-assembly1.cif --mode chain
 ./StrucTTY ../example/3A0C-assembly1.cif --mode rainbow
-./StrucTTY  ../example/test_e7fa1_unrelaxed_rank_003_alphafold2_ptm_model_5_seed_000 --mode plddt
+./StrucTTY  ../example/3A0C-assembly1_colabfold.pdb --mode plddt
 ./StrucTTY ../example/3A0C-assembly1.cif --mode interface
 ./StrucTTY ../example/3A0C-assembly1.cif --mode conservation \
   --msa ../example/msa_result/query.a3m
@@ -103,15 +104,6 @@ cmake --build build -j$(nproc)
   ../example/8KGM-assembly1.cif
 ```
 ![Multi-structure comparison](.github/Multiple_structures.gif)
-
-### Structural alignment with UT matrix
-
-```bash
-./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif
-./StrucTTY ../example/1NPL-assembly1.cif ../example/3A0C-assembly1.cif \
-  -ut ../example/utfile_1npl_3a0c.tsv
-```
-![UT_Alignment](.github/Structural_alignment_with_UT_matrix.png)
 
 ### Chain selection
 
