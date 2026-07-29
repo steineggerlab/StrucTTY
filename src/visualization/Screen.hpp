@@ -64,10 +64,9 @@ public:
                              const std::string& target_db_path,
                              const bool& show_structure);
 
-    void normalize_proteins(const std::string& utmatrix);
+    void normalize_proteins();
 
     void set_tmatrix();
-    void set_utmatrix(const std::string& utmatrix, bool onlyU);
     void set_chainfile(const std::string& chainfile, int filesize);
     void set_zoom_level(float zoom);
 
@@ -231,8 +230,8 @@ private:
     std::unique_ptr<FoldMasonParser> foldmason_parser;
     float norm_scale = 1.0f;   // normalize_proteins() 에서 저장
     float norm_cx = 0.0f;      // 정규화 시 실제로 shift 에 사용한 centroid
-    float norm_cy = 0.0f;      //   비-UT → query(data[0]) 자기 centroid
-    float norm_cz = 0.0f;      //   UT    → 전체 bounding box 중심
+    float norm_cy = 0.0f;      //   = query(data[0]) 자기 centroid
+    float norm_cz = 0.0f;
     float rot_pivot_[3] = {0.f, 0.f, 0.f}; // yesUT 회전 pivot: 정규화 후 씬 중심이 원점이므로 항상 {0,0,0}
 
     void calibrate_depth_baseline_first_view();

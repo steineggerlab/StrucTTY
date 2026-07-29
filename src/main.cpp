@@ -13,7 +13,6 @@ int main(int argc, char* argv[]) {
     opts.no_panel       = params.get_no_panel();
     opts.benchmark      = params.get_benchmark_mode();
     opts.chains_file    = params.get_chainfile();
-    opts.ut_matrix_file = params.get_utmatrix();
     opts.msa_file       = params.get_msa_file();
     opts.foldseek_file  = params.get_foldseek_file();
     opts.foldseek_db_path = params.get_db_path();

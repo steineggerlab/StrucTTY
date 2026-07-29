@@ -86,7 +86,7 @@ public:
                                           float threshold = 10.0f,
                                           bool skip_distance_check = false);
 
-    // 기능 4: nearest-neighbor 기반 (-ut 단독 사용 fallback)
+    // 기능 4: nearest-neighbor 기반 (정렬 문자열이 없는 hit 용 fallback)
     void compute_aligned_regions_nn(Protein& other, float threshold = 10.0f);
 
     // 기능 5: 0-based 인덱스 순서로 conservation_score를 init_atoms에 적용 후 screen_atoms에 전파

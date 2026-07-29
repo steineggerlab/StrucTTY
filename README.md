@@ -142,7 +142,6 @@ make -j $(nproc)
 | `-m, --mode <MODE>` | Color mode: `protein` (default), `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `aligned` |
 | `-c, --chains <FILE>` | Chain selection file (TSV: index + chain IDs) |
 | `-s, --structure` | Show secondary structure (helix/sheet) |
-| `-ut, --utmatrix <FILE>` | Apply rotation/translation matrix for alignment |
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
 | `-fs, --foldseek <FILE>` | Foldseek `.m8` result for hit navigation |
 | `--db <PATH>` | Foldseek structure database path for offline Cα coordinate reading |

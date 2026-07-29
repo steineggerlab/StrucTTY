@@ -8,7 +8,6 @@ void print_help(){
     std::cout << "                            plddt, interface, conservation, aligned\n";
     std::cout << "  -c, --chains <FILE>     Show only selected chains (see example/chainfile)\n";
     std::cout << "  -s, --structure         Show secondary structure (alpha helix, beta sheet)\n";
-    std::cout << "  -ut, --utmatrix <FILE>  Apply rotation/translation matrix (see example/utfile)\n";
     std::cout << "  --msa <FILE>            MSA file for conservation score (FASTA/A3M)\n";
     std::cout << "  -fs, --foldseek <FILE>  Foldseek result file for hit navigation\n";
     std::cout << "  --db-path <DIR>         Target PDB directory for Foldseek hit loading\n";
@@ -62,12 +61,6 @@ Parameters::Parameters(int argc, char* argv[]) {
                 show_structure = true;
             } else if (!strcmp(argv[i], "-n") || !strcmp(argv[i], "--nopanel")) {
                 no_panel = true;
-            } else if (!strcmp(argv[i], "-ut") || !strcmp(argv[i], "--utmatrix")) {
-                if (i + 1 < argc) {
-                    utmatrix = argv[++i];
-                } else {
-                    throw std::runtime_error("Error: Missing value for -ut / --utmatrix.");
-                }
             } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 9){
                 in_file.push_back(argv[i]);
             } else if (!strcmp(argv[i], "--msa")) {
@@ -141,7 +134,6 @@ void Parameters::print_args() {
         std::cout << "\t" << in_file[i] << '\n';
     }
     cout << "  mode: " << mode << endl;
-    cout << "  utmatrix: " << utmatrix << endl;
     cout << "  chainfile: " << chainfile << endl;
     cout << "  show_structure: " << show_structure << endl;
     cout << "  benchmark_mode: " << benchmark_mode << endl;
