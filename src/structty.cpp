@@ -102,10 +102,7 @@ void run(const RunOptions& opts) {
         screen.set_protein(opts.input_files[i], i, opts.show_structure);
     }
     screen.set_tmatrix();
-    if (!opts.ut_matrix_file.empty()) {
-        screen.set_utmatrix(opts.ut_matrix_file, 0);
-    }
-    screen.normalize_proteins(opts.ut_matrix_file);
+    screen.normalize_proteins();
     screen.update_total_len_ca();
 
     // 기능 1: interface 모드일 때 inter-chain interface 계산 (threshold=8.0Å)
@@ -113,7 +110,7 @@ void run(const RunOptions& opts) {
         screen.compute_interface_all();
     }
 
-    // 기능 4: aligned 모드 — -ut 만 있는 경우 (nearest-neighbor fallback)
+    // 기능 4: aligned 모드 — foldseek/FoldMason 결과가 없는 경우 (nearest-neighbor fallback)
     if (opts.mode == "aligned" && opts.foldseek_file.empty() && opts.foldmason_file.empty()) {
         screen.compute_aligned_all();
     }

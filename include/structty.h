@@ -12,7 +12,6 @@ struct RunOptions {
     bool benchmark          = false;
 
     std::string chains_file;
-    std::string ut_matrix_file;
     std::string msa_file;
     std::string foldseek_file;
     std::string foldseek_db_path;  // --db-path (PDB download directory)

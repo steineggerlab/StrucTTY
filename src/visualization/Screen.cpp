@@ -154,7 +154,7 @@ void Screen::activate_query(int idx) {
     // normalize_proteins() recomputes norm_scale / centroid from data[0] and
     // re-adds the query panel entry (entries were cleared above).
     set_tmatrix();
-    normalize_proteins("");
+    normalize_proteins();
     update_total_len_ca();
 
     // Set this query's hit list and load its first target (which applies the
@@ -458,77 +458,7 @@ void Screen::set_chainfile(const std::string& chainfile, int filesize) {
     file.close();
 }
 
-void Screen::set_utmatrix(const std::string& utmatrix, bool applyUT) {
-    yesUT = !utmatrix.empty();
-
-    const size_t filenum = data.size();
-    float** matrixpointer = new float*[filenum];
-    for (size_t i = 0; i < filenum; i++) {
-        matrixpointer[i] = new float[9];
-        for (int j = 0; j < 9; j++) {
-            matrixpointer[i][j] = (j % 4 == 0) ? 1.f : 0.f; // identity
-        }
-    }
-
-    if (utmatrix.empty()) {
-        for (size_t i = 0; i < filenum; i++) delete[] matrixpointer[i];
-        delete[] matrixpointer;
-        return;
-    }
-
-    std::ifstream file(utmatrix);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open utmatrix file\n";
-        for (size_t i = 0; i < filenum; i++) delete[] matrixpointer[i];
-        delete[] matrixpointer;
-        return;
-    }
-
-    std::string line;
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-
-        std::istringstream iss(line);
-        int index;
-        std::string mat9Str;
-        std::string mat3Str;
-
-        iss >> index >> mat9Str >> mat3Str;
-        if (index < 0 || index >= (int)filenum) continue;
-
-        {
-            std::istringstream mss(mat9Str);
-            std::string val;
-            int count = 0;
-            while (std::getline(mss, val, ',') && count < 9) {
-                matrixpointer[index][count++] = std::stof(val);
-            }
-        }
-
-        {
-            std::istringstream mss(mat3Str);
-            std::string val;
-            int count = 0;
-            while (std::getline(mss, val, ',') && count < 3) {
-                vectorpointer[index][count++] = std::stof(val);
-            }
-        }
-    }
-
-    if (applyUT) {
-        for (size_t i = 0; i < filenum; i++) {
-            data[i]->do_naive_rotation(matrixpointer[i]); // U → screen_atoms
-            data[i]->do_shift(vectorpointer[i]);          // T → screen_atoms
-            data[i]->apply_ut_to_init_atoms(matrixpointer[i], vectorpointer[i]); // U,T → init_atoms
-        }
-    }
-
-    for (size_t i = 0; i < filenum; i++) delete[] matrixpointer[i];
-    delete[] matrixpointer;
-}
-
-void Screen::normalize_proteins(const std::string& utmatrix) {
-    const bool hasUT = !utmatrix.empty();
+void Screen::normalize_proteins() {
     for (size_t i = 0; i < data.size(); i++) {
         auto* p = data[i];
         // Cα-only proteins (loaded from a Foldseek DB via load_from_ca, e.g. the
@@ -540,10 +470,6 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         panel->add_panel_info(p->get_file_name(),
                               p->get_chain_length(),
                               p->get_residue_count());
-    }
-
-    if (hasUT) {
-        set_utmatrix(utmatrix, true);
     }
 
     global_bb = BoundingBox();
@@ -564,22 +490,7 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
     float applied_cy = 0.0f;
     float applied_cz = 0.0f;
 
-    if (hasUT) {
-        const float gx = 0.5f * (global_bb.min_x + global_bb.max_x);
-        const float gy = 0.5f * (global_bb.min_y + global_bb.max_y);
-        const float gz = 0.5f * (global_bb.min_z + global_bb.max_z);
-        float global_shift[3] = { -gx, -gy, -gz };
-
-        for (auto* p : data) {
-            p->set_scale(scale);
-            p->do_shift(global_shift);
-            p->do_scale(scale);
-        }
-
-        applied_cx = gx;
-        applied_cy = gy;
-        applied_cz = gz;
-    } else {
+    {
         for (auto* p : data) {
             // set_scale() 이 bounding box 중심을 cx/cy/cz 에 채운다. 따라서 center_shift 는
             // set_scale() 이후에 계산해야 한다. (이전에는 먼저 캡처해서 생성자 초기값 0 이
@@ -590,9 +501,9 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
             p->do_scale(scale);
         }
 
-        // 비-UT 경로는 단백질마다 자기 centroid 로 shift 한다. hit 변환의 기준은
-        // query(data[0]) 이므로 그 값을 남긴다. set_scale() 이 이미 실행됐으므로
-        // data[0]->cx 는 shift 에 사용한 centroid 와 같은 값이다.
+        // 단백질마다 자기 centroid 로 shift 한다. hit 변환의 기준은 query(data[0])
+        // 이므로 그 값을 남긴다. set_scale() 이 이미 실행됐으므로 data[0]->cx 는
+        // shift 에 사용한 centroid 와 같은 값이다.
         if (!data.empty() && data[0]) {
             applied_cx = data[0]->cx;
             applied_cy = data[0]->cy;
@@ -608,7 +519,7 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
     norm_cy = applied_cy;
     norm_cz = applied_cz;
 
-    // 두 경로 모두 정규화 후 씬 중심이 원점이므로 회전 pivot 은 원점이다
+    // 정규화 후 씬 중심이 원점이므로 회전 pivot 은 원점이다
     // (normalize_complex() 의 멀티머 경로와 동일).
     rot_pivot_[0] = 0.f;
     rot_pivot_[1] = 0.f;
@@ -632,7 +543,7 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
         default: cols=3; rows=(n+2)/3; break;
     }
 
-    if (n > 1 && !hasUT) {
+    if (n > 1) {
         int max_dim = std::max(cols, rows);
         float step      = (max_dim == 2) ? 0.75f : 0.5f;
         float foc_scale = (max_dim == 2) ? 0.8f  : 0.6f;

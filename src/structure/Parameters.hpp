@@ -16,7 +16,6 @@ class Parameters{
         bool arg_okay = true;
         bool benchmark_mode = false;
         vector<string> in_file;
-        string utmatrix = "";
         string chainfile = "";
         string mode = "protein";
         string msa_file = "";
@@ -43,9 +42,6 @@ class Parameters{
         }
         string get_chainfile(){
             return chainfile;
-        }
-        string get_utmatrix(){
-            return utmatrix;
         }
         string get_mode(){
             return mode;
