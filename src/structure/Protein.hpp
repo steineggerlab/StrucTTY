@@ -75,9 +75,14 @@ public:
     void apply_ut_to_init_atoms(const float* U, const float* T);
 
     // 기능 4: alignment string 기반 (Foldseek qaln/taln 사용)
+    // q_start/t_start: qaln/taln 이 시작하는 잔기 번호 (1-based, Foldseek qstart/tstart).
+    //   부분 정렬에서 이 오프셋을 빼면 착색 위치가 q_start-1 만큼 밀린다.
+    //   서열 전체를 덮는 정렬(FoldMason MSA 열 등)은 1, 1 을 넘긴다.
     void compute_aligned_regions_from_aln(Protein& other,
                                           const std::string& qaln,
                                           const std::string& taln,
+                                          int q_start = 1,
+                                          int t_start = 1,
                                           float threshold = 10.0f,
                                           bool skip_distance_check = false);
 

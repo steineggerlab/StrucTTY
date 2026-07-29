@@ -88,7 +88,9 @@ public:
                                   const float* T_angstrom = nullptr);
 
     // 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
+    // q_start/t_start: Foldseek qstart/tstart (1-based). 전체 서열 정렬은 1, 1.
     void compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
+                                  int q_start = 1, int t_start = 1,
                                   float threshold = 5.0f,
                                   bool skip_distance_check = false);
 
@@ -228,10 +230,10 @@ private:
     // 기능 8: FoldMason MSA
     std::unique_ptr<FoldMasonParser> foldmason_parser;
     float norm_scale = 1.0f;   // normalize_proteins() 에서 저장
-    float norm_cx = 0.0f;      // query protein 정규화 전 centroid
-    float norm_cy = 0.0f;
-    float norm_cz = 0.0f;
-    float rot_pivot_[3] = {0.f, 0.f, 0.f}; // yesUT 회전 pivot: 비-UT → norm_c*norm_scale, UT/multimer → {0,0,0}
+    float norm_cx = 0.0f;      // 정규화 시 실제로 shift 에 사용한 centroid
+    float norm_cy = 0.0f;      //   비-UT → query(data[0]) 자기 centroid
+    float norm_cz = 0.0f;      //   UT    → 전체 bounding box 중심
+    float rot_pivot_[3] = {0.f, 0.f, 0.f}; // yesUT 회전 pivot: 정규화 후 씬 중심이 원점이므로 항상 {0,0,0}
 
     void calibrate_depth_baseline_first_view();
 
