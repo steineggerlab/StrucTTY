@@ -657,6 +657,8 @@ void Protein::compute_aligned_regions_nn(Protein& other, float threshold) {
 void Protein::compute_aligned_regions_from_aln(Protein& other,
                                                const std::string& qaln,
                                                const std::string& taln,
+                                               int q_start,
+                                               int t_start,
                                                float threshold,
                                                bool skip_distance_check) {
     if (qaln.size() != taln.size()) return;
@@ -690,8 +692,9 @@ void Protein::compute_aligned_regions_from_aln(Protein& other,
         }
     }
 
-    int q_idx = 0;
-    int t_idx = 0;
+    // qaln/taln 은 q_start/t_start 잔기(1-based)에서 시작한다. 0 이하 값은 1로 취급.
+    int q_idx = (q_start > 1) ? (q_start - 1) : 0;
+    int t_idx = (t_start > 1) ? (t_start - 1) : 0;
     const int q_size = (int)query_cas.size();
     const int t_size = (int)target_cas.size();
 
