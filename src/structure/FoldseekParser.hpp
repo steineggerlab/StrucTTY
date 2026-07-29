@@ -5,8 +5,13 @@
 
 // 기능 3/4: Foldseek 결과 파일(.m8) 파싱
 // 지원 포맷:
-//   12 cols: 기본 m8 (qaln/taln/U/T 없음)
+//   12 cols: 기본 m8 (qaln/taln/U/T 없음) — foldseek easy-search 기본 출력
 //   17 cols: 축소 형식 (qaln/taln 포함, U/T 없음)
+//            = foldseek --format-output query,target,fident,alnlen,mismatch,gapopen,
+//              qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln
+//            foldseek `--view-structty` 가 뷰어에 넘기는 viewer m8 포맷.
+//            컬럼 순서가 이와 다르면 lddt/qtmscore 가 뒤바뀌고 qaln/taln 을 숫자로 읽는다.
+//            생성에는 검색 단계의 backtrace(`-a`)가 필요하다.
 //   21 cols: alis 포맷 (alns, tseq, taxid, taxname 포함, U/T 없음) ← Foldseek easy-search 기본 출력
 //   29 cols: 전체 형식 (U(9), T(3), qaln, taln 포함)
 
