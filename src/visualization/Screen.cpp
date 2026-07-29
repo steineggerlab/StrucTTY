@@ -557,10 +557,17 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
     max_ext = std::max(max_ext, global_bb.max_z - global_bb.min_z);
     float scale = (max_ext > 0.f) ? (2.0f / max_ext) : 1.0f;
 
+    // hit 변환 공식(load_next_hit / apply_hit_transform / transform_target_chain)은
+    // "query 는 norm_c* 만큼 shift 된 뒤 norm_scale 로 스케일됐다" 를 전제한다.
+    // 따라서 실제로 shift 에 사용한 값을 그대로 norm_c* 로 남긴다.
+    float applied_cx = 0.0f;
+    float applied_cy = 0.0f;
+    float applied_cz = 0.0f;
+
     if (hasUT) {
-        float gx = 0.5f * (global_bb.min_x + global_bb.max_x);
-        float gy = 0.5f * (global_bb.min_y + global_bb.max_y);
-        float gz = 0.5f * (global_bb.min_z + global_bb.max_z);
+        const float gx = 0.5f * (global_bb.min_x + global_bb.max_x);
+        const float gy = 0.5f * (global_bb.min_y + global_bb.max_y);
+        const float gz = 0.5f * (global_bb.min_z + global_bb.max_z);
         float global_shift[3] = { -gx, -gy, -gz };
 
         for (auto* p : data) {
@@ -568,12 +575,28 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
             p->do_shift(global_shift);
             p->do_scale(scale);
         }
+
+        applied_cx = gx;
+        applied_cy = gy;
+        applied_cz = gz;
     } else {
         for (auto* p : data) {
-            float center_shift[3] = { -p->cx, -p->cy, -p->cz };
+            // set_scale() 이 bounding box 중심을 cx/cy/cz 에 채운다. 따라서 center_shift 는
+            // set_scale() 이후에 계산해야 한다. (이전에는 먼저 캡처해서 생성자 초기값 0 이
+            // 들어가 중심 이동이 무효였고, 체인 단위 입력이 화면 밖으로 밀렸다)
             p->set_scale(scale);
+            float center_shift[3] = { -p->cx, -p->cy, -p->cz };
             p->do_shift(center_shift);
             p->do_scale(scale);
+        }
+
+        // 비-UT 경로는 단백질마다 자기 centroid 로 shift 한다. hit 변환의 기준은
+        // query(data[0]) 이므로 그 값을 남긴다. set_scale() 이 이미 실행됐으므로
+        // data[0]->cx 는 shift 에 사용한 centroid 와 같은 값이다.
+        if (!data.empty() && data[0]) {
+            applied_cx = data[0]->cx;
+            applied_cy = data[0]->cy;
+            applied_cz = data[0]->cz;
         }
     }
 
@@ -581,19 +604,15 @@ void Screen::normalize_proteins(const std::string& utmatrix) {
 
     // 기능 3: 정규화 파라미터 저장 (hit 탐색 시 동일 스케일 적용)
     norm_scale = scale;
-    if (!data.empty() && data[0]) {
-        // cx/cy/cz는 set_bounding_box() 이후, do_shift() 이전 값
-        // normalize_proteins() 의 non-UT 경로에서 -p->cx, -p->cy, -p->cz 로 shift
-        // 여기서는 shift 이전의 centroid를 저장해야 하므로 do_shift 전에 저장
-        // 하지만 이미 do_shift가 호출됐으므로 cx,cy,cz는 변경 전 값 그대로 있음
-        norm_cx = data[0]->cx;
-        norm_cy = data[0]->cy;
-        norm_cz = data[0]->cz;
-    }
+    norm_cx = applied_cx;
+    norm_cy = applied_cy;
+    norm_cz = applied_cz;
 
-    rot_pivot_[0] = hasUT ? 0.f : norm_cx * norm_scale;
-    rot_pivot_[1] = hasUT ? 0.f : norm_cy * norm_scale;
-    rot_pivot_[2] = hasUT ? 0.f : norm_cz * norm_scale;
+    // 두 경로 모두 정규화 후 씬 중심이 원점이므로 회전 pivot 은 원점이다
+    // (normalize_complex() 의 멀티머 경로와 동일).
+    rot_pivot_[0] = 0.f;
+    rot_pivot_[1] = 0.f;
+    rot_pivot_[2] = 0.f;
 
     float radius = compute_scene_radius_from_render_positions(data);
 
@@ -1223,16 +1242,18 @@ void Screen::compute_aligned_all(float threshold) {
         for (Protein* p : data) {
             if (p) p->compute_aligned_regions_nn(*p, threshold);
         }
-        return;
-    }
-    for (size_t i = 0; i < data.size(); ++i) {
-        for (size_t j = i + 1; j < data.size(); ++j) {
-            if (data[i] && data[j]) {
-                data[i]->compute_aligned_regions_nn(*data[j], threshold);
+    } else {
+        for (size_t i = 0; i < data.size(); ++i) {
+            for (size_t j = i + 1; j < data.size(); ++j) {
+                if (data[i] && data[j]) {
+                    data[i]->compute_aligned_regions_nn(*data[j], threshold);
+                }
             }
         }
     }
-    panel->set_align_method("nearest-nbr");
+    // 정렬 문자열이 아니라 거리 기반 판정임을 패널에 정직하게 표시한다.
+    // (기존에는 단백질이 1개일 때 early return 하면서 라벨이 누락됐다)
+    if (panel) panel->set_align_method("nearest-nbr");
 }
 
 // 기능 4: -fs 기반 — Foldseek hit의 U/T transform을 지정 protein에 적용
@@ -1266,9 +1287,12 @@ void Screen::apply_foldseek_transform(int protein_idx, const float* U_flat,
 
 // 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
 void Screen::compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
+                                      int q_start, int t_start,
                                       float threshold, bool skip_distance_check) {
     if ((int)data.size() < 2 || !data[0] || !data[1]) return;
-    data[0]->compute_aligned_regions_from_aln(*data[1], qaln, taln, threshold, skip_distance_check);
+    data[0]->compute_aligned_regions_from_aln(*data[1], qaln, taln,
+                                             q_start, t_start,
+                                             threshold, skip_distance_check);
 }
 
 // 기능 4: 패널에 정렬 방식 표시 설정
@@ -1760,9 +1784,12 @@ void Screen::load_next_hit(int delta) {
     // aligned 모드일 때 is_aligned 계산
     if (screen_mode == "aligned") {
         if (hit.has_aln) {
-            compute_aligned_from_aln(hit.qaln, hit.taln, 5.0f, true);
+            // qaln/taln 은 hit.qstart/hit.tstart 잔기에서 시작한다
+            compute_aligned_from_aln(hit.qaln, hit.taln, hit.qstart, hit.tstart, 5.0f, true);
             set_align_method("aln-string");
         } else {
+            // 정렬 문자열이 없는 포맷(12컬럼 등): 최근접 이웃 폴백.
+            // compute_aligned_all() 이 패널 라벨을 "nearest-nbr" 로 설정한다.
             compute_aligned_all();
         }
     }
@@ -1942,7 +1969,9 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
     if (screen_mode == "aligned") {
         if (hit.has_aln) {
             data[0]->compute_aligned_regions_from_aln(
-                *data[target_protein_idx], hit.qaln, hit.taln, 5.0f, true);
+                *data[target_protein_idx], hit.qaln, hit.taln,
+                hit.qstart, hit.tstart, 5.0f, true);
+            set_align_method("aln-string");
         } else {
             compute_aligned_all();
         }
@@ -2036,11 +2065,12 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
     // aligned 모드일 때 is_aligned 잔기 설정
     // MSA aa strings을 qaln/taln으로 사용 (gap 형식 동일)
     if (screen_mode == "aligned") {
+        // MSA aa 문자열은 서열 전체를 덮으므로 시작 오프셋은 1, 1
         data[query_protein_idx]->compute_aligned_regions_from_aln(
             *data[target_protein_idx],
             entries[fm_query_entry_idx].aa,
             entries[fm_target_entry_idx].aa,
-            5.0f, true);
+            1, 1, 5.0f, true);
         set_align_method("msa-col");
     }
 
