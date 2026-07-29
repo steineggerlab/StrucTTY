@@ -38,7 +38,17 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& pixels, int width
                 if (cid <= 0) {
                 } else {
                     int xterm;
-                    if      (cid >= 1  && cid <= 9)    xterm = Palettes::PROTEIN_COLORS[cid - 1];
+                    if      (cid == 10)                xterm = Palettes::CONSERVATION_UNSCORED_NEAR;
+                    else if (cid == 20)                xterm = Palettes::CONSERVATION_UNSCORED_FAR;
+                    else if (cid == 36)                xterm = Palettes::CONSERVATION_UNSCORED_MID;
+                    else if (cid == 47)                xterm = Palettes::SS_HELIX_NEAR;
+                    else if (cid == 48)                xterm = Palettes::SS_HELIX_FAR;
+                    else if (cid == 49)                xterm = Palettes::SS_SHEET_NEAR;
+                    else if (cid == 50)                xterm = Palettes::SS_SHEET_FAR;
+                    else if (cid >= 85 && cid <= 93)   xterm = Palettes::PROTEIN_COIL_FAR[cid - 85];
+                    else if (cid == 111)               xterm = Palettes::ALIGNED_NONALIGNED_NEAR;
+                    else if (cid >= 251 && cid <= 259) xterm = Palettes::ALIGNED_BRIGHT_FAR[cid - 251];
+                    else if (cid >= 1  && cid <= 9)    xterm = Palettes::PROTEIN_COLORS[cid - 1];
                     else if (cid >= 11 && cid <= 19)   xterm = Palettes::PROTEIN_DIM_COLORS[cid - 11];
                     else if (cid >= 21 && cid <= 35)   xterm = Palettes::CHAIN_COLORS[cid - 21];
                     else if (cid == 41)                xterm = 226;  // yellow helix

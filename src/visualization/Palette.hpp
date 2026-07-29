@@ -165,6 +165,51 @@ namespace Palettes {
     // aligned dim far = darker gray
     inline constexpr int ALIGNED_NONALIGNED_FAR = 235;  // xterm-235 #262626
 
+    // Depth fog: aligned far, pairs 251-259.
+    // PROTEIN_BRIGHT(101-109) 보다 어둡고 PROTEIN_FAR(200-208) 보다는 밝게 —
+    // 멀리 있어도 "정렬됨" 이 구분되도록 색상은 유지하고 명도만 낮춘다.
+    inline const std::array<int, 9> ALIGNED_BRIGHT_FAR = {
+        106,  // 251  olive aligned far     #87af00
+         73,  // 252  turquoise aligned far #5fafaf
+         26,  // 253  navy aligned far      #005fd7
+         98,  // 254  purple aligned far    #875fd7
+        176,  // 255  pink aligned far      #d787d7
+        173,  // 256  coral aligned far     #d7875f
+        137,  // 257  brown aligned far     #af875f
+        172,  // 258  orange aligned far    #d78700
+        167,  // 259  red aligned far       #d75f5f
+    };
+
+    // Non-aligned near (240 mid / 235 far 보다 밝은 회색), pair 111
+    inline constexpr int ALIGNED_NONALIGNED_NEAR = 245;  // xterm-245 #8a8a8a
+
+    // Depth fog: secondary structure colors for `-s` + protein mode.
+    // mid 는 기존 pair 41(helix, xterm-226) / 42(sheet, xterm-51) 를 그대로 쓴다.
+    inline constexpr int SS_HELIX_NEAR = 228;  //  47  #ffff87
+    inline constexpr int SS_HELIX_FAR  = 142;  //  48  #afaf00
+    inline constexpr int SS_SHEET_NEAR =  87;  //  49  #5fffff
+    inline constexpr int SS_SHEET_FAR  =  37;  //  50  #00afaf
+
+    // Depth fog: `-s` protein 모드의 coil far, pairs 85-93.
+    // PROTEIN_DIM(11-19, coil mid) 보다 한 단계 더 어둡다. DIM 과 PROTEIN_FAR(200-208)
+    // 은 6개 슬롯에서 값이 같아 coil 이 2단계로 뭉쳤기 때문에 전용 배열을 둔다.
+    inline const std::array<int, 9> PROTEIN_COIL_FAR = {
+        236,  //  85  olive coil far      #303030 (큐브에 더 어두운 올리브가 없어 중립 dark)
+         23,  //  86  turquoise coil far  #005f5f
+         17,  //  87  navy coil far       #00005f
+         53,  //  88  purple coil far     #5f005f
+         96,  //  89  pink coil far       #875f87
+         95,  //  90  coral coil far      #875f5f
+         58,  //  91  brown coil far      #5f5f00
+        130,  //  92  orange coil far     #af5f00
+         52,  //  93  red coil far        #5f0000
+    };
+
+    // Conservation 미채점(score < 0) 잔기: 중립 회색 3단, pairs 10 / 36 / 20
+    inline constexpr int CONSERVATION_UNSCORED_NEAR = 249;  //  10  #b2b2b2
+    inline constexpr int CONSERVATION_UNSCORED_MID  = 244;  //  36  #808080
+    inline constexpr int CONSERVATION_UNSCORED_FAR  = 238;  //  20  #444444
+
     // Interface region colors, pairs 43-44
     // pair 43: interface residue (bright magenta, xterm-201)
     // pair 44: non-interface dim  (olive dim, xterm-58)
@@ -468,7 +513,17 @@ namespace Palettes {
     // color_id (logical palette index / ncurses pair number) → xterm-256 foreground color number.
     // Mirrors Camera::renderPoint2image() so ANSI and PNG output use identical colors.
     inline int palette_to_xterm256_fg(int cid) {
-        if      (cid >= 1   && cid <= 9)   return PROTEIN_COLORS[cid - 1];
+        if      (cid == 10)                return CONSERVATION_UNSCORED_NEAR;
+        else if (cid == 20)                return CONSERVATION_UNSCORED_FAR;
+        else if (cid == 36)                return CONSERVATION_UNSCORED_MID;
+        else if (cid == 47)                return SS_HELIX_NEAR;
+        else if (cid == 48)                return SS_HELIX_FAR;
+        else if (cid == 49)                return SS_SHEET_NEAR;
+        else if (cid == 50)                return SS_SHEET_FAR;
+        else if (cid >= 85  && cid <= 93)  return PROTEIN_COIL_FAR[cid - 85];
+        else if (cid == 111)               return ALIGNED_NONALIGNED_NEAR;
+        else if (cid >= 251 && cid <= 259) return ALIGNED_BRIGHT_FAR[cid - 251];
+        else if (cid >= 1   && cid <= 9)   return PROTEIN_COLORS[cid - 1];
         else if (cid >= 11  && cid <= 19)  return PROTEIN_DIM_COLORS[cid - 11];
         else if (cid >= 21  && cid <= 35)  return CHAIN_COLORS[cid - 21];
         else if (cid == 41)                return 226;

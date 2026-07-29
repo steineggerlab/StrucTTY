@@ -67,10 +67,22 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
     const RenderAtom& a = *s.a;
 
     // show_structure 는 protein 모드에서만 SS 색으로 override (원본 assign_colors_impl 과 동일).
+    // helix/sheet 는 전용 near/far 색(47-50), coil 은 protein near/far 배열을 재사용해 3밴드.
     if (show_structure_ && mode_id_ == Mode::Protein) {
-        if (a.structure == 'H') return 41;
-        if (a.structure == 'S') return 42;
-        return (s.protein_idx % 9) + 11;
+        if (a.structure == 'H') {
+            if (band == 0) return 47;
+            if (band == 1) return 41;
+            return 48;
+        }
+        if (a.structure == 'S') {
+            if (band == 0) return 49;
+            if (band == 1) return 42;
+            return 50;
+        }
+        const int coil_idx = s.protein_idx % 9;
+        if (band == 0) return coil_idx + 120;  // PROTEIN_NEAR
+        if (band == 1) return coil_idx + 11;   // PROTEIN_DIM
+        return coil_idx + 85;                  // PROTEIN_COIL_FAR (DIM 보다 한 단계 어둡다)
     }
 
     switch (mode_id_) {
@@ -107,15 +119,24 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
             return a.is_interface ? 239 : 240;
         }
         case Mode::Aligned: {
+            const int idx = s.protein_idx % 9;
             if (a.is_aligned) {
-                if (band == 0) return (s.protein_idx % 9) + 241;
-                return (s.protein_idx % 9) + 101;  // band 1,2 모두 bright (원본과 동일)
+                if (band == 0) return idx + 241;  // aligned near
+                if (band == 1) return idx + 101;  // aligned mid (bright)
+                return idx + 251;                 // aligned far
             }
-            return (band == 2) ? 250 : 110;
+            if (band == 0) return 111;  // non-aligned near
+            if (band == 1) return 110;  // non-aligned mid
+            return 250;                 // non-aligned far
         }
         case Mode::Conservation: {
             float score = a.conservation_score;
-            if (score < 0) return 11;
+            if (score < 0) {
+                // 미채점 잔기: 중립 회색 3단 (10 / 36 / 20)
+                if (band == 0) return 10;
+                if (band == 1) return 36;
+                return 20;
+            }
             int idx = (int)(score * 9.0f);
             if (idx < 0) idx = 0;
             if (idx > 9) idx = 9;
