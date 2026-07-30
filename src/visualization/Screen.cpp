@@ -60,6 +60,30 @@ static float compute_scene_radius_from_render_positions(const std::vector<Protei
 }
 
 
+std::string Screen::chain_from_accession(const std::string& accession,
+                                         const std::string& file_path) {
+    if (accession.empty() || file_path.empty()) return "-";
+    // foldseek createdb 는 체인마다 `<파일 stem>_<auth chain>` 엔트리를 만든다
+    // (예: 1nzy-assembly1_A, 1nzy-assembly1_C-2).
+    const std::string stem = std::filesystem::path(file_path).stem().string();
+    if (stem.empty()) return "-";
+    const std::string prefix = stem + "_";
+    if (accession.size() <= prefix.size()) return "-";
+    if (accession.compare(0, prefix.size(), prefix) != 0) return "-";
+    const std::string chain = accession.substr(prefix.size());
+    return chain.empty() ? "-" : chain;
+}
+
+std::string Screen::apply_accession_chain(int idx, const std::string& accession,
+                                          const std::string& file_path) {
+    if (idx < 0 || idx >= (int)chainVec.size()) return "";
+    if (chainVec[idx] != "-") return "";  // 사용자 --chains 지정이 우선
+    const std::string chain = chain_from_accession(accession, file_path);
+    if (chain == "-") return "";
+    chainVec[idx] = chain;
+    return chain;
+}
+
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
     Protein* protein = new Protein(in_file, chainVec.at(ii), show_structure);
     data.push_back(protein);
@@ -467,7 +491,12 @@ void Screen::normalize_proteins() {
         if (!p->is_ca_only()) {
             p->load_data(vectorpointer[i], yesUT);
         }
-        panel->add_panel_info(p->get_file_name(),
+        // 적용된 체인 필터를 파일명 뒤에 표기 (좁으면 Panel 이 잘라낸다)
+        std::string label = p->get_file_name();
+        if (i < chainVec.size() && chainVec[i] != "-") {
+            label += " [" + chainVec[i] + "]";
+        }
+        panel->add_panel_info(label,
                               p->get_chain_length(),
                               p->get_residue_count());
     }
@@ -1461,6 +1490,16 @@ void Screen::load_next_hit(int delta) {
 
         DBType db_type = PDBDownloader::detect_db_type(hit.target);
         std::string chain_filter = PDBDownloader::extract_chain(hit.target, db_type);
+        if (chain_filter == "-") {
+            // foldseek 체인 accession(`<stem>_<chain>`)은 detect_db_type 이 Unknown 으로
+            // 보기 때문에 extract_chain 이 "-" 를 준다. 해석된 파일명으로 한 번 더 시도.
+            const std::string from_acc = chain_from_accession(hit.target, file_path);
+            if (from_acc != "-") {
+                chain_filter = from_acc;
+                std::cerr << "Chain filter from Foldseek target '" << hit.target
+                          << "': " << file_path << " -> chain " << chain_filter << std::endl;
+            }
+        }
         chainVec.push_back(chain_filter);
 
         target_protein = new Protein(file_path, chain_filter, screen_show_structure);
@@ -1475,9 +1514,13 @@ void Screen::load_next_hit(int delta) {
     fs_info.status_msg = status_msg;
     if (panel) panel->set_foldseek_hit_info(fs_info);
 
-    // 패널 entry 갱신
+    // 패널 entry 갱신 (적용된 체인 필터를 파일명 뒤에 표기)
     if (panel) {
-        panel->update_entry(1, target_protein->get_file_name(),
+        std::string label = target_protein->get_file_name();
+        if (chainVec.size() > 1 && chainVec[1] != "-") {
+            label += " [" + chainVec[1] + "]";
+        }
+        panel->update_entry(1, label,
                             target_protein->get_chain_length(),
                             target_protein->get_residue_count());
     }

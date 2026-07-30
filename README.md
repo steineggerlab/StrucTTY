@@ -146,6 +146,7 @@ make -j $(nproc)
 | `-fs, --foldseek <FILE>` | Foldseek `.m8` result for hit navigation |
 | `--db <PATH>` | Foldseek structure database path for offline Cα coordinate reading |
 | `--db-path <DIR>` | PDB directory for Foldseek hit loading |
+| `--query-db <PATH>` | Foldseek query DB. Required with `--report-format`; with `-fs` the query is read per chain from the DB |
 | `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSA) |
 | `-n, --nopanel` | Hide info panel |
 
@@ -175,6 +176,12 @@ make -j $(nproc)
 | `interface` | Inter-chain contacts (CA–CA < 8 Å): magenta vs. dim |
 | `conservation` | MSA Shannon entropy: blue (variable) → red (conserved) |
 | `aligned` | Structurally aligned regions: bright vs. dim gray |
+
+> `aligned` needs alignment strings (`qaln`/`taln`), i.e. a 17/21/29-column `.m8`.
+> Foldseek's default 12-column output has none, so StrucTTY falls back to a
+> nearest-neighbour (10 Å) judgement and the panel shows `nearest-nbr`.
+> Generate a usable result with `--format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln`
+> (the search itself must run with `-a`). `foldseek ... --view-structty` does this for you.
 
 All modes support **3-band depth fog**: near (vivid), mid (normal), far (dark, hue-retaining).
 

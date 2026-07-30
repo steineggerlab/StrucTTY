@@ -7,8 +7,18 @@ static gemmi::Structure read_structure(const std::string& path) {
     return st;
 }
 
-static inline bool chain_ok(const std::string& target, std::string cid) {
-    return (target == "-" || target.find(cid) != std::string::npos);
+// target_chains 는 "-"(전체 허용) 또는 콤마로 구분된 체인 ID 목록이다.
+// 토큰 단위 정확 비교 — substring 비교였을 때는 필터 "C" 가 체인 "C-2" 에도 걸렸다.
+static inline bool chain_ok(const std::string& target, const std::string& cid) {
+    if (target == "-") return true;
+    size_t start = 0;
+    while (true) {
+        const size_t comma = target.find(',', start);
+        const size_t end = (comma == std::string::npos) ? target.size() : comma;
+        if (target.compare(start, end - start, cid) == 0) return true;
+        if (comma == std::string::npos) return false;
+        start = comma + 1;
+    }
 }
 
 Protein::Protein(const std::string& in_file_, const std::string& target_chains_, const bool& show_structure_) {
