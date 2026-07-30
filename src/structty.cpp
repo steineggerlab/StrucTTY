@@ -98,6 +98,79 @@ void run(const RunOptions& opts) {
         screen.set_query_nav(query_ids, hits_by_query, opts.foldseek_query_db,
                              opts.foldseek_db, opts.show_structure);
     } else {
+    // plaintext 경로: 체인 필터를 구조 로드 전에 정해야 하므로 m8 을 먼저 읽는다.
+    // foldseek createdb 는 멀티머를 체인마다 쪼개므로(`<stem>_<chain>`), m8 accession 이
+    // 가리키는 체인만 남겨야 qaln/taln 인덱스가 파일의 CA 순서와 맞는다.
+    FoldseekParser fs_nav_parser;
+    bool fs_hits_loaded = false;
+    if (!opts.foldseek_file.empty()) {
+        fs_hits_loaded = fs_nav_parser.load(opts.foldseek_file) &&
+                         fs_nav_parser.hit_count() > 0;
+        if (!fs_hits_loaded) {
+            std::cerr << "Warning: no usable hits in Foldseek result: "
+                      << opts.foldseek_file << std::endl;
+        }
+
+        // target 구조를 읽을 소스가 하나도 없으면 hit 을 띄울 수 없다.
+        if (fs_hits_loaded && opts.foldseek_db.empty() &&
+            opts.foldseek_db_path.empty() && opts.input_files.size() < 2) {
+            std::cerr << "Warning: no source for target structures. "
+                      << "Add --db <foldseekDB>, --db-path <dir>, "
+                      << "or pass target files as extra arguments." << std::endl;
+        }
+
+        // 기능 4: aligned 모드는 정렬 문자열(qaln/taln)이 필요하다. 12컬럼 m8 처럼
+        // 정렬 문자열이 없으면 최근접 이웃(10 Å) 판정으로 대체되므로 그 사실을 알린다.
+        if (fs_hits_loaded && opts.mode == "aligned") {
+            bool any_aln = false;
+            for (const FoldseekHit& hit : fs_nav_parser.get_hits()) {
+                if (hit.has_aln) { any_aln = true; break; }
+            }
+            if (!any_aln) {
+                std::cerr << "Warning: -m aligned needs alignment strings (qaln/taln), "
+                          << "but none are present in " << opts.foldseek_file << ".\n"
+                          << "         Falling back to nearest-neighbour (10 A) colouring "
+                          << "-- the panel shows 'nearest-nbr'.\n"
+                          << "         Regenerate the result with:\n"
+                          << "           foldseek convertalis <queryDB> <targetDB> <resultDB> out.m8 \\\n"
+                          << "             --format-output query,target,fident,alnlen,mismatch,gapopen,"
+                          << "qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln\n"
+                          << "         (the search itself must run with -a so backtraces exist)"
+                          << std::endl;
+            }
+        }
+    }
+
+    if (fs_hits_loaded) {
+        const std::vector<FoldseekHit>& all_hits = fs_nav_parser.get_hits();
+        // query(0번 입력): m8 query 컬럼이 이 파일의 체인을 가리키면 그 체인만 남긴다
+        if (!opts.input_files.empty()) {
+            for (const FoldseekHit& hit : all_hits) {
+                const std::string applied =
+                    screen.apply_accession_chain(0, hit.query, opts.input_files[0]);
+                if (!applied.empty()) {
+                    std::cerr << "Chain filter from Foldseek query '" << hit.query
+                              << "': " << opts.input_files[0] << " -> chain "
+                              << applied << std::endl;
+                    break;
+                }
+            }
+        }
+        // target(1번 이후 입력): m8 target 컬럼 기준으로 동일 처리
+        for (int ti = 1; ti < (int)opts.input_files.size(); ti++) {
+            for (const FoldseekHit& hit : all_hits) {
+                const std::string applied =
+                    screen.apply_accession_chain(ti, hit.target, opts.input_files[ti]);
+                if (!applied.empty()) {
+                    std::cerr << "Chain filter from Foldseek target '" << hit.target
+                              << "': " << opts.input_files[ti] << " -> chain "
+                              << applied << std::endl;
+                    break;
+                }
+            }
+        }
+    }
+
     for (int i = 0; i < (int)opts.input_files.size(); i++) {
         screen.set_protein(opts.input_files[i], i, opts.show_structure);
     }
@@ -122,8 +195,7 @@ void run(const RunOptions& opts) {
 
     // 기능 3: Foldseek hit 탐색 설정 (-fs 파일이 있을 때)
     if (!opts.foldseek_file.empty()) {
-        FoldseekParser fs_nav_parser;
-        if (fs_nav_parser.load(opts.foldseek_file) && fs_nav_parser.hit_count() > 0) {
+        if (fs_hits_loaded) {
             if ((int)opts.input_files.size() > 1) {
                 // 작업 3-A: 다중 타겟 — m8 hit을 CLI target 파일명 기준으로 필터링
                 std::vector<std::string> target_stems;

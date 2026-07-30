@@ -36,6 +36,16 @@ public:
 
     void set_protein(const std::string& in_file, int ii, const bool& show_structure);
 
+    // Foldseek m8 accession(`<파일 stem>_<체인>`)에서 체인을 도출해 idx 번 입력 파일의
+    // 체인 필터로 쓴다. 사용자가 --chains 로 이미 지정한 값("-" 이 아니면)은 건드리지 않는다.
+    // 반환: 실제로 적용한 체인 ID (적용하지 않았으면 빈 문자열)
+    std::string apply_accession_chain(int idx, const std::string& accession,
+                                     const std::string& file_path);
+
+    // accession 이 "<파일 stem>_" 로 시작하면 그 뒤를 체인 ID 로 반환, 아니면 "-"
+    static std::string chain_from_accession(const std::string& accession,
+                                            const std::string& file_path);
+
     // Step 4 (D3/D4): load the query structure (data[0]) from a Foldseek query
     // tmp DB by accession, instead of parsing a plaintext CLI path. Returns true
     // on success. Used for folder/tar/gz query inputs.

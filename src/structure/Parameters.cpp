@@ -16,7 +16,8 @@ void print_help(){
     std::cout << "  -n, --nopanel           Hide info panel\n";
     std::cout << "  -b, --benchmark         Benchmark mode (measure FPS/latency)\n";
     std::cout << "  --report-format         Input is a Foldseek multimer _report file (14-col TSV)\n";
-    std::cout << "  --query-db <PATH>       Query complex Foldseek DB (required with --report-format)\n";
+    std::cout << "  --query-db <PATH>       Foldseek query DB. Required with --report-format;\n";
+    std::cout << "                          with -fs it reads the query per chain from the DB\n";
     std::cout << "  --help                  Show this help message\n";
 }
 Parameters::Parameters(int argc, char* argv[]) {
