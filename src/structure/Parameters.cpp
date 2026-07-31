@@ -1,7 +1,9 @@
 #include "Parameters.hpp"
 
+#include "InputProbe.hpp"
+
 void print_help(){
-    std::cout << "Usage: StrucTTY <input_files...> [OPTIONS]\n\n";
+    std::cout << "Usage: StrucTTY <query...> [OPTIONS]\n\n";
     std::cout << "Options:\n";
     std::cout << "  -m, --mode <MODE>       Color mode:\n";
     std::cout << "                            protein (default), chain, rainbow,\n";
@@ -9,16 +11,58 @@ void print_help(){
     std::cout << "  -c, --chains <FILE>     Show only selected chains (see example/chainfile)\n";
     std::cout << "  -s, --structure         Show secondary structure (alpha helix, beta sheet)\n";
     std::cout << "  --msa <FILE>            MSA file for conservation score (FASTA/A3M)\n";
-    std::cout << "  -fs, --foldseek <FILE>  Foldseek result file for hit navigation\n";
-    std::cout << "  --db-path <DIR>         Target PDB directory for Foldseek hit loading\n";
-    std::cout << "  --db <PATH>             Foldseek structure database for direct CA reading\n";
+    std::cout << "  -fst, --foldseek-target <PATH>\n";
+    std::cout << "                          Target source for Foldseek hits: Foldseek DB,\n";
+    std::cout << "                          structure directory, structure file, or 'auto'\n";
+    std::cout << "                          ('auto' downloads hits from public DBs)\n";
+    std::cout << "  -fsr, --foldseek-result <FILE>\n";
+    std::cout << "                          Foldseek result: m8 (12/17/21/29 columns) or\n";
+    std::cout << "                          multimer _report (14 columns)\n";
+    std::cout << "                          -fst and -fsr must be given together\n";
     std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSA)\n";
     std::cout << "  -n, --nopanel           Hide info panel\n";
     std::cout << "  -b, --benchmark         Benchmark mode (measure FPS/latency)\n";
-    std::cout << "  --report-format         Input is a Foldseek multimer _report file (14-col TSV)\n";
-    std::cout << "  --query-db <PATH>       Foldseek query DB. Required with --report-format;\n";
-    std::cout << "                          with -fs it reads the query per chain from the DB\n";
     std::cout << "  --help                  Show this help message\n";
+    std::cout << "\nSupported inputs (4 kinds; detected automatically):\n";
+    std::cout << "  1. structure file       .pdb / .cif / .ent (+ .gz)\n";
+    std::cout << "  2. structure directory  a directory of those files (-fst only)\n";
+    std::cout << "  3. Foldseek DB          base path of a DB built from structures\n";
+    std::cout << "                          (needs <db>_ca; sequence-derived DBs have none)\n";
+    std::cout << "  4. Foldseek result      m8 (12/17/21/29 columns) or\n";
+    std::cout << "                          multimer _report (14 columns)\n";
+    std::cout << "  Sequence FASTA is NOT supported -- it carries no 3D coordinates.\n";
+    std::cout << "\nRecipes:\n";
+    std::cout << "  StrucTTY query.cif\n";
+    std::cout << "  StrucTTY query.cif target.cif -m aligned\n";
+    std::cout << "  StrucTTY query.cif -fst targetDB   -fsr result.m8   -m aligned\n";
+    std::cout << "  StrucTTY query.cif -fst pdb_dir/   -fsr result.m8\n";
+    std::cout << "  StrucTTY query.cif -fst auto       -fsr result.m8\n";
+    std::cout << "  StrucTTY queryDB   -fst targetDB   -fsr result.m8   (multi-query: ]/[)\n";
+    std::cout << "  StrucTTY queryDB   -fst targetDB   -fsr out_report  (multimer)\n";
+}
+
+// 좌표가 없는 입력을 렌더 시작 전에 거른다.
+// 서열 FASTA: foldseek createdb 의 ProstT5 경로는 3Di(`_ss`)만 예측하고 `_ca` 를 만들지 않는다.
+// `_ca` 없는 DB: 서열 유래이거나 `--index-exclude 2` 로 만든 DB.
+static bool check_has_coordinates(const std::string& path, const std::string& role) {
+    const input_probe::InputKind kind = input_probe::probe(path);
+
+    if (kind == input_probe::InputKind::SequenceFasta) {
+        std::cerr << "Error: " << role << " '" << path << "' is a sequence FASTA.\n"
+                  << "       StrucTTY needs 3D coordinates: pass PDB/mmCIF files, a directory\n"
+                  << "       of them, or a Foldseek DB built from structures.\n"
+                  << "       (foldseek createdb --prostt5-model predicts 3Di but writes no _ca)"
+                  << std::endl;
+        return false;
+    }
+    if (kind == input_probe::InputKind::FoldseekDB && !input_probe::db_has_ca(path)) {
+        std::cerr << "Error: Foldseek DB '" << path << "' has no C-alpha coordinates ("
+                  << path << "_ca is missing).\n"
+                  << "       It was built from sequences, or with --index-exclude 2."
+                  << std::endl;
+        return false;
+    }
+    return true;
 }
 Parameters::Parameters(int argc, char* argv[]) {
     arg_okay = true;
@@ -70,23 +114,17 @@ Parameters::Parameters(int argc, char* argv[]) {
                 } else {
                     throw std::runtime_error("Error: Missing value for --msa.");
                 }
-            } else if (!strcmp(argv[i], "-fs") || !strcmp(argv[i], "--foldseek")) {
+            } else if (!strcmp(argv[i], "-fst") || !strcmp(argv[i], "--foldseek-target")) {
                 if (i + 1 < argc) {
-                    foldseek_file = argv[++i];
+                    foldseek_target = argv[++i];
                 } else {
-                    throw std::runtime_error("Error: Missing value for -fs / --foldseek.");
+                    throw std::runtime_error("Error: Missing value for -fst / --foldseek-target.");
                 }
-            } else if (!strcmp(argv[i], "--db-path")) {
+            } else if (!strcmp(argv[i], "-fsr") || !strcmp(argv[i], "--foldseek-result")) {
                 if (i + 1 < argc) {
-                    db_path = argv[++i];
+                    foldseek_result = argv[++i];
                 } else {
-                    throw std::runtime_error("Error: Missing value for --db-path.");
-                }
-            } else if (!strcmp(argv[i], "--db")) {
-                if (i + 1 < argc) {
-                    foldseek_db = argv[++i];
-                } else {
-                    throw std::runtime_error("Error: Missing value for --db.");
+                    throw std::runtime_error("Error: Missing value for -fsr / --foldseek-result.");
                 }
             } else if (!strcmp(argv[i], "--foldmason") || !strcmp(argv[i], "-fm")) {
                 if (i + 1 < argc) {
@@ -97,14 +135,6 @@ Parameters::Parameters(int argc, char* argv[]) {
             } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
                 benchmark_mode = true;
                 show_structure = true;
-            } else if (!strcmp(argv[i], "--report-format")) {
-                report_format = true;
-            } else if (!strcmp(argv[i], "--query-db")) {
-                if (i + 1 < argc) {
-                    foldseek_query_db = argv[++i];
-                } else {
-                    throw std::runtime_error("Error: Missing value for --query-db.");
-                }
             } else {
                 throw std::runtime_error("Error: Unknown parameter: " + std::string(argv[i]));
             }
@@ -116,14 +146,80 @@ Parameters::Parameters(int argc, char* argv[]) {
             return;
         }
     }
-    if (in_file.size() == 0 && !report_format) {
+    // 검증 1 — query 위치 인자는 최소 1개
+    if (in_file.size() == 0) {
         std::cerr << "Error: Need input file dir" << std::endl;
         arg_okay = false;
         return;
     }
-    if (report_format && (foldseek_file.empty() || foldseek_query_db.empty())) {
-        std::cerr << "Error: --report-format requires both --foldseek <_report> and --query-db <DB>." << std::endl;
+
+    // 검증 2 — 쌍 규칙: -fst 와 -fsr 은 항상 함께 주어져야 한다.
+    // target 소스 없이 결과만 주면 hit 구조를 읽을 수 없고, 결과 없이 target 만 주면
+    // 어떤 hit 을 띄울지 알 수 없다.
+    if (!foldseek_target.empty() && foldseek_result.empty()) {
+        std::cerr << "Error: -fst / --foldseek-target given without -fsr / --foldseek-result.\n"
+                  << "       Both must be given together." << std::endl;
         arg_okay = false;
+        return;
+    }
+    if (foldseek_target.empty() && !foldseek_result.empty()) {
+        std::cerr << "Error: -fsr / --foldseek-result given without -fst / --foldseek-target.\n"
+                  << "       Both must be given together. Use -fst auto to download hit structures."
+                  << std::endl;
+        arg_okay = false;
+        return;
+    }
+
+    // 검증 3·4 — query 각각과 target 이 좌표를 가진 입력인지 확인.
+    // "auto" 는 예약값이라 경로 판별을 건너뛴다(다운로드 모드).
+    for (const std::string& q : in_file) {
+        if (!check_has_coordinates(q, "query")) {
+            arg_okay = false;
+            return;
+        }
+    }
+    if (!foldseek_target.empty() && foldseek_target != "auto") {
+        if (!check_has_coordinates(foldseek_target, "-fst target")) {
+            arg_okay = false;
+            return;
+        }
+    }
+
+    if (!foldseek_result.empty()) {
+        const input_probe::InputKind result_kind = input_probe::probe(foldseek_result);
+
+        // 검증 5 — 결과 파일은 m8(12/17/21/29) 또는 멀티머 _report(14) 여야 한다
+        if (result_kind != input_probe::InputKind::ResultM8 &&
+            result_kind != input_probe::InputKind::ResultReport) {
+            const int ncols = input_probe::tsv_column_count(foldseek_result);
+            std::cerr << "Error: -fsr '" << foldseek_result
+                      << "' is not a Foldseek result file.\n"
+                      << "       Expected tab-separated 12/17/21/29 columns (m8) or 14 columns"
+                      << " (multimer _report),\n       ";
+            if (ncols == 0) {
+                std::cerr << "but the file could not be read or has no data rows.";
+            } else {
+                std::cerr << "but found " << ncols << " columns.";
+            }
+            std::cerr << std::endl;
+            arg_okay = false;
+            return;
+        }
+
+        // 검증 6 — 멀티머 _report 는 complex 체인을 query DB 에서 읽으므로 query 가 DB 여야 한다
+        if (result_kind == input_probe::InputKind::ResultReport) {
+            const input_probe::InputKind query_kind = input_probe::probe(in_file[0]);
+            if (query_kind != input_probe::InputKind::FoldseekDB) {
+                std::cerr << "Error: -fsr '" << foldseek_result
+                          << "' is a multimer _report (14 columns), which needs a Foldseek\n"
+                          << "       query DB as the query input (chain entries are read per"
+                          << " complex from the DB).\n"
+                          << "       Got " << input_probe::kind_name(query_kind) << ": "
+                          << in_file[0] << std::endl;
+                arg_okay = false;
+                return;
+            }
+        }
     }
     return;
 }
@@ -138,6 +234,10 @@ void Parameters::print_args() {
     cout << "  chainfile: " << chainfile << endl;
     cout << "  show_structure: " << show_structure << endl;
     cout << "  benchmark_mode: " << benchmark_mode << endl;
+    if (!foldseek_target.empty() || !foldseek_result.empty()) {
+        cout << "  foldseek_target: " << foldseek_target << endl;
+        cout << "  foldseek_result: " << foldseek_result << endl;
+    }
 
     cout << "\n";
     return;

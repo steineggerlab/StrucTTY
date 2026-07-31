@@ -13,12 +13,14 @@ struct RunOptions {
 
     std::string chains_file;
     std::string msa_file;
-    std::string foldseek_file;
-    std::string foldseek_db_path;  // --db-path (PDB download directory)
-    std::string foldseek_db;       // --db (direct Foldseek DB path)
-    std::string foldseek_query_db; // query tmp DB path (read query structures from DB)
     std::string foldmason_file;
-    bool report_format     = false; // foldseek_file is a multimer _report (14-col tsv), not .m8 (D6)
+
+    // -fst : target 구조 소스. Foldseek DB | 구조 디렉터리 | 구조 파일 | "auto"(다운로드).
+    // 종류는 input_probe::probe() 로 판별하므로 호출부는 경로만 채우면 된다.
+    std::string foldseek_target;
+    // -fsr : Foldseek 결과. m8(12/17/21/29 컬럼) 또는 멀티머 _report(14 컬럼).
+    // 컬럼 수로 멀티머 경로 진입이 결정된다(과거 report_format 플래그 대체).
+    std::string foldseek_result;
 };
 
 // Launch the interactive viewer. Blocks until the user presses Q.

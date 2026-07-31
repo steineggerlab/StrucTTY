@@ -19,12 +19,11 @@ class Parameters{
         string chainfile = "";
         string mode = "protein";
         string msa_file = "";
-        string foldseek_file = "";
-        string db_path = "";
         string foldmason_file = "";
-        string foldseek_db = "";
-        bool report_format = false;
-        std::string foldseek_query_db = "";
+        // -fst : target 구조 소스 (Foldseek DB | 구조 디렉터리 | 구조 파일 | "auto")
+        string foldseek_target = "";
+        // -fsr : Foldseek 결과 (m8 12/17/21/29 컬럼 | 멀티머 _report 14 컬럼)
+        string foldseek_result = "";
     public:
         Parameters(int argc, char* argv[]);
 
@@ -61,22 +60,13 @@ class Parameters{
         string get_msa_file(){
             return msa_file;
         }
-        string get_foldseek_file(){
-            return foldseek_file;
-        }
-        string get_db_path(){
-            return db_path;
-        }
         string get_foldmason_file(){
             return foldmason_file;
         }
-        string get_foldseek_db(){
-            return foldseek_db;
+        string get_foldseek_target(){
+            return foldseek_target;
         }
-        bool get_report_format(){
-            return report_format;
-        }
-        std::string get_foldseek_query_db(){
-            return foldseek_query_db;
+        string get_foldseek_result(){
+            return foldseek_result;
         }
 };
