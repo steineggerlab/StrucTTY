@@ -125,6 +125,13 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
                 if (band == 1) return idx + 101;  // aligned mid (bright)
                 return idx + 251;                 // aligned far
             }
+            if (a.is_aln_pair) {
+                // foldseek backtrace 는 짝지었지만 --align-cutoff 보다 멀다. 색상은
+                // 남기고 명도만 낮춰, 정렬 대상이었다는 사실을 숨기지 않는다.
+                if (band == 0) return idx + 1;    // paired-far near (protein hue)
+                if (band == 1) return idx + 11;   // paired-far mid  (dim hue)
+                return idx + 85;                  // paired-far far  (darkest hue)
+            }
             if (band == 0) return 111;  // non-aligned near
             if (band == 1) return 110;  // non-aligned mid
             return 250;                 // non-aligned far
