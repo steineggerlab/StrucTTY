@@ -1,6 +1,7 @@
 #include <iostream>
 #include <clocale>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <map>
 #include <vector>
@@ -13,11 +14,37 @@
 #include "FoldseekParser.hpp"
 #include "MultimerReportParser.hpp"
 #include "FoldMasonParser.hpp"
+#include "InputProbe.hpp"
+#include "PDBDownloader.hpp"
 #include "Benchmark.hpp"
 
 namespace fs = std::filesystem;
 
 namespace structty {
+
+namespace {
+
+// 결과 파일 첫 데이터 행의 target 컬럼(2번째). `-fst auto` 가 그 accession 을 공개 DB
+// 패턴으로 해석할 수 있는지 미리 알리는 데만 쓴다. 실패하면 빈 문자열.
+std::string first_target_accession(const std::string& result_path) {
+    std::ifstream ifs(result_path);
+    if (!ifs.is_open()) return std::string();
+
+    std::string line;
+    while (std::getline(ifs, line)) {
+        const size_t first = line.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos || line[first] == '#') continue;
+
+        const size_t tab1 = line.find('\t');
+        if (tab1 == std::string::npos) return std::string();
+        const size_t tab2 = line.find('\t', tab1 + 1);
+        const size_t end = (tab2 == std::string::npos) ? line.size() : tab2;
+        return line.substr(tab1 + 1, end - tab1 - 1);
+    }
+    return std::string();
+}
+
+}  // namespace
 
 void run(const RunOptions& opts) {
     setlocale(LC_ALL, "");
@@ -45,35 +72,93 @@ void run(const RunOptions& opts) {
 
     screen.set_chainfile(opts.chains_file, (int)opts.input_files.size());
 
-    // Query-from-DB (D3/D4) + multi-query nav (D7/D8/D9): when a query tmp DB is
-    // provided, read the query structure(s) from the Foldseek query DB instead of
-    // parsing the original CLI path. Handles folder/tar/gz query inputs that
-    // gemmi's single-file reader cannot open. Hits are grouped by the .m8 query
-    // column so ]/[ can navigate between queries.
+    // -fst / -fsr 로 들어온 입력의 종류를 판별해 씬 경로를 정한다.
+    // 과거의 --db / --db-path / --query-db / --report-format 조합을 대체한다:
+    //   query 가 Foldseek DB   → query-from-DB (구 --query-db)
+    //   -fst 가 Foldseek DB    → CA 직접 읽기 (구 --db)
+    //   -fst 가 디렉터리·구조  → accession 이름으로 로컬 탐색 (구 --db-path)
+    //   -fst auto              → PDBDownloader 로 내려받기
+    //   -fsr 이 14컬럼 _report → 멀티머 경로 (구 --report-format)
+    using input_probe::InputKind;
+    const std::string& fs_result   = opts.foldseek_result;
+    const bool         target_auto = (opts.foldseek_target == "auto");
+    const InputKind result_kind = fs_result.empty()
+                                    ? InputKind::Unknown : input_probe::probe(fs_result);
+    const InputKind query_kind  = opts.input_files.empty()
+                                    ? InputKind::Unknown : input_probe::probe(opts.input_files[0]);
+    const InputKind target_kind = (opts.foldseek_target.empty() || target_auto)
+                                    ? InputKind::Unknown : input_probe::probe(opts.foldseek_target);
+
+    const std::string query_db  = (query_kind == InputKind::FoldseekDB)
+                                    ? opts.input_files[0] : std::string();
+    const std::string target_db = (target_kind == InputKind::FoldseekDB)
+                                    ? opts.foldseek_target : std::string();
+    // PDBDownloader::find_in_db_path() 는 디렉터리를 받는다. 구조 파일 하나를 -fst 로 준
+    // 경우에는 그 파일이 있는 디렉터리를 탐색 대상으로 삼는다.
+    std::string target_dir;
+    if (target_kind == InputKind::StructureDir) {
+        target_dir = opts.foldseek_target;
+    } else if (target_kind == InputKind::Structure) {
+        target_dir = fs::path(opts.foldseek_target).parent_path().string();
+        if (target_dir.empty()) target_dir = ".";
+    }
+
+    // 해석된 입력 1줄 요약 — 자동 판별 결과를 눈으로 확인할 수 있어야 한다
+    // (판별이 틀리면 씬 경로 자체가 달라지므로).
+    if (!fs_result.empty() || !opts.foldseek_target.empty()) {
+        // stderr 로 낸다: stdout 은 렌더 출력(raw write)과 std::cout 이 섞여 있어서
+        // 여기서 cout 을 flush 하면 프레임 앞부분 개행 위치가 달라진다.
+        std::cerr << "Foldseek input: query=" << input_probe::kind_name(query_kind)
+                  << ", target=";
+        if (target_auto) {
+            std::cerr << "auto (download)";
+        } else {
+            std::cerr << input_probe::kind_name(target_kind);
+        }
+        std::cerr << ", result=" << input_probe::tsv_column_count(fs_result) << " cols ("
+                  << input_probe::kind_name(result_kind) << "), mode=" << opts.mode
+                  << std::endl;
+
+        // auto 는 공개 DB accession 패턴만 해석한다. foldseek createdb 가 만든
+        // 체인 accession(`<stem>_<chain>`)은 어느 패턴에도 맞지 않아 URL 이 없다.
+        if (target_auto) {
+            const std::string acc = first_target_accession(fs_result);
+            if (!acc.empty() && PDBDownloader::detect_db_type(acc) == DBType::Unknown) {
+                std::cerr << "Warning: -fst auto cannot resolve hit accession '" << acc
+                          << "' to a public database URL.\n"
+                          << "         Pass a Foldseek DB or a structure directory to -fst"
+                          << " instead; the panel shows the per-hit reason." << std::endl;
+            }
+        }
+    }
+
+    // Query-from-DB (D3/D4) + multi-query nav (D7/D8/D9): when the query input is
+    // a Foldseek DB, read the query structure(s) from it instead of parsing a
+    // structure file. Handles folder/tar/gz query inputs that gemmi's single-file
+    // reader cannot open. Hits are grouped by the .m8 query column so ]/[ can
+    // navigate between queries.
     // Step 7 (D6): multimer `_report` 경로. 14컬럼 tsv 를 complex 단위로 파싱해
     // query/target complex 전체 체인을 로드하고 complex U/T 로 겹침. query/target DB 는
-    // complex DB(체인별 엔트리). report_format 가 켜졌을 때만 진입(.m8 경로와 배타적).
+    // complex DB(체인별 엔트리). -fsr 이 _report 일 때만 진입(.m8 경로와 배타적).
     bool multimer_report = false;
-    if (opts.report_format && !opts.foldseek_query_db.empty() &&
-        !opts.foldseek_file.empty()) {
+    if (result_kind == InputKind::ResultReport && !query_db.empty()) {
         MultimerReportParser mr_parser;
-        if (mr_parser.load(opts.foldseek_file) && mr_parser.hit_count() > 0) {
-            screen.set_multimer_report(mr_parser.get_hits(), opts.foldseek_query_db,
-                                       opts.foldseek_db, opts.show_structure);
+        if (mr_parser.load(fs_result) && mr_parser.hit_count() > 0) {
+            screen.set_multimer_report(mr_parser.get_hits(), query_db,
+                                       target_db, opts.show_structure);
             multimer_report = true;
         } else {
             std::cerr << "Warning: failed to parse multimer report: "
-                      << opts.foldseek_file << std::endl;
+                      << fs_result << std::endl;
         }
     }
 
     bool query_from_db = false;
     std::vector<std::string> query_ids;                              // .m8 순서
     std::map<std::string, std::vector<FoldseekHit>> hits_by_query;   // query별 hit 그룹
-    if (!multimer_report &&
-        !opts.foldseek_query_db.empty() && !opts.foldseek_file.empty()) {
+    if (!multimer_report && !query_db.empty() && result_kind == InputKind::ResultM8) {
         FoldseekParser q_parser;
-        if (q_parser.load(opts.foldseek_file) && q_parser.hit_count() > 0) {
+        if (q_parser.load(fs_result) && q_parser.hit_count() > 0) {
             for (const FoldseekHit& h : q_parser.get_hits()) {
                 auto it = hits_by_query.find(h.query);
                 if (it == hits_by_query.end()) {
@@ -87,6 +172,17 @@ void run(const RunOptions& opts) {
         }
     }
 
+    // query 가 Foldseek DB 인데 위 두 경로 어느 쪽도 서지 않으면 더 진행할 수 없다.
+    // plaintext 경로는 gemmi 로 구조 파일을 여는데, DB 데이터 파일은 열 수 없다.
+    if (!query_db.empty() && !multimer_report && !query_from_db) {
+        std::cerr << "Error: query '" << query_db << "' is a Foldseek DB, but no usable hits "
+                  << "were read from " << (fs_result.empty() ? "(no -fsr given)" : fs_result)
+                  << ".\n       A Foldseek DB query needs a matching -fsr result file."
+                  << std::endl;
+        Terminal::exit_raw_mode();
+        return;
+    }
+
     if (multimer_report) {
         // Scene already set up by set_multimer_report() above (complex chains
         // loaded + superposed). Nothing more to do here.
@@ -95,29 +191,24 @@ void run(const RunOptions& opts) {
         // open target DB, load first hit). Query switching via ]/[ reuses the
         // same path. The workflow handoff passes only the query as input_files,
         // so plaintext targets are not loaded here.
-        screen.set_query_nav(query_ids, hits_by_query, opts.foldseek_query_db,
-                             opts.foldseek_db, opts.show_structure);
+        screen.set_query_nav(query_ids, hits_by_query, query_db,
+                             target_db, opts.show_structure);
     } else {
     // plaintext 경로: 체인 필터를 구조 로드 전에 정해야 하므로 m8 을 먼저 읽는다.
     // foldseek createdb 는 멀티머를 체인마다 쪼개므로(`<stem>_<chain>`), m8 accession 이
     // 가리키는 체인만 남겨야 qaln/taln 인덱스가 파일의 CA 순서와 맞는다.
     FoldseekParser fs_nav_parser;
     bool fs_hits_loaded = false;
-    if (!opts.foldseek_file.empty()) {
-        fs_hits_loaded = fs_nav_parser.load(opts.foldseek_file) &&
+    if (!fs_result.empty()) {
+        fs_hits_loaded = fs_nav_parser.load(fs_result) &&
                          fs_nav_parser.hit_count() > 0;
         if (!fs_hits_loaded) {
             std::cerr << "Warning: no usable hits in Foldseek result: "
-                      << opts.foldseek_file << std::endl;
+                      << fs_result << std::endl;
         }
 
-        // target 구조를 읽을 소스가 하나도 없으면 hit 을 띄울 수 없다.
-        if (fs_hits_loaded && opts.foldseek_db.empty() &&
-            opts.foldseek_db_path.empty() && opts.input_files.size() < 2) {
-            std::cerr << "Warning: no source for target structures. "
-                      << "Add --db <foldseekDB>, --db-path <dir>, "
-                      << "or pass target files as extra arguments." << std::endl;
-        }
+        // target 소스가 없다는 경고는 필요 없어졌다 — -fsr 은 -fst 와 쌍으로만 받으므로
+        // (Parameters 검증 2) 결과 파일이 있으면 target 소스도 항상 있다.
 
         // 기능 4: aligned 모드는 정렬 문자열(qaln/taln)이 필요하다. 12컬럼 m8 처럼
         // 정렬 문자열이 없으면 최근접 이웃(10 Å) 판정으로 대체되므로 그 사실을 알린다.
@@ -128,7 +219,7 @@ void run(const RunOptions& opts) {
             }
             if (!any_aln) {
                 std::cerr << "Warning: -m aligned needs alignment strings (qaln/taln), "
-                          << "but none are present in " << opts.foldseek_file << ".\n"
+                          << "but none are present in " << fs_result << ".\n"
                           << "         Falling back to nearest-neighbour (10 A) colouring "
                           << "-- the panel shows 'nearest-nbr'.\n"
                           << "         Regenerate the result with:\n"
@@ -184,17 +275,17 @@ void run(const RunOptions& opts) {
     }
 
     // 기능 4: aligned 모드 — foldseek/FoldMason 결과가 없는 경우 (nearest-neighbor fallback)
-    if (opts.mode == "aligned" && opts.foldseek_file.empty() && opts.foldmason_file.empty()) {
+    if (opts.mode == "aligned" && fs_result.empty() && opts.foldmason_file.empty()) {
         screen.compute_aligned_all();
     }
 
-    // Foldseek DB 직접 읽기 모드 (--db 옵션)
-    if (!opts.foldseek_db.empty()) {
-        screen.open_foldseek_db(opts.foldseek_db);
+    // Foldseek DB 직접 읽기 모드 (-fst 가 Foldseek DB 일 때)
+    if (!target_db.empty()) {
+        screen.open_foldseek_db(target_db);
     }
 
-    // 기능 3: Foldseek hit 탐색 설정 (-fs 파일이 있을 때)
-    if (!opts.foldseek_file.empty()) {
+    // 기능 3: Foldseek hit 탐색 설정 (-fsr 결과가 있을 때)
+    if (!fs_result.empty()) {
         if (fs_hits_loaded) {
             if ((int)opts.input_files.size() > 1) {
                 // 작업 3-A: 다중 타겟 — m8 hit을 CLI target 파일명 기준으로 필터링
@@ -216,7 +307,7 @@ void run(const RunOptions& opts) {
                     }
                 }
                 screen.set_foldseek_hits(filtered_hits);
-                screen.set_fs_db_path(opts.foldseek_db_path);
+                screen.set_fs_db_path(target_dir);
                 screen.prepare_foldseek_db(filtered_hits);
 
                 // 작업 3-B: 각 target protein에 매칭 hit의 transform 적용
@@ -235,7 +326,7 @@ void run(const RunOptions& opts) {
             } else {
                 // 단일 입력: 기존 동작 유지
                 screen.set_foldseek_hits(fs_nav_parser.get_hits());
-                screen.set_fs_db_path(opts.foldseek_db_path);
+                screen.set_fs_db_path(target_dir);
                 screen.prepare_foldseek_db(fs_nav_parser.get_hits());
                 screen.load_next_hit(+1);
             }

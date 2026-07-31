@@ -29,7 +29,7 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 7 color modes 
 - **7 color modes** — `protein`, `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `aligned`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
 - **Secondary structure visualization** — helix cylinders and sheet ribbons
-- **Foldseek integration** — load `.m8` results, navigate hits, auto-download structures or read directly from Foldseek DB
+- **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
 - **FoldMason integration** — MSA superposition with conservation coloring
 - **MSA conservation scoring** — Shannon entropy from FASTA/A3M alignments
 - **Interface detection** — inter-chain contact residue highlighting
@@ -117,8 +117,8 @@ make -j $(nproc)
 
 ```bash
 ./StrucTTY ../example/3A0C-assembly1.cif \
-  -fs ../example/foldseek_result/alis_afdb50.m8 \
-  --db-path /path/to/pdb/
+  -fst /path/to/pdb/ \
+  -fsr ../example/foldseek_result/alis_afdb50.m8
 ```
 ![Foldseek_navigation](.github/Foldseek_hit_navigation.gif)
 
@@ -134,7 +134,7 @@ make -j $(nproc)
 ## Usage
 
 ```
-./StrucTTY <input_files...> [OPTIONS]
+./StrucTTY <query...> [OPTIONS]
 ```
 
 | Option | Description |
@@ -143,12 +143,30 @@ make -j $(nproc)
 | `-c, --chains <FILE>` | Chain selection file (TSV: index + chain IDs) |
 | `-s, --structure` | Show secondary structure (helix/sheet) |
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
-| `-fs, --foldseek <FILE>` | Foldseek `.m8` result for hit navigation |
-| `--db <PATH>` | Foldseek structure database path for offline Cα coordinate reading |
-| `--db-path <DIR>` | PDB directory for Foldseek hit loading |
-| `--query-db <PATH>` | Foldseek query DB. Required with `--report-format`; with `-fs` the query is read per chain from the DB |
+| `-fst, --foldseek-target <PATH>` | Target source for Foldseek hits: Foldseek DB, structure directory, structure file, or `auto` (download from public DBs) |
+| `-fsr, --foldseek-result <FILE>` | Foldseek result: `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) |
 | `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSA) |
 | `-n, --nopanel` | Hide info panel |
+
+`-fst` and `-fsr` must be given together — one without the other is an error.
+
+### Supported inputs
+
+The kind of every input is detected automatically (no format flags):
+
+| Kind | What it is | Accepted as |
+|---|---|---|
+| Structure file | `.pdb` / `.cif` / `.ent` (+ `.gz`) | query, `-fst` |
+| Structure directory | a directory of those files | `-fst` |
+| Foldseek DB | base path of a DB built **from structures** (needs `<db>_ca`) | query, `-fst` |
+| Foldseek result | `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) | `-fsr` |
+
+A `_report` (14 columns) enters the multimer path and requires a Foldseek **query DB** as the query,
+because the per-complex chains are read from that DB.
+
+**Sequence FASTA is not supported.** It carries no 3D coordinates, and `foldseek createdb
+--prostt5-model` predicts 3Di (`_ss`) without writing any `_ca`, so a sequence-derived DB cannot be
+rendered either. Both cases fail before rendering starts, with the reason printed.
 
 ## Keyboard Controls
 
@@ -192,7 +210,7 @@ All modes support **3-band depth fog**: near (vivid), mid (normal), far (dark, h
 StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12, 17, 21, and 29 column formats. Features include:
 
 - Interactive hit navigation with automatic structure downloading
-- Direct Foldseek DB reading (`--db`) read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Uses hit-based selective scanning for minimal memory usage (~152KB for 1000 hits, even on AFDB50)
+- Direct Foldseek DB reading (`-fst <DB>`) read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Uses hit-based selective scanning for minimal memory usage (~152KB for 1000 hits, even on AFDB50)
 - Structural superposition using U/T rotation-translation matrices
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
@@ -224,14 +242,20 @@ foldseek easy-multimersearch queryDir targetDir result tmp --view-structty
 #### Standalone usage
 
 ```bash
-# Online mode (download structures)
-./StrucTTY query.pdb --foldseek result.m8
+# Read target Cα coordinates straight from a Foldseek DB (offline)
+./StrucTTY query.pdb -fst /path/to/targetDB -fsr result.m8
 
-# Offline mode (read from Foldseek DB)
-./StrucTTY query.pdb --foldseek result.m8 --db /path/to/targetDB
+# Look targets up by hit accession in a local structure directory
+./StrucTTY query.pdb -fst /path/to/pdbs/ -fsr result.m8
 
-# Hybrid (DB first, fallback to download)
-./StrucTTY query.pdb --foldseek result.m8 --db /path/to/targetDB --db-path /path/to/pdbs/
+# Download hit structures from public DBs (PDB, AFDB, ESMAtlas, CATH, BFVD, ...)
+./StrucTTY query.pdb -fst auto -fsr result.m8
+
+# Query from a Foldseek DB — multi-query navigation with ]/[
+./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result.m8 -m aligned
+
+# Multimer: 14-column _report, chains read per complex from the query DB
+./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result_report
 ```
 
 ### FoldMason
