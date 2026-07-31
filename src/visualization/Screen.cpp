@@ -1536,11 +1536,11 @@ void Screen::load_next_hit(int delta) {
         if (chain_filter == "-") {
             // foldseek 체인 accession(`<stem>_<chain>`)은 detect_db_type 이 Unknown 으로
             // 보기 때문에 extract_chain 이 "-" 를 준다. 해석된 파일명으로 한 번 더 시도.
+            // 어느 체인이 걸렸는지는 패널의 `[B-2]` 라벨에 나오므로 로그는 남기지 않는다
+            // (hit 을 넘길 때마다 찍히면 화면이 밀린다).
             const std::string from_acc = chain_from_accession(hit.target, file_path);
             if (from_acc != "-") {
                 chain_filter = from_acc;
-                std::cerr << "Chain filter from Foldseek target '" << hit.target
-                          << "': " << file_path << " -> chain " << chain_filter << std::endl;
             }
         }
         chainVec.push_back(chain_filter);
