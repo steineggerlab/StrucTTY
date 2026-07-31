@@ -601,6 +601,7 @@ void Protein::sync_interface_to_screen() {
 
 void Protein::sync_aligned_to_screen() {
     sync_bool_field_to_screen(screen_atoms, init_atoms, &Atom::is_aligned);
+    sync_bool_field_to_screen(screen_atoms, init_atoms, &Atom::is_aln_pair);
 }
 
 // 기능 4: UT transform을 init_atoms에도 적용 (screen_atoms와 동일한 rotation+shift)
@@ -621,6 +622,15 @@ void Protein::apply_ut_to_init_atoms(const float* U, const float* T) {
 // this와 other 두 단백질 모두 is_aligned 설정 후 screen_atoms에 반영
 void Protein::compute_aligned_regions_nn(Protein& other, float threshold) {
     float thr2 = threshold * threshold;
+
+    // 거리만으로 판정하는 경로라 "정렬 쌍이지만 멀다" 상태가 없다.
+    // 이전 hit 의 중간 상태가 남지 않게 끄고 시작한다.
+    for (auto& [cid, chain] : init_atoms) {
+        for (Atom& a : chain) a.is_aln_pair = false;
+    }
+    for (auto& [cid, chain] : other.init_atoms) {
+        for (Atom& a : chain) a.is_aln_pair = false;
+    }
 
     // query (this) 측: 최근접 target CA < threshold이면 is_aligned = true
     for (auto& [cid_a, chain_a] : init_atoms) {
@@ -674,15 +684,17 @@ void Protein::compute_aligned_regions_from_aln(Protein& other,
     if (qaln.size() != taln.size()) return;
     float thr2 = threshold * threshold;
 
-    // is_aligned 플래그 초기화 (multihit 전환 시 이전 hit 잔류 방지)
+    // 플래그 초기화 (multihit 전환 시 이전 hit 잔류 방지)
     for (auto& [cid, chain] : init_atoms) {
         for (Atom& a : chain) {
             a.is_aligned = false;
+            a.is_aln_pair = false;
         }
     }
     for (auto& [cid, chain] : other.init_atoms) {
         for (Atom& a : chain) {
             a.is_aligned = false;
+            a.is_aln_pair = false;
         }
     }
 
@@ -716,8 +728,12 @@ void Protein::compute_aligned_regions_from_aln(Protein& other,
             if (q_idx < q_size && t_idx < t_size) {
                 Atom* qa = query_cas[q_idx];
                 Atom* ta = target_cas[t_idx];
+                // 정렬 쌍이라는 사실은 거리와 무관하게 남긴다(is_aln_pair) — foldseek 이
+                // 무엇을 정렬했는지 숨기지 않기 위해서다. 컷오프 안쪽이면 is_aligned 로
+                // 한 단계 더 밝게 칠한다.
+                qa->is_aln_pair = true;
+                ta->is_aln_pair = true;
                 if (skip_distance_check) {
-                    // alignment string만으로 is_aligned 설정 (좌표 비교 생략)
                     qa->is_aligned = true;
                     ta->is_aligned = true;
                 } else {

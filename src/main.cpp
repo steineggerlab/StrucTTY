@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
     opts.foldmason_file = params.get_foldmason_file();
     opts.foldseek_target = params.get_foldseek_target();
     opts.foldseek_result = params.get_foldseek_result();
+    opts.align_cutoff    = params.get_align_cutoff();
 
     structty::run(opts);
     return 0;

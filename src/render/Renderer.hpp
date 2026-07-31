@@ -11,6 +11,7 @@ struct RenderAtom {
     float bfactor;
     bool  is_interface;
     bool  is_aligned;
+    bool  is_aln_pair;   // 정렬 쌍이지만 --align-cutoff 보다 멀다
     float conservation_score;
     int   residue_number;
     char  residue_name[4];

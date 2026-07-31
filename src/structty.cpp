@@ -72,6 +72,7 @@ void run(const RunOptions& opts) {
     }
 
     screen.set_chainfile(opts.chains_file, (int)opts.input_files.size());
+    screen.set_align_cutoff(opts.align_cutoff);
 
     // -fst / -fsr 로 들어온 입력의 종류를 판별해 씬 경로를 정한다.
     // 과거의 --db / --db-path / --query-db / --report-format 조합을 대체한다:
@@ -117,8 +118,11 @@ void run(const RunOptions& opts) {
             std::cerr << input_probe::kind_name(target_kind);
         }
         std::cerr << ", result=" << input_probe::tsv_column_count(fs_result) << " cols ("
-                  << input_probe::kind_name(result_kind) << "), mode=" << opts.mode
-                  << std::endl;
+                  << input_probe::kind_name(result_kind) << "), mode=" << opts.mode;
+        if (opts.mode == "aligned") {
+            std::cerr << ", align-cutoff=" << opts.align_cutoff << " A";
+        }
+        std::cerr << std::endl;
 
         // auto 는 공개 DB accession 패턴만 해석한다. foldseek createdb 가 만든
         // 체인 accession(`<stem>_<chain>`)은 어느 패턴에도 맞지 않아 URL 이 없다.
