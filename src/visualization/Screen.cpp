@@ -716,7 +716,6 @@ std::vector<RenderAtom> Screen::to_render_atoms() {
                 ra.bfactor            = a.bfactor;
                 ra.is_interface       = a.is_interface;
                 ra.is_aligned         = a.is_aligned;
-                ra.is_aln_pair        = a.is_aln_pair;
                 ra.conservation_score = a.conservation_score;
                 ra.residue_number     = a.residue_number;
                 strncpy(ra.residue_name, a.residue_name.c_str(), 3);
@@ -1783,15 +1782,12 @@ void Screen::load_next_hit(int delta) {
     if (screen_mode == "aligned") {
         if (hit.has_aln) {
             // qaln/taln 은 hit.qstart/hit.tstart 잔기에서 시작한다
-            // 거리 검사를 켠다: backtrace 가 짝지었더라도 정렬 좌표계에서 CA 쌍이
-            // align_cutoff_ 보다 멀면 정렬된 것으로 보지 않는다.
-            compute_aligned_from_aln(hit.qaln, hit.taln, hit.qstart, hit.tstart,
-                                     align_cutoff_, false);
+            compute_aligned_from_aln(hit.qaln, hit.taln, hit.qstart, hit.tstart, 5.0f, true);
             set_align_method("aln-string");
         } else {
             // 정렬 문자열이 없는 포맷(12컬럼 등): 최근접 이웃 폴백.
             // compute_aligned_all() 이 패널 라벨을 "nearest-nbr" 로 설정한다.
-            compute_aligned_all(align_cutoff_);
+            compute_aligned_all();
         }
     }
 
@@ -1971,10 +1967,10 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
         if (hit.has_aln) {
             data[0]->compute_aligned_regions_from_aln(
                 *data[target_protein_idx], hit.qaln, hit.taln,
-                hit.qstart, hit.tstart, align_cutoff_, false);
+                hit.qstart, hit.tstart, 5.0f, true);
             set_align_method("aln-string");
         } else {
-            compute_aligned_all(align_cutoff_);
+            compute_aligned_all();
         }
     }
 

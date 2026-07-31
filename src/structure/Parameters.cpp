@@ -19,9 +19,6 @@ void print_help(){
     std::cout << "                          Foldseek result: m8 (12/17/21/29 columns) or\n";
     std::cout << "                          multimer _report (14 columns)\n";
     std::cout << "                          -fst and -fsr must be given together\n";
-    std::cout << "  --align-cutoff <A>      -m aligned: CA-CA distance to draw a pair bright\n";
-    std::cout << "                            (default 5.0 A). Pairs further apart keep the same\n";
-    std::cout << "                            hue but dimmer, so no alignment is hidden\n";
     std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSA)\n";
     std::cout << "  -n, --nopanel           Hide info panel\n";
     std::cout << "  -b, --benchmark         Benchmark mode (measure FPS/latency)\n";
@@ -134,19 +131,6 @@ Parameters::Parameters(int argc, char* argv[]) {
                     foldseek_result = argv[++i];
                 } else {
                     throw std::runtime_error("Error: Missing value for -fsr / --foldseek-result.");
-                }
-            } else if (!strcmp(argv[i], "--align-cutoff")) {
-                if (i + 1 < argc) {
-                    const std::string val(argv[++i]);
-                    float parsed = 0.0f;
-                    try { parsed = std::stof(val); }
-                    catch (...) { throw std::runtime_error("Error: --align-cutoff needs a number in Angstrom."); }
-                    if (!(parsed > 0.0f)) {
-                        throw std::runtime_error("Error: --align-cutoff must be > 0.");
-                    }
-                    align_cutoff = parsed;
-                } else {
-                    throw std::runtime_error("Error: Missing value for --align-cutoff.");
                 }
             } else if (!strcmp(argv[i], "--foldmason") || !strcmp(argv[i], "-fm")) {
                 if (i + 1 < argc) {
