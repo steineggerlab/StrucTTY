@@ -157,7 +157,7 @@ The kind of every input is detected automatically (no format flags):
 | Kind | What it is | Accepted as |
 |---|---|---|
 | Structure file | `.pdb` / `.cif` / `.ent` (+ `.gz`) | query, `-fst` |
-| Structure directory | a directory of those files | `-fst` |
+| Structure directory | a directory of those files | query, `-fst` |
 | Foldseek DB | base path of a DB built **from structures** (needs `<db>_ca`) | query, `-fst` |
 | Foldseek result | `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) | `-fsr` |
 
@@ -219,7 +219,9 @@ StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12,
 - Structural superposition using U/T rotation-translation matrices
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
-- Multi-query navigation (`]`/`[`) across queries in a single `.m8` (query given as a Foldseek DB)
+- Multi-query navigation (`]`/`[`) across queries in a single `.m8`. The query can be a Foldseek DB
+  **or a plain directory** — each accession in the result is looked up inside it, so a standalone
+  run reproduces what `foldseek --view-structty` shows
 - With a structure file as the query, hits are filtered to that file — one `.m8` covering a whole
   query directory no longer walks you through other queries' hits. Foldseek indexes a multimer per
   chain, so `]`/`[` steps through the query's chains and `N`/`P` through that chain's hits; the

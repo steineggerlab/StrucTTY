@@ -271,6 +271,7 @@ void run(const RunOptions& opts) {
     // 사용자가 `-c` 로 체인을 직접 고르거나 target 파일을 추가로 준 경우, MSA/FoldMason 을
     // 쓰는 경우는 아래 단일 체인 경로를 그대로 둔다(각각 별도 씬 구성이 필요하다).
     bool file_query_nav = false;
+    const bool query_is_dir = (query_kind == InputKind::StructureDir);
     if (fs_hits_loaded && opts.input_files.size() == 1 && opts.chains_file.empty() &&
         opts.foldmason_file.empty() && opts.msa_file.empty()) {
         std::vector<std::string> chain_ids;                              // m8 등장 순서
@@ -285,13 +286,16 @@ void run(const RunOptions& opts) {
             }
         }
         // 체인이 하나뿐이면 기존 경로가 더 단순하다(씬 구성이 동일하다).
-        if (chain_ids.size() >= 2) {
-            std::cerr << "Foldseek query chains in " << opts.input_files[0] << ": "
-                      << chain_ids.size() << " (]/[ switches chain, N/P walks its hits)"
+        // 디렉터리 query 는 하나여도 이 경로로 간다 — 파일을 accession 으로 찾아야 하므로.
+        if (chain_ids.size() >= 2 || (query_is_dir && !chain_ids.empty())) {
+            std::cerr << "Foldseek queries in " << opts.input_files[0] << ": "
+                      << chain_ids.size()
+                      << (query_is_dir ? " (]/[ switches query chain, N/P walks its hits)"
+                                       : " chains (]/[ switches chain, N/P walks its hits)")
                       << std::endl;
             screen.set_fs_db_path(target_dir);
             screen.set_query_nav_from_file(chain_ids, hits_by_chain, opts.input_files[0],
-                                           target_db, opts.show_structure);
+                                           target_db, opts.show_structure, query_is_dir);
             file_query_nav = true;
         }
     }

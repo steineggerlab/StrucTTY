@@ -65,11 +65,14 @@ public:
     // delta=+1 (next, ']'), delta=-1 (prev, '['). No-op if <2 queries.
     // 구조 파일 query 용 multi-chain 내비게이션: query_ids 는 이 파일의 체인 accession
     // (`<stem>_<chain>`) 이고, 전환 때마다 같은 파일을 다른 체인 필터로 다시 읽는다.
+    // query_source 가 파일이면 그 파일을, 디렉터리면 accession 이름으로 그 안에서 찾은
+    // 파일을 매 전환마다 다시 읽는다(체인 필터는 accession 에서 뽑는다).
     void set_query_nav_from_file(const std::vector<std::string>& query_ids,
                                  const std::map<std::string, std::vector<FoldseekHit>>& hits_by_query,
-                                 const std::string& query_file,
+                                 const std::string& query_source,
                                  const std::string& target_db_path,
-                                 const bool& show_structure);
+                                 const bool& show_structure,
+                                 const bool& source_is_directory = false);
     void switch_query(int delta);
     int  query_count() const { return (int)query_ids_.size(); }
 
@@ -212,6 +215,8 @@ private:
     std::string query_db_path_;
     // 비어있지 않으면 query 를 DB 가 아니라 이 구조 파일에서 읽는다(체인 필터는 accession 에서)
     std::string query_file_;
+    // query_file_ 이 디렉터리인가 — accession 마다 그 안에서 파일을 찾는다
+    bool query_file_is_dir_ = false;
     std::string target_db_path_;
     bool multi_query_show_structure_ = false;
 
