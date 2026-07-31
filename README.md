@@ -116,10 +116,18 @@ make -j $(nproc)
 ### Foldseek hit navigation
 
 ```bash
-./StrucTTY ../example/3A0C-assembly1.cif \
-  -fst /path/to/pdb/ \
-  -fsr ../example/foldseek_result/alis_afdb50.m8
+./StrucTTY ../example/foldseek_result/DB1/ \
+  -fst ../example/foldseek_result/DB2/ \
+  -fsr ../example/foldseek_result/result.m8 \
+  -m aligned -s
 ```
+```bash
+./StrucTTY ../example/foldseek_result/DB1/1rex-assembly1.cif \
+  -fst ../example/foldseek_result/DB2/ \
+  -fsr ../example/foldseek_result/result.m8 \
+  -m aligned -s
+```
+
 ![Foldseek_navigation](.github/Foldseek_hit_navigation.gif)
 
 ### FoldMason MSA superposition
