@@ -321,25 +321,45 @@ std::string PDBDownloader::get_cache_path(const std::string& target_id, DBType d
     }
 }
 
-std::string PDBDownloader::find_in_db_path(const std::string& target_id,
-                                            const std::string& db_path) {
-    if (db_path.empty()) return "";
+// <db_path>/<name> 에 붙일 확장자 후보를 순서대로 시도한다.
+// 시도 순서: .pdb, .cif, .ent, 각각의 .gz, 확장자 없음 — 모두 소문자 이름으로도 한 번 더.
+static std::string find_by_name(const std::string& name, const std::string& db_path) {
+    const std::string base       = db_path + "/" + name;
+    const std::string base_lower = db_path + "/" + to_lower(name);
 
-    std::string base = db_path + "/" + target_id;
-    std::string base_lower = db_path + "/" + to_lower(target_id);
-
-    // 시도 순서: .pdb, .cif, 소문자.pdb, 소문자.cif
-    std::vector<std::string> candidates = {
-        base + ".pdb",
-        base + ".cif",
-        base_lower + ".pdb",
-        base_lower + ".cif",
-        base,            // 확장자 없는 경우
+    const std::vector<std::string> candidates = {
+        base + ".pdb",       base + ".cif",       base + ".ent",
+        base + ".pdb.gz",    base + ".cif.gz",    base + ".ent.gz",
+        base,                // 확장자 없는 경우
+        base_lower + ".pdb", base_lower + ".cif", base_lower + ".ent",
+        base_lower + ".pdb.gz", base_lower + ".cif.gz", base_lower + ".ent.gz",
         base_lower,
     };
 
     for (const std::string& cand : candidates) {
         if (file_exists_nonempty(cand)) return cand;
+    }
+    return "";
+}
+
+std::string PDBDownloader::find_in_db_path(const std::string& target_id,
+                                            const std::string& db_path) {
+    if (db_path.empty()) return "";
+
+    const std::string direct = find_by_name(target_id, db_path);
+    if (!direct.empty()) return direct;
+
+    // foldseek createdb 는 멀티머를 체인마다 쪼개 `<파일 stem>_<auth chain>` accession 을
+    // 만든다(예: 1dci-assembly1_B-2). 디렉터리에는 원본 파일 하나(`1dci-assembly1.cif`)만
+    // 있으므로 뒤쪽 `_<chain>` 을 하나씩 떼어내며 다시 찾는다. 어느 체인을 그릴지는
+    // Screen::chain_from_accession() 이 찾아낸 파일 stem 과 accession 을 비교해 정한다.
+    // stem 자체에 `_` 가 있을 수 있어(`my_protein_A`) 뒤에서부터 순서대로 자른다.
+    size_t cut = target_id.rfind('_');
+    while (cut != std::string::npos && cut > 0) {
+        const std::string found = find_by_name(target_id.substr(0, cut), db_path);
+        if (!found.empty()) return found;
+        if (cut == 0) break;
+        cut = target_id.rfind('_', cut - 1);
     }
     return "";
 }

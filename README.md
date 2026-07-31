@@ -164,6 +164,11 @@ The kind of every input is detected automatically (no format flags):
 A `_report` (14 columns) enters the multimer path and requires a Foldseek **query DB** as the query,
 because the per-complex chains are read from that DB.
 
+With `-fst <directory>`, hits are looked up by accession. Foldseek splits multimers per chain
+(`1dci-assembly1_B-2`), so the trailing `_<chain>` is stripped until a file matches
+(`1dci-assembly1.cif`) and that chain alone is drawn — a plain directory of structures works as a
+target, no `createdb` needed.
+
 **Sequence FASTA is not supported.** It carries no 3D coordinates, and `foldseek createdb
 --prostt5-model` predicts 3Di (`_ss`) without writing any `_ca`, so a sequence-derived DB cannot be
 rendered either. Both cases fail before rendering starts, with the reason printed.
