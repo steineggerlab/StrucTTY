@@ -159,12 +159,14 @@ void Screen::set_query_nav(const std::vector<std::string>& query_ids,
 
 void Screen::set_query_nav_from_file(const std::vector<std::string>& query_ids,
                                     const std::map<std::string, std::vector<FoldseekHit>>& hits_by_query,
-                                    const std::string& query_file,
+                                    const std::string& query_source,
                                     const std::string& target_db_path,
-                                    const bool& show_structure) {
+                                    const bool& show_structure,
+                                    const bool& source_is_directory) {
     query_ids_ = query_ids;
     hits_by_query_ = hits_by_query;
-    query_file_ = query_file;
+    query_file_ = query_source;
+    query_file_is_dir_ = source_is_directory;
     target_db_path_ = target_db_path;
     multi_query_show_structure_ = show_structure;
 
@@ -196,9 +198,21 @@ void Screen::activate_query(int idx) {
     // same file is re-read with the chain the accession names; otherwise it comes from
     // the (already prepared) query DB.
     if (!query_file_.empty()) {
-        const std::string chain = chain_from_accession(acc, query_file_);
+        std::string query_path = query_file_;
+        if (query_file_is_dir_) {
+            // accession(`<stem>_<chain>`) 으로 디렉터리에서 원본 파일을 찾는다 —
+            // target 쪽과 같은 규칙(뒤쪽 `_<chain>` 을 떼며 탐색).
+            std::string ignored;
+            query_path = PDBDownloader::resolve_target_file(acc, query_file_, ignored);
+            if (query_path.empty()) {
+                std::cerr << "Warning: no structure file for query '" << acc
+                          << "' in " << query_file_ << std::endl;
+                return;
+            }
+        }
+        const std::string chain = chain_from_accession(acc, query_path);
         chainVec[0] = chain;   // "-" 면 전체 체인
-        set_protein(query_file_, 0, multi_query_show_structure_);
+        set_protein(query_path, 0, multi_query_show_structure_);
     } else if (!load_query_into_data0(acc, multi_query_show_structure_)) {
         return;
     }

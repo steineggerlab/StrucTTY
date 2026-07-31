@@ -25,7 +25,8 @@ void print_help(){
     std::cout << "  --help                  Show this help message\n";
     std::cout << "\nSupported inputs (4 kinds; detected automatically):\n";
     std::cout << "  1. structure file       .pdb / .cif / .ent (+ .gz)\n";
-    std::cout << "  2. structure directory  a directory of those files (-fst only)\n";
+    std::cout << "  2. structure directory  a directory of those files. As the query, every\n";
+    std::cout << "                          accession in -fsr is looked up inside it (]/[ walks them)\n";
     std::cout << "  3. Foldseek DB          base path of a DB built from structures\n";
     std::cout << "                          (needs <db>_ca; sequence-derived DBs have none)\n";
     std::cout << "  4. Foldseek result      m8 (12/17/21/29 columns) or\n";
@@ -37,7 +38,8 @@ void print_help(){
     std::cout << "  StrucTTY query.cif -fst targetDB   -fsr result.m8   -m aligned\n";
     std::cout << "  StrucTTY query.cif -fst pdb_dir/   -fsr result.m8\n";
     std::cout << "  StrucTTY query.cif -fst auto       -fsr result.m8\n";
-    std::cout << "  StrucTTY queryDB   -fst targetDB   -fsr result.m8   (multi-query: ]/[)\n";
+    std::cout << "  StrucTTY query_dir/ -fst targetDB  -fsr result.m8   (multi-query: ]/[)\n";
+    std::cout << "  StrucTTY queryDB   -fst targetDB   -fsr result.m8   (same, from a DB)\n";
     std::cout << "  StrucTTY queryDB   -fst targetDB   -fsr out_report  (multimer)\n";
 }
 
@@ -106,7 +108,11 @@ Parameters::Parameters(int argc, char* argv[]) {
                 show_structure = true;
             } else if (!strcmp(argv[i], "-n") || !strcmp(argv[i], "--nopanel")) {
                 no_panel = true;
-            } else if (fs::exists(argv[i]) && fs::is_regular_file(argv[i]) && in_file.size() < 9){
+            } else if (fs::exists(argv[i]) &&
+                       (fs::is_regular_file(argv[i]) || fs::is_directory(argv[i])) &&
+                       in_file.size() < 9){
+                // 디렉터리 query: -fsr 의 query accession 들을 이 디렉터리에서 찾아
+                // 체인마다 하나씩 순회한다(foldseek 뷰어가 query DB 로 하는 것과 같은 구성).
                 in_file.push_back(argv[i]);
             } else if (!strcmp(argv[i], "--msa")) {
                 if (i + 1 < argc) {
