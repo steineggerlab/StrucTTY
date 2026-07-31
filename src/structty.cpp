@@ -2,6 +2,7 @@
 #include <clocale>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 #include <memory>
 #include <map>
 #include <vector>
@@ -265,14 +266,48 @@ void run(const RunOptions& opts) {
         }
     }
 
+    // 구조 파일 query 라도 체인이 여러 개면 `]`/`[` 로 체인을 넘기고 각 체인의 hit 을
+    // `N`/`P` 로 볼 수 있게 한다. 체인 전환 때마다 같은 파일을 다른 체인 필터로 다시 읽는다.
+    // 사용자가 `-c` 로 체인을 직접 고르거나 target 파일을 추가로 준 경우, MSA/FoldMason 을
+    // 쓰는 경우는 아래 단일 체인 경로를 그대로 둔다(각각 별도 씬 구성이 필요하다).
+    bool file_query_nav = false;
+    if (fs_hits_loaded && opts.input_files.size() == 1 && opts.chains_file.empty() &&
+        opts.foldmason_file.empty() && opts.msa_file.empty()) {
+        std::vector<std::string> chain_ids;                              // m8 등장 순서
+        std::map<std::string, std::vector<FoldseekHit>> hits_by_chain;
+        for (const FoldseekHit& hit : nav_hits) {
+            auto it = hits_by_chain.find(hit.query);
+            if (it == hits_by_chain.end()) {
+                chain_ids.push_back(hit.query);
+                hits_by_chain.emplace(hit.query, std::vector<FoldseekHit>{ hit });
+            } else {
+                it->second.push_back(hit);
+            }
+        }
+        // 체인이 하나뿐이면 기존 경로가 더 단순하다(씬 구성이 동일하다).
+        if (chain_ids.size() >= 2) {
+            std::cerr << "Foldseek query chains in " << opts.input_files[0] << ": "
+                      << chain_ids.size() << " (]/[ switches chain, N/P walks its hits)"
+                      << std::endl;
+            screen.set_fs_db_path(target_dir);
+            screen.set_query_nav_from_file(chain_ids, hits_by_chain, opts.input_files[0],
+                                           target_db, opts.show_structure);
+            file_query_nav = true;
+        }
+    }
+
+    if (!file_query_nav) {
     if (fs_hits_loaded) {
-        const std::vector<FoldseekHit>& all_hits = nav_hits;
-        // query(0번 입력): m8 query 컬럼이 이 파일의 체인을 가리키면 그 체인만 남긴다
+        // query(0번 입력): m8 query 컬럼이 이 파일의 체인을 가리키면 그 체인만 남긴다.
+        // 그 체인 하나만 로드하므로, **같은 파일의 다른 체인이 낸 hit 은 버려야 한다** —
+        // 남겨두면 체인 B 의 정렬을 체인 A 위에 겹치게 된다.
+        std::string query_acc;
         if (!opts.input_files.empty()) {
-            for (const FoldseekHit& hit : all_hits) {
+            for (const FoldseekHit& hit : nav_hits) {
                 const std::string applied =
                     screen.apply_accession_chain(0, hit.query, opts.input_files[0]);
                 if (!applied.empty()) {
+                    query_acc = hit.query;
                     std::cerr << "Chain filter from Foldseek query '" << hit.query
                               << "': " << opts.input_files[0] << " -> chain "
                               << applied << std::endl;
@@ -280,6 +315,31 @@ void run(const RunOptions& opts) {
                 }
             }
         }
+        if (!query_acc.empty()) {
+            std::vector<std::string> other_chains;
+            std::vector<FoldseekHit> chain_hits;
+            for (const FoldseekHit& hit : nav_hits) {
+                if (hit.query == query_acc) {
+                    chain_hits.push_back(hit);
+                } else if (std::find(other_chains.begin(), other_chains.end(), hit.query)
+                           == other_chains.end()) {
+                    other_chains.push_back(hit.query);
+                }
+            }
+            if (!other_chains.empty()) {
+                std::cerr << "Foldseek hits for '" << query_acc << "': " << chain_hits.size()
+                          << " (skipping " << (nav_hits.size() - chain_hits.size())
+                          << " hits of";
+                for (size_t oi = 0; oi < other_chains.size(); oi++) {
+                    std::cerr << (oi == 0 ? " " : ", ") << other_chains[oi];
+                }
+                std::cerr << ")\n"
+                          << "         Pass the Foldseek query DB as the query to walk every"
+                          << " chain with ]/[." << std::endl;
+            }
+            nav_hits = std::move(chain_hits);
+        }
+        const std::vector<FoldseekHit>& all_hits = nav_hits;
         // target(1번 이후 입력): m8 target 컬럼 기준으로 동일 처리
         for (int ti = 1; ti < (int)opts.input_files.size(); ti++) {
             for (const FoldseekHit& hit : all_hits) {
@@ -458,6 +518,7 @@ void run(const RunOptions& opts) {
             }
         }
     }
+    } // end if (!file_query_nav)
     } // end else (non-query-from-DB scene setup)
 
     if (bench) {

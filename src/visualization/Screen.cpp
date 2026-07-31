@@ -157,6 +157,27 @@ void Screen::set_query_nav(const std::vector<std::string>& query_ids,
     activate_query(0);
 }
 
+void Screen::set_query_nav_from_file(const std::vector<std::string>& query_ids,
+                                    const std::map<std::string, std::vector<FoldseekHit>>& hits_by_query,
+                                    const std::string& query_file,
+                                    const std::string& target_db_path,
+                                    const bool& show_structure) {
+    query_ids_ = query_ids;
+    hits_by_query_ = hits_by_query;
+    query_file_ = query_file;
+    target_db_path_ = target_db_path;
+    multi_query_show_structure_ = show_structure;
+
+    // Targets still come from a Foldseek DB when one was given; the query side is
+    // the only difference from set_query_nav().
+    if (!target_db_path.empty() && !fs_db_reader_.is_open()) {
+        open_foldseek_db(target_db_path);
+    }
+
+    current_query_idx_ = -1;
+    activate_query(0);
+}
+
 void Screen::activate_query(int idx) {
     if (idx < 0 || idx >= (int)query_ids_.size()) return;
     current_query_idx_ = idx;
@@ -171,8 +192,16 @@ void Screen::activate_query(int idx) {
     chainVec.push_back("-");
     if (panel) panel->reset_entries();
 
-    // Load the new query structure as data[0] from the (already prepared) query DB.
-    if (!load_query_into_data0(acc, multi_query_show_structure_)) return;
+    // Load the new query structure as data[0]. With a structure file as the query the
+    // same file is re-read with the chain the accession names; otherwise it comes from
+    // the (already prepared) query DB.
+    if (!query_file_.empty()) {
+        const std::string chain = chain_from_accession(acc, query_file_);
+        chainVec[0] = chain;   // "-" 면 전체 체인
+        set_protein(query_file_, 0, multi_query_show_structure_);
+    } else if (!load_query_into_data0(acc, multi_query_show_structure_)) {
+        return;
+    }
 
     // Re-normalize for this query: set_tmatrix re-sizes vectorpointer, and
     // normalize_proteins() recomputes norm_scale / centroid from data[0] and
