@@ -219,7 +219,9 @@ StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12,
 - Structural superposition using U/T rotation-translation matrices
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
-- Multi-query navigation (`]`/`[`) across queries in a single `.m8`
+- Multi-query navigation (`]`/`[`) across queries in a single `.m8` (query given as a Foldseek DB)
+- With a structure file as the query, hits are filtered to that file — one `.m8` covering a whole
+  query directory no longer walks you through other queries' hits
 - Multimer (complex-level) report viewing with per-complex superposition
 
 #### Launch from Foldseek

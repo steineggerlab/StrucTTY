@@ -232,8 +232,41 @@ void run(const RunOptions& opts) {
         }
     }
 
+    // easy-search 는 query 디렉터리 전체의 hit 을 m8 하나에 쓴다. 지금 열어둔 구조와
+    // 무관한 query 의 hit 까지 [N]ext 로 순회하면 엉뚱한 구조가 겹쳐 뜨므로, query
+    // accession 이 이 파일을 가리키는 hit 만 남긴다
+    // (accession = `<파일 stem>` 또는 foldseek createdb 의 `<파일 stem>_<chain>`).
+    std::vector<FoldseekHit> nav_hits;
     if (fs_hits_loaded) {
-        const std::vector<FoldseekHit>& all_hits = fs_nav_parser.get_hits();
+        std::string qstem = opts.input_files.empty()
+                                ? std::string()
+                                : fs::path(opts.input_files[0]).stem().string();
+        // `x.cif.gz` 는 stem() 이 `x.cif` 를 주므로 한 번 더 벗긴다
+        if (qstem.find('.') != std::string::npos) {
+            qstem = fs::path(qstem).stem().string();
+        }
+        for (const FoldseekHit& hit : fs_nav_parser.get_hits()) {
+            const bool same_query =
+                !qstem.empty() &&
+                (hit.query == qstem ||
+                 (hit.query.size() > qstem.size() &&
+                  hit.query.compare(0, qstem.size(), qstem) == 0 &&
+                  hit.query[qstem.size()] == '_'));
+            if (same_query) nav_hits.push_back(hit);
+        }
+        const size_t total = fs_nav_parser.get_hits().size();
+        if (nav_hits.empty()) {
+            // accession 이름 규칙이 다른 m8(직접 만든 결과 등)에서는 전부 유지한다.
+            nav_hits = fs_nav_parser.get_hits();
+        } else if (nav_hits.size() != total) {
+            std::cerr << "Foldseek hits for query '" << qstem << "': " << nav_hits.size()
+                      << " of " << total << " (hits of other queries in " << fs_result
+                      << " are skipped)" << std::endl;
+        }
+    }
+
+    if (fs_hits_loaded) {
+        const std::vector<FoldseekHit>& all_hits = nav_hits;
         // query(0번 입력): m8 query 컬럼이 이 파일의 체인을 가리키면 그 체인만 남긴다
         if (!opts.input_files.empty()) {
             for (const FoldseekHit& hit : all_hits) {
@@ -295,7 +328,7 @@ void run(const RunOptions& opts) {
                     target_stems.push_back(p.stem().string());
                 }
 
-                const std::vector<FoldseekHit>& all_hits = fs_nav_parser.get_hits();
+                const std::vector<FoldseekHit>& all_hits = nav_hits;
                 std::vector<FoldseekHit> filtered_hits;
                 for (const FoldseekHit& hit : all_hits) {
                     for (const std::string& stem : target_stems) {
@@ -325,9 +358,9 @@ void run(const RunOptions& opts) {
                 }
             } else {
                 // 단일 입력: 기존 동작 유지
-                screen.set_foldseek_hits(fs_nav_parser.get_hits());
+                screen.set_foldseek_hits(nav_hits);
                 screen.set_fs_db_path(target_dir);
-                screen.prepare_foldseek_db(fs_nav_parser.get_hits());
+                screen.prepare_foldseek_db(nav_hits);
                 screen.load_next_hit(+1);
             }
         }
