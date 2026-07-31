@@ -226,16 +226,20 @@ StrucTTY is **embedded directly into Foldseek as a static library** (`add_subdir
 ```bash
 foldseek easy-search query.cif targetDir result.m8 tmp --view-structty
 foldseek search queryDB targetDB result tmp --view-structty
-foldseek easy-rbh query.cif targetDir result.m8 tmp --view-structty
 ```
 
-The viewer opens automatically once the search finishes, reading the query and target structures directly from the search's temporary databases (folder/tar/gz inputs supported). Temporary DBs are kept alive for the viewer and cleaned up after it closes. Supported workflows: `easy-search`, `easy-rbh`, `search`, and `easy-multimersearch`.
+The viewer opens automatically once the search finishes, reading the query and target structures directly from the search's temporary databases (folder/tar/gz inputs supported). Temporary DBs are kept alive for the viewer and cleaned up after it closes. Supported workflows: `easy-search`, `search`, `easy-multimersearch`, and `multimersearch` — `easy-rbh` does not support the viewer and rejects `--view-structty`.
 
 **Multimer (complex-level) search** — the viewer works out of the box, since the per-complex report (`--multimer-report-mode 1`) is the default; setting `--multimer-report-mode 0` skips the launch:
 
 ```bash
 foldseek easy-multimersearch queryDir targetDir result tmp --view-structty
+foldseek multimersearch queryDB targetDB alignmentDB tmp --view-structty
 ```
+
+`multimersearch` (the non-easy form) stops at the alignment DB, so the viewer's
+14-column report is written inside `tmp/<hash>/viewer_report` and removed when the
+viewer closes — the output DB is untouched.
 
 > If a search runs without `--view-structty`, results are written normally and no viewer is launched.
 
