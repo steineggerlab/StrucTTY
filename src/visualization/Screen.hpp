@@ -115,9 +115,6 @@ public:
 
     // 기능 4: 패널에 정렬 방식 표시 설정 ("aln-string" or "nearest-nbr")
     void set_align_method(const std::string& method);
-    // -m aligned 에서 "정렬됨"으로 칠할 CA 쌍의 최대 거리(Å). foldseek backtrace 는
-    // 구조가 벌어진 구간도 짝지어 놓으므로 이 값으로 잘라낸다.
-    void set_align_cutoff(float cutoff) { align_cutoff_ = cutoff; }
 
     // 기능 3: Foldseek hit 탐색
     void set_foldseek_hits(const std::vector<FoldseekHit>& hits);
@@ -255,7 +252,6 @@ private:
 
     // 기능 8: FoldMason MSA
     std::unique_ptr<FoldMasonParser> foldmason_parser;
-    float align_cutoff_ = 5.0f;  // -m aligned 거리 컷오프(Å)
     float norm_scale = 1.0f;   // normalize_proteins() 에서 저장
     float norm_cx = 0.0f;      // 정규화 시 실제로 shift 에 사용한 centroid
     float norm_cy = 0.0f;      //   = query(data[0]) 자기 centroid

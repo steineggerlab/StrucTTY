@@ -15,8 +15,7 @@ struct Atom {
     bool is_interface = false;
 
     // 기능 4: UTMatrix 정렬 구조
-    bool is_aligned = false;   // 정렬 쌍 + 컷오프 안쪽 (밝게)
-    bool is_aln_pair = false;  // 정렬 쌍이지만 컷오프보다 멀다 (중간 톤)
+    bool is_aligned = false;
 
     // 기능 5: MSA conservation score (-1 = 미설정)
     float conservation_score = -1.0f;

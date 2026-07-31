@@ -21,10 +21,6 @@ struct RunOptions {
     // -fsr : Foldseek 결과. m8(12/17/21/29 컬럼) 또는 멀티머 _report(14 컬럼).
     // 컬럼 수로 멀티머 경로 진입이 결정된다(과거 report_format 플래그 대체).
     std::string foldseek_result;
-
-    // -m aligned 에서 정렬됨으로 칠할 CA 쌍의 최대 거리(Å).
-    // foldseek backtrace 는 구조가 벌어진 구간도 짝지으므로 이 값으로 잘라낸다.
-    float align_cutoff = 5.0f;
 };
 
 // Launch the interactive viewer. Blocks until the user presses Q.

@@ -145,7 +145,6 @@ make -j $(nproc)
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
 | `-fst, --foldseek-target <PATH>` | Target source for Foldseek hits: Foldseek DB, structure directory, structure file, or `auto` (download from public DBs) |
 | `-fsr, --foldseek-result <FILE>` | Foldseek result: `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) |
-| `--align-cutoff <A>` | Max Cα–Cα distance counted as aligned in `-m aligned` (default `5.0`) |
 | `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSA) |
 | `-n, --nopanel` | Hide info panel |
 
@@ -202,13 +201,6 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `aligned` | Structurally aligned regions: bright vs. dim gray |
 
 > `aligned` needs alignment strings (`qaln`/`taln`), i.e. a 17/21/29-column `.m8`.
-> Alignment strings say which residues foldseek *paired*, not which ones actually superpose, so
-> `-m aligned` draws three states instead of two: pairs whose Cα atoms land within
-> `--align-cutoff` (5 Å by default) in bright colour, pairs that foldseek aligned but that end up
-> further apart in the same hue at lower brightness, and residues outside the alignment in grey.
-> Nothing foldseek reported is hidden — tightening the cutoff to 2–3 Å only moves residues from
-> the bright band to the dim one, and `--align-cutoff 1000` makes every pair bright again.
-
 > Foldseek's default 12-column output has none, so StrucTTY falls back to a
 > nearest-neighbour (10 Å) judgement and the panel shows `nearest-nbr`.
 > Generate a usable result with `--format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln`

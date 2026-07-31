@@ -24,8 +24,6 @@ class Parameters{
         string foldseek_target = "";
         // -fsr : Foldseek 결과 (m8 12/17/21/29 컬럼 | 멀티머 _report 14 컬럼)
         string foldseek_result = "";
-        // -m aligned 에서 정렬됨으로 칠할 CA 쌍의 최대 거리(Å)
-        float align_cutoff = 5.0f;
     public:
         Parameters(int argc, char* argv[]);
 
@@ -70,8 +68,5 @@ class Parameters{
         }
         string get_foldseek_result(){
             return foldseek_result;
-        }
-        float get_align_cutoff(){
-            return align_cutoff;
         }
 };
