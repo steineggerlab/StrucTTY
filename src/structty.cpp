@@ -47,7 +47,12 @@ std::string first_target_accession(const std::string& result_path) {
 
 }  // namespace
 
-void run(const RunOptions& opts) {
+bool run(const RunOptions& opts) {
+    if (!input_probe::validate_inputs(opts.input_files, opts.foldseek_target,
+                                      opts.foldseek_result)) {
+        return false;
+    }
+
     setlocale(LC_ALL, "");
     Terminal::enter_raw_mode();
 
@@ -181,7 +186,7 @@ void run(const RunOptions& opts) {
                   << ".\n       A Foldseek DB query needs a matching -fsr result file."
                   << std::endl;
         Terminal::exit_raw_mode();
-        return;
+        return false;
     }
 
     if (multimer_report) {
@@ -566,6 +571,7 @@ void run(const RunOptions& opts) {
     }
 
     Terminal::exit_raw_mode();
+    return true;
 }
 
 } // namespace structty

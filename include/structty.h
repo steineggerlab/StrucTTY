@@ -15,15 +15,14 @@ struct RunOptions {
     std::string msa_file;
     std::string foldmason_file;
 
-    // -fst : target 구조 소스. Foldseek DB | 구조 디렉터리 | 구조 파일 | "auto"(다운로드).
-    // 종류는 input_probe::probe() 로 판별하므로 호출부는 경로만 채우면 된다.
+    // Foldseek DB, structure directory, structure file or "auto" to download
     std::string foldseek_target;
-    // -fsr : Foldseek 결과. m8(12/17/21/29 컬럼) 또는 멀티머 _report(14 컬럼).
-    // 컬럼 수로 멀티머 경로 진입이 결정된다(과거 report_format 플래그 대체).
+    // Foldseek m8 (12/17/21/29 columns) or multimer report (14 columns)
     std::string foldseek_result;
 };
 
 // Launch the interactive viewer. Blocks until the user presses Q.
-void run(const RunOptions& opts);
+// Returns false when the inputs cannot be rendered; the reason is printed.
+bool run(const RunOptions& opts);
 
 } // namespace structty
