@@ -46,7 +46,7 @@ void Panel::clear_foldseek_hit_info() {
 
 int Panel::get_foldseek_section_height() const {
     if (!fs_hit_info.valid && fs_hit_info.total_hits == 0) return 0;
-    return 8;  // 고정 8줄
+    return fs_hit_info.multimer ? 6 : 8;
 }
 
 // 기능 8: FoldMason MSA 섹션 ------------------------------------------------
@@ -468,6 +468,28 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
+            if (fi.multimer) {
+                clear_line(r);
+                {
+                    int x = left;
+                    char buf[80];
+                    std::snprintf(buf, sizeof(buf), "TM  q %.3f / t %.3f   Cov q %.3f / t %.3f",
+                                  fi.qtmscore, fi.ttmscore, fi.qcov, fi.tcov);
+                    put_cstr(r, x, buf);
+                }
+                ++r; if (!in_rows(r)) return;
+
+                clear_line(r);
+                {
+                    int x = left;
+                    put_cstr(r, x, "iLDDT ");
+                    put_str(r, x, fi.interface_lddt.empty() ? "-" : fi.interface_lddt);
+                    char buf[32];
+                    std::snprintf(buf, sizeof(buf), "   assId %d", fi.ass_id);
+                    put_cstr(r, x, buf);
+                }
+                ++r; if (!in_rows(r)) return;
+            } else {
             // Line 4: "E-val:  ..."
             clear_line(r);
             {
@@ -527,6 +549,7 @@ void Panel::draw_panel(int start_row, int start_col,
                 }
             }
             ++r; if (!in_rows(r)) return;
+            }
 
             // Line 8: nav hint ( ]/[ query hint when multiple queries )
             clear_line(r);

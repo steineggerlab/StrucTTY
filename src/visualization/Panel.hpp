@@ -34,6 +34,13 @@ struct FoldseekHitInfo {
     float    qtmscore     = -1.0f;
     std::string align_method;   // "aln-string" or "nearest-nbr"
     std::string status_msg;     // 다운로드 상태 / 오류 메시지
+    // 멀티머 `_report` 전용: e-value·정렬 문자열이 없는 대신 complex 지표를 보여준다
+    bool     multimer     = false;
+    float    ttmscore     = -1.0f;
+    float    qcov         = -1.0f;
+    float    tcov         = -1.0f;
+    std::string interface_lddt;
+    int      ass_id       = -1;
 };
 
 class Panel {

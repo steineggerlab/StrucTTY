@@ -147,10 +147,17 @@ bool run(const RunOptions& opts) {
     // query/target complex 전체 체인을 로드하고 complex U/T 로 겹침. query/target DB 는
     // complex DB(체인별 엔트리). -fsr 이 _report 일 때만 진입(.m8 경로와 배타적).
     bool multimer_report = false;
-    if (result_kind == InputKind::ResultReport && !query_db.empty()) {
+    if (result_kind == InputKind::ResultReport) {
         MultimerReportParser mr_parser;
         if (mr_parser.load(fs_result) && mr_parser.hit_count() > 0) {
-            screen.set_multimer_report(mr_parser.get_hits(), query_db,
+            if (!target_db.empty()) {
+                screen.open_foldseek_db(target_db);
+            } else {
+                screen.set_fs_db_path(target_dir);
+            }
+            screen.set_multimer_report(mr_parser.get_hits(), opts.input_files[0],
+                                       query_kind == InputKind::FoldseekDB,
+                                       query_kind == InputKind::StructureDir,
                                        target_db, opts.show_structure);
             multimer_report = true;
         } else {

@@ -25,6 +25,8 @@ struct MultimerHit {
 
     float qComplexCov = -1.0f;
     float tComplexCov = -1.0f;
+    std::string qChainTms;                // 체인별 TM (쉼표 구분, qChains 순서)
+    std::string tChainTms;                // 체인별 TM (쉼표 구분, tChains 순서)
     std::string interfaceLddt;            // 문자열(다중 값 가능)
     int assId = -1;
 };

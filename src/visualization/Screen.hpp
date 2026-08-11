@@ -80,7 +80,9 @@ public:
     // 로드하고 complex U/T 로 target 을 query frame 에 겹침. query complex 간 ]/[ 이동,
     // target complex hit 간 n/p 순회. query/target DB 는 complex DB(체인별 엔트리).
     void set_multimer_report(const std::vector<MultimerHit>& hits,
-                             const std::string& query_db_path,
+                             const std::string& query_source,
+                             bool query_is_db,
+                             bool query_is_dir,
                              const std::string& target_db_path,
                              const bool& show_structure);
 
@@ -232,6 +234,12 @@ private:
     int mm_current_query_idx_ = -1;
     int mm_current_hit_idx_ = -1;
     int mm_query_chain_count_ = 0;   // data[0..count) = 현재 query complex 체인
+    // query 소스: DB 면 query_db_reader_, 아니면 구조 파일 또는 그 디렉터리
+    std::string mm_query_source_;
+    bool mm_query_is_db_ = true;
+    bool mm_query_is_dir_ = false;
+    // 패널에 쓸 체인 이름(파일에서 읽으면 파일 경로가 아니라 accession 을 보여준다)
+    std::vector<std::string> mm_chain_labels_;
     // query complex idx 활성화: teardown → query 체인 전체 로드 → 정규화 → 첫 target complex
     void activate_multimer_query(int idx);
     // 현재 query complex 의 target complex hit 간 순회(n/p) / query complex 간 이동(]/[)
@@ -242,6 +250,13 @@ private:
     // complex DB 에서 accession 체인을 읽어 data 끝에 push. 실패 시 false.
     bool load_chain_into_data(FoldseekDBReader& reader, const std::string& accession,
                               const bool& show_structure);
+    // complex 의 체인들을 소스 종류에 맞게 로드한다. DB 면 리더에서, 그 외에는 구조 파일에서
+    // 읽는다(디렉터리·auto 는 complex 이름으로 한 번만 해석). 로드한 체인 수를 돌려준다.
+    int load_complex_chains(const std::string& complex,
+                            const std::vector<std::string>& chains,
+                            bool from_db, FoldseekDBReader& reader,
+                            const std::string& source_path, bool source_is_dir,
+                            const bool& show_structure);
     // 이미 로드된 target 체인(data[idx])에 complex U/T(Å) 적용 + query frame 정규화
     void transform_target_chain(int idx, const float U[9], const float T[3]);
     // set_tmatrix 재호출 시 이전 vectorpointer 해제 (leak 방지)

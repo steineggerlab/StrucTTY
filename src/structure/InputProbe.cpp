@@ -230,18 +230,6 @@ bool validate_inputs(const std::vector<std::string>& query,
         return false;
     }
 
-    // 멀티머 _report 는 complex 체인을 query DB 에서 읽으므로 query 가 DB 여야 한다
-    if (result_kind == InputKind::ResultReport) {
-        const InputKind query_kind = probe(query[0]);
-        if (query_kind != InputKind::FoldseekDB) {
-            std::cerr << "Error: -fsr '" << result
-                      << "' is a multimer _report (14 columns), which needs a Foldseek\n"
-                      << "       query DB as the query input (chain entries are read per"
-                      << " complex from the DB).\n"
-                      << "       Got " << kind_name(query_kind) << ": " << query[0] << std::endl;
-            return false;
-        }
-    }
     return true;
 }
 
