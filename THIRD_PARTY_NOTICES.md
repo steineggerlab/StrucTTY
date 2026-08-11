@@ -13,5 +13,5 @@ This software includes third-party components licensed under open-source license
 - Project: LodePNG
 - Repository: https://github.com/lvandeve/lodepng
 - License: zlib License
-- Usage: Used without modification
+- Usage: Used without modification (lodepng.cpp/lodepng.h vendored in lib/lodepng, upstream c5725111)
 - License text: see `third_party_licenses/zlib.txt`
