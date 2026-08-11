@@ -8,11 +8,14 @@ Panel::Panel(int width, const std::string& mode, bool show_structure)
 
 void Panel::add_panel_info(const std::string& file_name, 
                            const std::map<std::string, int>& chain_info, 
-                           const std::map<std::string, int>& chain_residue_info) {
+                           const std::map<std::string, int>& chain_residue_info,
+                           int color_group, int chain_color_base) {
     entries.push_back(Entry{
         file_name,
         chain_info,
-        chain_residue_info
+        chain_residue_info,
+        color_group,
+        chain_color_base
     });
 }
 
@@ -324,11 +327,16 @@ void Panel::draw_panel(int start_row, int start_col,
         const std::string& file_name = entry.file_name;
         const auto& chain_info       = entry.chain_atom_info;
 
+        const int color_idx = (entry.color_group >= 0) ? entry.color_group : file_idx;
+
         int protein_pair = 0;
         if (panel_mode == "protein") {
-            protein_pair = (file_idx % num_protein_colors) + 1;  // pairs 1-9
+            protein_pair = (color_idx % num_protein_colors) + 1;  // pairs 1-9
         } else if (panel_mode == "aligned") {
-            protein_pair = (file_idx % num_protein_colors) + 101;  // pairs 101-109
+            protein_pair = (color_idx % num_protein_colors) + 101;  // pairs 101-109
+        } else if (panel_mode == "chain" && entry.chain_color_base >= 0) {
+            // entry 하나가 체인 하나인 경우(멀티머)에는 이름 줄에 그 체인 색을 쓴다
+            protein_pair = 21 + (entry.chain_color_base % num_chain_colors);
         }
 
         // file name line
@@ -375,7 +383,9 @@ void Panel::draw_panel(int start_row, int start_col,
 
                 int chain_pair = 0;
                 if (panel_mode == "chain") {
-                    chain_pair = 21 + ((file_idx * 10 + count) % num_chain_colors);  // pairs 21-35
+                    const int base = (entry.chain_color_base >= 0)
+                                     ? entry.chain_color_base : file_idx * 10;
+                    chain_pair = 21 + ((base + count) % num_chain_colors);  // pairs 21-35
                 }
 
                 int pair_to_use = (panel_mode == "protein" || panel_mode == "aligned") ? protein_pair : chain_pair;

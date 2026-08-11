@@ -93,7 +93,8 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
             return idx + 200;
         }
         case Mode::Chain: {
-            int ci = (s.protein_idx * 10 + s.chain_color_idx) % 15;
+            int ci = (a.chain_color_id >= 0 ? a.chain_color_id
+                                            : s.protein_idx * 10 + s.chain_color_idx) % 15;
             if (band == 0) return 130 + ci;
             if (band == 1) return 21 + ci;
             return 145 + ci;
