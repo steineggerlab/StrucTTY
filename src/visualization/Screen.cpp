@@ -545,6 +545,15 @@ void Screen::load_multimer_hit(int delta) {
         }
     }
 
+    if (screen_mode == "aligned") {
+        for (int qi = 0; qi < mm_query_chain_count_; qi++) {
+            for (int ti = mm_query_chain_count_; ti < (int)data.size(); ti++) {
+                if (data[qi] && data[ti]) data[qi]->compute_aligned_regions_nn(*data[ti]);
+            }
+        }
+        if (panel) panel->set_align_method("nearest-nbr");
+    }
+
     // 패널 재구성: query+target 전체 entry + hit 정보
     if (panel) {
         const std::vector<std::string> q_tms = split_csv(h.qChainTms);
@@ -563,7 +572,8 @@ void Screen::load_multimer_hit(int delta) {
             }
             panel->add_panel_info(label,
                                   data[i]->get_chain_length(),
-                                  data[i]->get_residue_count());
+                                  data[i]->get_residue_count(),
+                                  is_query ? 0 : 1, (int)i);
         }
         FoldseekHitInfo fi;
         fi.valid = true;
@@ -829,7 +839,12 @@ std::vector<RenderAtom> Screen::to_render_atoms() {
                 strncpy(ra.residue_name, a.residue_name.c_str(), 3);
                 ra.residue_name[3]    = '\0';
                 ra.chain_id           = intern_chain(chainID);
-                ra.protein_index      = (int)ii;
+                if (multimer_mode_) {
+                    ra.protein_index  = ((int)ii < mm_query_chain_count_) ? 0 : 1;
+                    ra.chain_color_id = (int)ii;
+                } else {
+                    ra.protein_index  = (int)ii;
+                }
                 ra.pan_x              = pan_x[ii];
                 ra.pan_y              = pan_y[ii];
                 result.push_back(std::move(ra));

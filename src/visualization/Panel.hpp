@@ -11,6 +11,9 @@ struct Entry {
     std::string file_name;
     std::map<std::string, int> chain_atom_info;
     std::map<std::string, int> chain_residue_info;
+    // -1 이면 entry 순번을 쓴다. 멀티머는 complex 단위 색 + 전역 체인 순번을 넘긴다.
+    int color_group = -1;
+    int chain_color_base = -1;
 };
 
 // 기능 8: FoldMason MSA 정보 (패널 표시용)
@@ -49,7 +52,8 @@ public:
 
     void add_panel_info(const std::string& file_name,
                         const std::map<std::string, int>& chain_info,
-                        const std::map<std::string, int>& chain_residue_info);
+                        const std::map<std::string, int>& chain_residue_info,
+                        int color_group = -1, int chain_color_base = -1);
 
     // Step 5: clear all protein entries (used when switching query in multi-query mode)
     void reset_entries() { entries.clear(); }

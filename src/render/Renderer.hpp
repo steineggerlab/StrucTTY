@@ -15,6 +15,7 @@ struct RenderAtom {
     int   residue_number;
     char  residue_name[4];
     int   chain_id = -1;   // 인터닝된 chain index. was std::string
+    int   chain_color_id = -1;  // >=0 이면 chain 모드 색을 이 값으로 정한다(멀티머: 전체 체인 순번)
     int   protein_index;
     float pan_x, pan_y;
 };
