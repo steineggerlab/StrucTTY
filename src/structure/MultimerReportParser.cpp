@@ -54,7 +54,8 @@ bool MultimerReportParser::load(const std::string& filepath) {
                           parse_floats(cols[7], h.T, 3);
         h.qComplexCov = std::strtof(cols[8].c_str(), nullptr);
         h.tComplexCov = std::strtof(cols[9].c_str(), nullptr);
-        // cols[10] qChainTms, cols[11] tChainTms — 패널 미사용(보류)
+        h.qChainTms = cols[10];
+        h.tChainTms = cols[11];
         h.interfaceLddt = cols[12];
         h.assId = std::atoi(cols[13].c_str());
 

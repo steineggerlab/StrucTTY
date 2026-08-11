@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <string>
 #include <limits>
+#include <filesystem>
 
 const float FOV = 90.0f;
 const float PI  = 3.14159265359f;
@@ -110,6 +111,51 @@ bool Screen::load_query_into_data0(const std::string& accession,
     // chainVec was sized by set_chainfile(); ensure an entry exists for data[0].
     if ((int)chainVec.size() < (int)data.size()) chainVec.push_back("-");
     return true;
+}
+
+int Screen::load_complex_chains(const std::string& complex,
+                                const std::vector<std::string>& chains,
+                                bool from_db, FoldseekDBReader& reader,
+                                const std::string& source_path, bool source_is_dir,
+                                const bool& show_structure) {
+    int loaded = 0;
+    if (from_db) {
+        for (const std::string& ch : chains) {
+            if (load_chain_into_data(reader, complex + "_" + ch, show_structure)) {
+                mm_chain_labels_.push_back(complex + "_" + ch);
+                loaded++;
+            }
+        }
+        return loaded;
+    }
+
+    std::string file_path = source_path;
+    if (source_is_dir || source_path.empty()) {
+        std::string status_msg;
+        file_path = PDBDownloader::resolve_target_file(complex, source_path, status_msg);
+    }
+    if (file_path.empty()) {
+        std::cerr << "Warning: no structure file for complex " << complex << "\n";
+        return 0;
+    }
+
+    for (const std::string& ch : chains) {
+        Protein* p = new Protein(file_path, ch, show_structure);
+        float tvec[3] = {0.f, 0.f, 0.f};
+        p->load_data(tvec, false);
+        if (p->get_chain_length(ch) == 0) {
+            std::cerr << "Warning: chain " << ch << " not found in " << file_path << "\n";
+            delete p;
+            continue;
+        }
+        data.push_back(p);
+        pan_x.push_back(0.0f);
+        pan_y.push_back(0.0f);
+        chainVec.push_back(ch);
+        mm_chain_labels_.push_back(complex + "_" + ch);
+        loaded++;
+    }
+    return loaded;
 }
 
 bool Screen::set_query_from_db(const std::string& query_db_path,
@@ -255,6 +301,20 @@ void Screen::switch_query(int delta) {
 
 // ── Step 7 (D6): multimer `_report` 경로 ──────────────────────────────────────
 
+static std::vector<std::string> split_csv(const std::string& s) {
+    std::vector<std::string> out;
+    size_t start = 0;
+    while (start <= s.size()) {
+        const size_t comma = s.find(',', start);
+        const size_t end = (comma == std::string::npos) ? s.size() : comma;
+        out.push_back(s.substr(start, end - start));
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+    }
+    if (s.empty()) out.clear();
+    return out;
+}
+
 bool Screen::load_chain_into_data(FoldseekDBReader& reader,
                                   const std::string& accession,
                                   const bool& show_structure) {
@@ -346,12 +406,17 @@ std::pair<int,int> Screen::mm_complex_range(int complex_idx) const {
 }
 
 void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
-                                 const std::string& query_db_path,
+                                 const std::string& query_source,
+                                 bool query_is_db,
+                                 bool query_is_dir,
                                  const std::string& target_db_path,
                                  const bool& show_structure) {
     multimer_mode_ = true;
     multi_query_show_structure_ = show_structure;
-    query_db_path_ = query_db_path;
+    mm_query_source_ = query_source;
+    mm_query_is_db_ = query_is_db;
+    mm_query_is_dir_ = query_is_dir;
+    query_db_path_ = query_is_db ? query_source : std::string();
     target_db_path_ = target_db_path;
 
     // query complex 별로 그룹화 (등장 순서 보존)
@@ -366,17 +431,39 @@ void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
     }
     if (mm_query_complexes_.empty()) { multimer_mode_ = false; return; }
 
-    // query complex DB 열고 모든 query 체인 accession 인덱싱
-    if (!query_db_reader_.open(query_db_path)) {
-        std::cerr << "Warning: Failed to open query complex DB: " << query_db_path << "\n";
-        multimer_mode_ = false;
-        return;
+    // query 가 DB 면 열고 모든 query 체인 accession 을 인덱싱한다.
+    if (mm_query_is_db_) {
+        if (!query_db_reader_.open(query_source)) {
+            std::cerr << "Warning: Failed to open query complex DB: " << query_source << "\n";
+            multimer_mode_ = false;
+            return;
+        }
+        std::unordered_set<std::string> q_acc;
+        for (const auto& qc : mm_query_complexes_)
+            for (const auto& ch : mm_hits_by_query_[qc].front().qChains)
+                q_acc.insert(qc + "_" + ch);
+        query_db_reader_.prepare(q_acc);
+    } else if (!mm_query_is_dir_) {
+        // 구조 파일 하나로는 그 파일이 담은 complex 만 볼 수 있다.
+        const std::string stem = std::filesystem::path(mm_query_source_).stem().string();
+        std::vector<std::string> kept;
+        for (const std::string& qc : mm_query_complexes_) {
+            if (qc == stem) kept.push_back(qc);
+        }
+        if (kept.empty()) {
+            std::cerr << "Error: none of the query complexes in the report match "
+                      << mm_query_source_ << "\n"
+                      << "       Pass the directory holding them, or a Foldseek DB." << std::endl;
+            multimer_mode_ = false;
+            return;
+        }
+        if (kept.size() != mm_query_complexes_.size()) {
+            std::cerr << "Query complexes in " << mm_query_source_ << ": " << kept.size()
+                      << " of " << mm_query_complexes_.size()
+                      << " (pass a directory or a Foldseek DB to walk them all)" << std::endl;
+        }
+        mm_query_complexes_ = kept;
     }
-    std::unordered_set<std::string> q_acc;
-    for (const auto& qc : mm_query_complexes_)
-        for (const auto& ch : mm_hits_by_query_[qc].front().qChains)
-            q_acc.insert(qc + "_" + ch);
-    query_db_reader_.prepare(q_acc);
 
     // target complex DB 열고 모든 target 체인 accession 인덱싱
     if (!target_db_path.empty() && fs_db_reader_.open(target_db_path)) {
@@ -402,14 +489,13 @@ void Screen::activate_multimer_query(int idx) {
     pan_x.clear();
     pan_y.clear();
     chainVec.clear();
-    chainVec.push_back("-");
+    mm_chain_labels_.clear();
     if (panel) panel->reset_entries();
 
     // query complex 의 모든 체인 로드 (체인 목록은 같은 query 의 모든 hit 가 동일 → front 사용)
     const std::vector<std::string>& qChains = mm_hits_by_query_[qc].front().qChains;
-    for (const auto& ch : qChains) {
-        load_chain_into_data(query_db_reader_, qc + "_" + ch, multi_query_show_structure_);
-    }
+    load_complex_chains(qc, qChains, mm_query_is_db_, query_db_reader_,
+                        mm_query_source_, mm_query_is_dir_, multi_query_show_structure_);
     mm_query_chain_count_ = (int)data.size();
     if (mm_query_chain_count_ == 0) return;
 
@@ -447,28 +533,50 @@ void Screen::load_multimer_hit(int delta) {
         pan_y.pop_back();
     }
     while ((int)chainVec.size() > mm_query_chain_count_) chainVec.pop_back();
+    while ((int)mm_chain_labels_.size() > mm_query_chain_count_) mm_chain_labels_.pop_back();
 
     // target complex 체인 로드 + complex U/T 적용
-    for (const auto& ch : h.tChains) {
-        if (load_chain_into_data(fs_db_reader_, h.tComplex + "_" + ch, screen_show_structure)) {
-            if (h.has_transform) transform_target_chain((int)data.size() - 1, h.U, h.T);
+    const int before = (int)data.size();
+    load_complex_chains(h.tComplex, h.tChains, fs_db_reader_.is_open(), fs_db_reader_,
+                        fs_db_path, true, screen_show_structure);
+    if (h.has_transform) {
+        for (int i = before; i < (int)data.size(); i++) {
+            transform_target_chain(i, h.U, h.T);
         }
     }
 
     // 패널 재구성: query+target 전체 entry + hit 정보
     if (panel) {
+        const std::vector<std::string> q_tms = split_csv(h.qChainTms);
+        const std::vector<std::string> t_tms = split_csv(h.tChainTms);
         panel->reset_entries();
-        for (auto* p : data) {
-            panel->add_panel_info(p->get_file_name(),
-                                  p->get_chain_length(),
-                                  p->get_residue_count());
+        for (size_t i = 0; i < data.size(); i++) {
+            std::string label = (i < mm_chain_labels_.size())
+                                ? mm_chain_labels_[i] : data[i]->get_file_name();
+            const bool is_query = (int)i < mm_query_chain_count_;
+            const std::vector<std::string>& tms = is_query ? q_tms : t_tms;
+            const size_t ci = is_query ? i : i - (size_t)mm_query_chain_count_;
+            const size_t expect = is_query ? (size_t)mm_query_chain_count_
+                                           : data.size() - (size_t)mm_query_chain_count_;
+            if (tms.size() == expect && ci < tms.size()) {
+                label += "  TM " + tms[ci];
+            }
+            panel->add_panel_info(label,
+                                  data[i]->get_chain_length(),
+                                  data[i]->get_residue_count());
         }
         FoldseekHitInfo fi;
         fi.valid = true;
+        fi.multimer = true;
         fi.current_idx = mm_current_hit_idx_ + 1;
         fi.total_hits = (int)hits.size();
         fi.target = h.tComplex;
         fi.qtmscore = h.qTMScore;
+        fi.ttmscore = h.tTMScore;
+        fi.qcov = h.qComplexCov;
+        fi.tcov = h.tComplexCov;
+        fi.interface_lddt = h.interfaceLddt;
+        fi.ass_id = h.assId;
         fi.query_idx = mm_current_query_idx_ + 1;
         fi.total_queries = (int)mm_query_complexes_.size();
         panel->set_foldseek_hit_info(fi);
