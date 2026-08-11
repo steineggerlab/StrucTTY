@@ -548,7 +548,7 @@ void Screen::load_multimer_hit(int delta) {
     if (screen_mode == "aligned") {
         for (int qi = 0; qi < mm_query_chain_count_; qi++) {
             for (int ti = mm_query_chain_count_; ti < (int)data.size(); ti++) {
-                if (data[qi] && data[ti]) data[qi]->compute_aligned_regions_nn(*data[ti], 5.0f);
+                if (data[qi] && data[ti]) data[qi]->compute_aligned_regions_nn(*data[ti], 4.0f);
             }
         }
         if (panel) panel->set_align_method("nearest-nbr");
