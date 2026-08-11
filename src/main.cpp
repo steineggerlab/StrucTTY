@@ -18,6 +18,5 @@ int main(int argc, char* argv[]) {
     opts.foldseek_target = params.get_foldseek_target();
     opts.foldseek_result = params.get_foldseek_result();
 
-    structty::run(opts);
-    return 0;
+    return structty::run(opts) ? 0 : -1;
 }

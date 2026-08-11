@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 // 입력 경로의 종류 판별 — CLI 검증(`-fst`/`-fsr` 쌍, 좌표 없는 입력 차단)에서 쓴다.
 // StrucTTY 가 다루는 입력은 4종뿐이다:
@@ -35,5 +36,11 @@ int tsv_column_count(const std::string& path);
 
 // 로그·에러 메시지용 짧은 이름
 const char* kind_name(InputKind kind);
+
+// 렌더할 수 없는 입력 조합을 걸러낸다. CLI(Parameters)와 라이브러리 진입점
+// (structty::run)이 같은 검사를 쓰도록 여기에 둔다. 실패 시 이유를 stderr 로
+// 출력하고 false 를 돌려준다.
+bool validate_inputs(const std::vector<std::string>& query,
+                     const std::string& target, const std::string& result);
 
 }  // namespace input_probe

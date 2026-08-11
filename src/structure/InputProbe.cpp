@@ -4,6 +4,7 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -149,6 +150,99 @@ const char* kind_name(const InputKind kind) {
         case InputKind::Unknown:       break;
     }
     return "unknown";
+}
+
+namespace {
+
+// 좌표가 없는 입력을 렌더 시작 전에 거른다.
+// 서열 FASTA: foldseek createdb 의 ProstT5 경로는 3Di(`_ss`)만 예측하고 `_ca` 를 만들지 않는다.
+// `_ca` 없는 DB: 서열 유래이거나 `--index-exclude 2` 로 만든 DB.
+bool check_has_coordinates(const std::string& path, const std::string& role) {
+    const InputKind kind = probe(path);
+
+    if (kind == InputKind::SequenceFasta) {
+        std::cerr << "Error: " << role << " '" << path << "' is a sequence FASTA.\n"
+                  << "       StrucTTY needs 3D coordinates: pass PDB/mmCIF files, a directory\n"
+                  << "       of them, or a Foldseek DB built from structures.\n"
+                  << "       (foldseek createdb --prostt5-model predicts 3Di but writes no _ca)"
+                  << std::endl;
+        return false;
+    }
+    if (kind == InputKind::FoldseekDB && !db_has_ca(path)) {
+        std::cerr << "Error: Foldseek DB '" << path << "' has no C-alpha coordinates ("
+                  << path << "_ca is missing).\n"
+                  << "       It was built from sequences, or with --index-exclude 2."
+                  << std::endl;
+        return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+bool validate_inputs(const std::vector<std::string>& query,
+                     const std::string& target, const std::string& result) {
+    if (query.empty()) {
+        std::cerr << "Error: Need input file dir" << std::endl;
+        return false;
+    }
+
+    // 쌍 규칙: target 소스 없이 결과만 주면 hit 구조를 읽을 수 없고,
+    // 결과 없이 target 만 주면 어떤 hit 을 띄울지 알 수 없다.
+    if (!target.empty() && result.empty()) {
+        std::cerr << "Error: -fst / --foldseek-target given without -fsr / --foldseek-result.\n"
+                  << "       Both must be given together." << std::endl;
+        return false;
+    }
+    if (target.empty() && !result.empty()) {
+        std::cerr << "Error: -fsr / --foldseek-result given without -fst / --foldseek-target.\n"
+                  << "       Both must be given together. Use -fst auto to download hit structures."
+                  << std::endl;
+        return false;
+    }
+
+    // "auto" 는 예약값이라 경로 판별을 건너뛴다(다운로드 모드).
+    for (const std::string& q : query) {
+        if (!check_has_coordinates(q, "query")) {
+            return false;
+        }
+    }
+    if (!target.empty() && target != "auto" && !check_has_coordinates(target, "-fst target")) {
+        return false;
+    }
+
+    if (result.empty()) {
+        return true;
+    }
+
+    const InputKind result_kind = probe(result);
+    if (result_kind != InputKind::ResultM8 && result_kind != InputKind::ResultReport) {
+        const int ncols = tsv_column_count(result);
+        std::cerr << "Error: -fsr '" << result << "' is not a Foldseek result file.\n"
+                  << "       Expected tab-separated 12/17/21/29 columns (m8) or 14 columns"
+                  << " (multimer _report),\n       ";
+        if (ncols == 0) {
+            std::cerr << "but the file could not be read or has no data rows.";
+        } else {
+            std::cerr << "but found " << ncols << " columns.";
+        }
+        std::cerr << std::endl;
+        return false;
+    }
+
+    // 멀티머 _report 는 complex 체인을 query DB 에서 읽으므로 query 가 DB 여야 한다
+    if (result_kind == InputKind::ResultReport) {
+        const InputKind query_kind = probe(query[0]);
+        if (query_kind != InputKind::FoldseekDB) {
+            std::cerr << "Error: -fsr '" << result
+                      << "' is a multimer _report (14 columns), which needs a Foldseek\n"
+                      << "       query DB as the query input (chain entries are read per"
+                      << " complex from the DB).\n"
+                      << "       Got " << kind_name(query_kind) << ": " << query[0] << std::endl;
+            return false;
+        }
+    }
+    return true;
 }
 
 }  // namespace input_probe
