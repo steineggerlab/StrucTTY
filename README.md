@@ -250,9 +250,7 @@ foldseek easy-search query.cif targetDir result.m8 tmp --view-structty \
 The viewer builds that 17-column layout internally either way; passing
 `-a --format-output` keeps a copy in `result.m8`, so the same hits can be
 reopened later with `-fsr` and still show lDDT, TM scores and the aligned
-regions. `-a` matters: without it the alignment strings do not match the
-residues they are superposed onto, and the structures end up rotated apart.
-`example/foldseek_result/result` is such a file.
+regions. `example/foldseek_result/result` is such a file.
 
 **Multimer (complex-level) search** — the viewer works out of the box, since the per-complex report (`--multimer-report-mode 1`) is the default; setting `--multimer-report-mode 0` skips the launch. The viewer reads the `_report` file the workflow already writes, so it stays after the viewer closes:
 
