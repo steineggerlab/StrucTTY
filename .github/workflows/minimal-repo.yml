@@ -1,0 +1,39 @@
+name: minimal-repo
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  minimal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+      - name: Filter Repository
+        run: |
+          pip install git-filter-repo
+          git filter-repo \
+            --path CMakeLists.txt \
+            --path LICENSE \
+            --path THIRD_PARTY_NOTICES.md \
+            --path .gitmodules \
+            --path cmake \
+            --path include \
+            --path lib \
+            --path src \
+            --path third_party_licenses \
+            --prune-empty always \
+            --force
+      - name: GitHub Push
+        uses: ad-m/github-push-action@v0.8.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: minimal
+          force: true
