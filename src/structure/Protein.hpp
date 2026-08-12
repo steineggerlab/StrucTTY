@@ -53,6 +53,9 @@ public:
     ~Protein();
 
     std::map<std::string, std::vector<Atom>>& get_atoms();
+
+    // 잔기당 CA 하나. get_atoms()는 렌더링용으로 보간된 좌표라 잔기 인덱스와 맞지 않는다.
+    const std::map<std::string, std::vector<Atom>>& get_ca_atoms() const { return init_atoms; }
     std::map<std::string, int> get_residue_count();
     std::map<std::string, int> get_chain_length();
     int get_chain_length(std::string chainID);

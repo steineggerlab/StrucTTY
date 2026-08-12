@@ -1736,14 +1736,13 @@ void Screen::load_next_hit(int delta) {
         // alns는 원래 query frame 좌표 → 정규화: (alns - q_centroid) * norm_scale
         // target CA 좌표는 이미 정규화됨 (do_shift + do_scale 후)
 
-        const auto& atoms_map = target_protein->get_atoms();
-
         // target CA atom 플랫 리스트 (정규화된 좌표)
         std::vector<std::array<float,3>> target_cas;
-        for (const auto& [cid, chain] : atoms_map) {
+        for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                target_cas.push_back({pos[0], pos[1], pos[2]});
+                target_cas.push_back({(atom.x - t_cx) * norm_scale,
+                                      (atom.y - t_cy) * norm_scale,
+                                      (atom.z - t_cz) * norm_scale});
             }
         }
 
@@ -1791,19 +1790,21 @@ void Screen::load_next_hit(int delta) {
 
         // query CA flat 리스트 (정규화된 screen_atoms)
         std::vector<std::array<float,3>> query_cas;
-        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+        for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                query_cas.push_back({pos[0], pos[1], pos[2]});
+                query_cas.push_back({(atom.x - norm_cx) * norm_scale,
+                                      (atom.y - norm_cy) * norm_scale,
+                                      (atom.z - norm_cz) * norm_scale});
             }
         }
 
         // target CA flat 리스트 (정규화된 screen_atoms)
         std::vector<std::array<float,3>> target_cas;
-        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+        for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                target_cas.push_back({pos[0], pos[1], pos[2]});
+                target_cas.push_back({(atom.x - t_cx) * norm_scale,
+                                       (atom.y - t_cy) * norm_scale,
+                                       (atom.z - t_cz) * norm_scale});
             }
         }
 
@@ -1852,18 +1853,20 @@ void Screen::load_next_hit(int delta) {
     // 작업 1-B: fallback — 12컬럼 등 transform 정보 없는 경우 전체 CA 순서 매칭 Kabsch
     if (!computed_transform) {
         std::vector<std::array<float,3>> query_cas;
-        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+        for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                query_cas.push_back({pos[0], pos[1], pos[2]});
+                query_cas.push_back({(atom.x - norm_cx) * norm_scale,
+                                      (atom.y - norm_cy) * norm_scale,
+                                      (atom.z - norm_cz) * norm_scale});
             }
         }
 
         std::vector<std::array<float,3>> target_cas;
-        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+        for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                target_cas.push_back({pos[0], pos[1], pos[2]});
+                target_cas.push_back({(atom.x - t_cx) * norm_scale,
+                                       (atom.y - t_cy) * norm_scale,
+                                       (atom.z - t_cz) * norm_scale});
             }
         }
 
@@ -1951,10 +1954,11 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
     } else if (hit.is_alis_format && !hit.alns.empty() && hit.has_aln) {
         // 21컬럼 alis 포맷: Kabsch SVD
         std::vector<std::array<float,3>> target_cas;
-        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+        for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                target_cas.push_back({pos[0], pos[1], pos[2]});
+                target_cas.push_back({(atom.x - t_cx) * norm_scale,
+                                       (atom.y - t_cy) * norm_scale,
+                                       (atom.z - t_cz) * norm_scale});
             }
         }
 
@@ -1991,17 +1995,19 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
     } else if (hit.has_aln && !hit.is_alis_format) {
         // 17컬럼: qaln/taln 기반 Kabsch
         std::vector<std::array<float,3>> query_cas;
-        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+        for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                query_cas.push_back({pos[0], pos[1], pos[2]});
+                query_cas.push_back({(atom.x - norm_cx) * norm_scale,
+                                      (atom.y - norm_cy) * norm_scale,
+                                      (atom.z - norm_cz) * norm_scale});
             }
         }
         std::vector<std::array<float,3>> target_cas;
-        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+        for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                target_cas.push_back({pos[0], pos[1], pos[2]});
+                target_cas.push_back({(atom.x - t_cx) * norm_scale,
+                                       (atom.y - t_cy) * norm_scale,
+                                       (atom.z - t_cz) * norm_scale});
             }
         }
 
@@ -2044,17 +2050,19 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
     // fallback: 전체 CA 순서 매칭
     if (!computed_transform) {
         std::vector<std::array<float,3>> query_cas;
-        for (const auto& [cid, chain] : data[0]->get_atoms()) {
+        for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                query_cas.push_back({pos[0], pos[1], pos[2]});
+                query_cas.push_back({(atom.x - norm_cx) * norm_scale,
+                                      (atom.y - norm_cy) * norm_scale,
+                                      (atom.z - norm_cz) * norm_scale});
             }
         }
         std::vector<std::array<float,3>> target_cas;
-        for (const auto& [cid, chain] : target_protein->get_atoms()) {
+        for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
-                float* pos = const_cast<Atom&>(atom).get_position();
-                target_cas.push_back({pos[0], pos[1], pos[2]});
+                target_cas.push_back({(atom.x - t_cx) * norm_scale,
+                                       (atom.y - t_cy) * norm_scale,
+                                       (atom.z - t_cz) * norm_scale});
             }
         }
 
