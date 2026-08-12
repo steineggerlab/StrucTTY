@@ -520,10 +520,6 @@ void Panel::draw_panel(int start_row, int start_col,
                     char buf[32];
                     std::snprintf(buf, sizeof(buf), "Prob:   %.3f", fi.prob);
                     put_cstr(r, x, buf);
-                } else if (fi.qtmscore >= 0.0f) {
-                    char buf[32];
-                    std::snprintf(buf, sizeof(buf), "TM:     %.3f", fi.qtmscore);
-                    put_cstr(r, x, buf);
                 } else {
                     put_cstr(r, x, "-");
                 }
