@@ -118,13 +118,13 @@ make -j $(nproc)
 ```bash
 ./StrucTTY ../example/foldseek_result/DB1/ \
   -fst ../example/foldseek_result/DB2/ \
-  -fsr ../example/foldseek_result/result.m8 \
+  -fsr ../example/foldseek_result/result \
   -m aligned -s
 ```
 ```bash
 ./StrucTTY ../example/foldseek_result/DB1/1rex-assembly1.cif \
   -fst ../example/foldseek_result/DB2/ \
-  -fsr ../example/foldseek_result/result.m8 \
+  -fsr ../example/foldseek_result/result \
   -m aligned -s
 ```
 
@@ -238,22 +238,24 @@ StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12,
 
 #### Launch from Foldseek
 
-StrucTTY is **embedded directly into Foldseek as a static library** (`add_subdirectory(lib/structty)`), so no external binary or `PATH` lookup is required — Foldseek calls `structty::run()` in-process. The viewer opens automatically once the search finishes, reading the query and target structures directly from the search's temporary databases (folder/tar/gz inputs supported). Temporary DBs are kept alive for the viewer and cleaned up after it closes. Supported workflows: `easy-search`, `search`, `easy-multimersearch`, and `multimersearch`.
+StrucTTY is **embedded directly into Foldseek as a static library** (`add_subdirectory(lib/structty)`), so no external binary or `PATH` lookup is required — Foldseek calls `structty::run()` in-process. The viewer opens automatically once the search finishes, reading the query and target structures directly from the search's temporary databases (folder/tar/gz inputs supported). Temporary DBs are kept alive for the viewer and cleaned up after it closes. Supported workflows: `easy-search` and `easy-multimersearch`.
 
-**Automatic launch after a search** — add the `--view-structty` flag (it takes no value) to any structure search workflow:
+**Automatic launch after a search** — add the `--view-structty` flag (it takes no value):
 
 ```bash
-foldseek easy-search query.cif targetDir result.m8 tmp --view-structty
-foldseek search queryDB targetDB result tmp --view-structty
+foldseek easy-search query.cif targetDir result.m8 tmp --view-structty \
+  --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln"
 ```
 
-**Multimer (complex-level) search** — the viewer works out of the box, since the per-complex report (`--multimer-report-mode 1`) is the default; setting `--multimer-report-mode 0` skips the launch. `multimersearch` (the non-easy form) stops at the alignment DB, so the viewer's
-14-column report is written inside `tmp/<hash>/viewer_report` and removed when the
-viewer closes — the output DB is untouched:
+The viewer builds that 17-column layout internally either way; passing
+`--format-output` keeps a copy in `result.m8`, so the same hits can be
+reopened later with `-fsr` and still show lDDT, TM scores and the aligned
+regions. `example/foldseek_result/result` is such a file.
+
+**Multimer (complex-level) search** — the viewer works out of the box, since the per-complex report (`--multimer-report-mode 1`) is the default; setting `--multimer-report-mode 0` skips the launch. The viewer reads the `_report` file the workflow already writes, so it stays after the viewer closes:
 
 ```bash
 foldseek easy-multimersearch queryDir targetDir result tmp --view-structty
-foldseek multimersearch queryDB targetDB alignmentDB tmp --view-structty
 ```
 
 #### Standalone usage
