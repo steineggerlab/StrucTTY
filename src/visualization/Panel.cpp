@@ -530,17 +530,27 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 6: lDDT or second TM score
+            // Line 6: lDDT and TM scores
             clear_line(r);
             {
                 int x = left;
+                char buf[80];
+                int n = 0;
                 if (fi.lddt >= 0.0f) {
-                    char buf[32];
-                    std::snprintf(buf, sizeof(buf), "lDDT:   %.3f", fi.lddt);
+                    n = std::snprintf(buf, sizeof(buf), "lDDT:   %.3f", fi.lddt);
+                }
+                if (fi.qtmscore >= 0.0f && n < (int)sizeof(buf)) {
+                    if (fi.ttmscore >= 0.0f) {
+                        std::snprintf(buf + n, sizeof(buf) - n, "%sTM  q %.3f / t %.3f",
+                                      n > 0 ? "   " : "", fi.qtmscore, fi.ttmscore);
+                    } else {
+                        std::snprintf(buf + n, sizeof(buf) - n, "%sTM  q %.3f",
+                                      n > 0 ? "   " : "", fi.qtmscore);
+                    }
+                    n = (int)std::strlen(buf);
+                }
+                if (n > 0) {
                     put_cstr(r, x, buf);
-                } else if (fi.qtmscore >= 0.0f && fi.prob < 0.0f) {
-                    // 29-col 포맷, TM already shown above only if no prob
-                    put_cstr(r, x, "-");
                 } else {
                     put_cstr(r, x, "-");
                 }

@@ -1608,6 +1608,7 @@ void Screen::load_next_hit(int delta) {
     fs_info.prob        = hit.prob;
     fs_info.lddt        = hit.lddt;
     fs_info.qtmscore    = hit.qtmscore;
+    fs_info.ttmscore    = hit.ttmscore;
     fs_info.query_idx     = (current_query_idx_ >= 0) ? current_query_idx_ + 1 : 0;
     fs_info.total_queries = (int)query_ids_.size();
 
