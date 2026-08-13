@@ -1,3 +1,5 @@
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 #include "Camera.hpp"
 
 Camera::Camera(const int width, const int height, const std::string mode){
@@ -103,8 +105,8 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& pixels, int width
 bool Camera::save_image(std::vector<RGBA>& screenImage, int width, int height){
     std::string screenshot_dir = camera_dir + current_timestamp() + ".png";
     const unsigned char* bytes = reinterpret_cast<const unsigned char*>(screenImage.data());
-    unsigned err = lodepng_encode32_file(screenshot_dir.c_str(), bytes, width, height * height_duplicate);
-    if (err) { return false; }
+    int ok = stbi_write_png(screenshot_dir.c_str(), width, height * height_duplicate, 4, bytes, width * 4);
+    if (!ok) { return false; }
     else { return true; }
 }
 

@@ -29,15 +29,10 @@ if(NOT TARGET gemmi_cpp)
     add_library(gemmi::gemmi_cpp ALIAS gemmi_cpp)
 endif()
 
-# lodepng: simple single-translation-unit library
-add_library(lodepng STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/lodepng/lodepng.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/lodepng/lodepng.h
-)
+# stb_image_write: single public-domain header, used for PNG screenshots
+add_library(stb INTERFACE)
 
-set_target_properties(lodepng PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-target_include_directories(lodepng
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/lodepng
+target_include_directories(stb
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/stb
 )
