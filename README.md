@@ -67,7 +67,7 @@ make -j $(nproc)
 ```bash
 ./StrucTTY ../example/1NPL-assembly1.cif --mode chain
 ```
-![1NPL chain mode](.github/Single_structure.gif)
+https://github.com/user-attachments/assets/64c37f49-7ae8-4dea-bec3-37575583a767
 
 ### Secondary structure visualization
 
@@ -75,7 +75,7 @@ make -j $(nproc)
 ./StrucTTY ../example/3HGM-assembly1.cif --mode chain
 ./StrucTTY ../example/3HGM-assembly1.cif --mode chain -s
 ```
-![Secondary structure](.github/Secondary_structure_visualization.gif)
+https://github.com/user-attachments/assets/01d91bc2-4c49-46f8-80c5-d736ccdeea07
 
 ### Color modes
 
@@ -88,7 +88,7 @@ make -j $(nproc)
 ./StrucTTY ../example/3A0C-assembly1.cif --mode conservation \
   --msa ../example/msa_result/query.a3m
 ```
-![Color modes](.github/Color_modes.gif)
+https://github.com/user-attachments/assets/d4fea46a-2dc5-4e92-85cc-aa47ebcdb2d1
 
 ### Multiple structures
 
@@ -103,7 +103,7 @@ make -j $(nproc)
   ../example/9N47-assembly1.cif \
   ../example/8KGM-assembly1.cif
 ```
-![Multi-structure comparison](.github/Multiple_structures.gif)
+https://github.com/user-attachments/assets/eb2fae4c-4f64-489e-b891-26505d55179c
 
 ### Chain selection
 
@@ -111,7 +111,7 @@ make -j $(nproc)
 ./StrucTTY ../example/9N47-assembly1.cif -m chain
 ./StrucTTY ../example/9N47-assembly1.cif -c ../example/chainfile_9N47.tsv -m chain
 ```
-![Chain_selection](.github/Chain_selection.gif)
+https://github.com/user-attachments/assets/f9cfca51-bba3-4090-b021-a93ad1e671bc
 
 ### Foldseek hit navigation
 
@@ -128,7 +128,7 @@ make -j $(nproc)
   -m aligned -s
 ```
 
-![Foldseek_navigation](.github/Foldseek_hit_navigation.gif)
+https://github.com/user-attachments/assets/9bf428eb-4506-40f2-9c86-b92fab0d47b7
 
 ### FoldMason MSA superposition
 
@@ -137,7 +137,7 @@ make -j $(nproc)
 ./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb \
   -fm ../example/foldmason_result/foldmason.json -m aligned
 ```
-![FoldMason_alignment](.github/FoldMason_MSA_superposition.png)
+![FoldMason_alignment](https://github.com/user-attachments/assets/3237329b-b0bf-4fa1-b580-c12df4df203e)
 
 ## Usage
 
