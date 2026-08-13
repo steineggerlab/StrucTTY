@@ -34,7 +34,7 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 7 color modes 
 - **MSA conservation scoring** — Shannon entropy from FASTA/A3M alignments
 - **Interface detection** — inter-chain contact residue highlighting
 - **Alignment visualization** — structural alignment region highlighting
-- **Screenshot export** — PNG output via lodepng
+- **Screenshot export** — PNG output via stb_image_write
 - **Chain selection** — filter specific chains per protein
 
 ## Installation
@@ -59,6 +59,17 @@ make -j $(nproc)
 ```
 
 > The output binary will be generated at `build/StrucTTY`.
+
+### Example data
+
+The structures used below are distributed separately. Unpack them in the
+repository root, next to `build/`:
+
+```bash
+cd StrucTTY
+curl -L -o example.zip https://github.com/user-attachments/files/31012856/structty_example.zip
+unzip example.zip && rm example.zip
+```
 
 ## Quick Start
 
@@ -312,7 +323,7 @@ Benchmarks are reproducible via the built-in benchmark mode, which replays a fix
 | Library | License | Purpose |
 |---------|---------|---------|
 | [Gemmi](https://gemmi.readthedocs.io/) | MPL-2.0 | mmCIF/PDB file parsing |
-| [LodePNG](https://lodev.org/lodepng/) | zlib | PNG screenshot encoding |
+| [stb_image_write](https://github.com/nothings/stb) | MIT / public domain | PNG screenshot encoding |
 
 See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for detailed license information.
 

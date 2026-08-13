@@ -42,3 +42,6 @@ build*/*
 
 plan*
 research*
+# Downloaded example data
+/example/
+example.zip
