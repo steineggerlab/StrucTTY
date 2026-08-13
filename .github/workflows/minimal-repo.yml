@@ -23,10 +23,10 @@ jobs:
             --path CMakeLists.txt \
             --path LICENSE \
             --path THIRD_PARTY_NOTICES.md \
-            --path .gitmodules \
             --path cmake \
             --path include \
-            --path lib \
+            --path lib/CMakeLists.txt \
+            --path lib/lodepng \
             --path src \
             --path third_party_licenses \
             --prune-empty always \
