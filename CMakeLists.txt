@@ -59,7 +59,7 @@ target_link_libraries(structty
     PUBLIC
         structty_render
         gemmi::gemmi_cpp
-        lodepng
+        stb
 )
 if(ZLIB_FOUND)
     target_link_libraries(structty PUBLIC ZLIB::ZLIB)
