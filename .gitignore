@@ -45,3 +45,7 @@ research*
 # Downloaded example data
 /example/
 example.zip
+
+# CMake generated files
+CMakeFiles/
+cmake_install.cmake
