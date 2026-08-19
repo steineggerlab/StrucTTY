@@ -133,7 +133,7 @@ https://github.com/user-attachments/assets/f9cfca51-bba3-4090-b021-a93ad1e671bc
   -m align-fs -s
 ```
 ```bash
-./StrucTTY ../example/foldseek_result/DB1/3CNA.cif \
+./StrucTTY ../example/foldseek_result/DB1/3cna-assembly1.cif \
   -fst ../example/foldseek_result/DB2/ \
   -fsr ../example/foldseek_result/result \
   -m align-fs -s
@@ -276,6 +276,10 @@ distance.
 foldseek easy-multimersearch queryDir targetDir result tmp --view-structty
 ```
 
+This writes `result_report`, the 14-column file the viewer reads. Both sides must
+be complexes — a single-chain query or target yields an empty report, and the
+viewer then refuses it.
+
 #### Standalone usage
 
 First produce a result that carries the alignment. The two columns that matter
@@ -313,8 +317,9 @@ foldseek convertalis queryDB targetDB resultDB result.m8 \
 # Colour by distance instead, whatever the result says (works on 12-column files)
 ./StrucTTY query.pdb -fst /path/to/targetDB -fsr result.m8 -m align-near
 
-# Multimer: 14-column _report, chains read per complex from the query DB
-./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result_report
+# Multimer: 14-column _report, chains read per complex from the query DB.
+# A _report carries no alignment strings, so align-near is the only align mode.
+./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result_report -m align-near
 ```
 
 ### FoldMason
