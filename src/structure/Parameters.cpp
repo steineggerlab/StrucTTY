@@ -7,7 +7,7 @@ void print_help(){
     std::cout << "Options:\n";
     std::cout << "  -m, --mode <MODE>       Color mode:\n";
     std::cout << "                            protein (default), chain, rainbow,\n";
-    std::cout << "                            plddt, interface, conservation, aligned,\n";
+    std::cout << "                            plddt, interface, conservation, align,\n";
     std::cout << "                            align-fs (Foldseek alignment only),\n";
     std::cout << "                            align-near (nearest-neighbour distance)\n";
     std::cout << "  -c, --chains <FILE>     Show only selected chains (see example/chainfile)\n";
@@ -68,11 +68,11 @@ Parameters::Parameters(int argc, char* argv[]) {
                     std::transform(val.begin(), val.end(), val.begin(), ::tolower); // to lowercase
                     if (val == "chain" || val == "rainbow" || val == "protein" ||
                         val == "plddt" || val == "interface" || val == "conservation" ||
-                        val == "aligned" || val == "align-fs" || val == "align-near") {
+                        val == "align" || val == "align-fs" || val == "align-near") {
                         mode = val;
                         i++;
                     } else {
-                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'plddt', 'interface', 'conservation', 'aligned', 'align-fs', or 'align-near'.");
+                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'plddt', 'interface', 'conservation', 'align', 'align-fs', or 'align-near'.");
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");

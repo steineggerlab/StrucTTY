@@ -1908,7 +1908,7 @@ void Screen::load_next_hit(int delta) {
     fs_info.align_method = align_method_str;
     if (panel) panel->set_foldseek_hit_info(fs_info);
 
-    // aligned 모드일 때 is_aligned 계산
+    // align 계열 모드일 때 is_aligned 계산
     if (is_aligned_mode(screen_mode)) {
         if (screen_mode == "align-near") {
             // 거리 판정을 명시적으로 요구한 경우: 정렬 문자열이 있어도 쓰지 않는다.
@@ -2103,7 +2103,7 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
         apply_foldseek_transform(target_protein_idx, U, T, T_ang);
     }
 
-    // aligned 모드일 때 is_aligned 계산
+    // align 계열 모드일 때 is_aligned 계산
     if (is_aligned_mode(screen_mode)) {
         if (screen_mode == "align-near") {
             compute_aligned_all();
@@ -2204,7 +2204,7 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
     }
     apply_foldseek_transform(target_protein_idx, U, T, T_ang);
 
-    // aligned 모드일 때 is_aligned 잔기 설정
+    // align 계열 모드일 때 is_aligned 잔기 설정
     // MSA aa strings을 qaln/taln으로 사용 (gap 형식 동일)
     if (screen_mode == "align-near") {
         compute_aligned_all();

@@ -20,13 +20,13 @@
 
 **StrucTTY** is a lightweight, terminal-based protein structure visualizer built in C++17. It renders 3D protein structures directly in the terminal using **Unicode Braille sub-pixel rendering**, providing 8x resolution compared to standard character-based rendering.
 
-StrucTTY supports simultaneous visualization of up to 9 proteins, 7 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
+StrucTTY supports simultaneous visualization of up to 9 proteins, 9 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
 
 ## Features
 
 - **Braille sub-pixel rendering** — each terminal cell maps to a 2×4 logical pixel grid
 - **Up to 9 proteins** rendered simultaneously with independent controls
-- **7 color modes** — `protein`, `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `aligned`
+- **9 color modes** — `protein`, `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `align`, `align-fs`, `align-near`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
 - **Secondary structure visualization** — helix cylinders and sheet ribbons
 - **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
@@ -146,7 +146,7 @@ https://github.com/user-attachments/assets/9bf428eb-4506-40f2-9c86-b92fab0d47b7
 ```bash
 ./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb 
 ./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb \
-  -fm ../example/foldmason_result/foldmason.json -m aligned
+  -fm ../example/foldmason_result/foldmason.json -m align
 ```
 ![FoldMason_alignment](https://github.com/user-attachments/assets/3237329b-b0bf-4fa1-b580-c12df4df203e)
 
@@ -158,7 +158,7 @@ https://github.com/user-attachments/assets/9bf428eb-4506-40f2-9c86-b92fab0d47b7
 
 | Option | Description |
 |--------|-------------|
-| `-m, --mode <MODE>` | Color mode: `protein` (default), `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `aligned` |
+| `-m, --mode <MODE>` | Color mode: `protein` (default), `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `align`, `align-fs`, `align-near` |
 | `-c, --chains <FILE>` | Chain selection file (TSV: index + chain IDs) |
 | `-s, --structure` | Show secondary structure (helix/sheet) |
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
@@ -217,7 +217,7 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `plddt` | AlphaFold confidence: blue (≥90), cyan (70–90), yellow (50–70), orange (<50) |
 | `interface` | Inter-chain contacts (CA–CA < 8 Å): magenta vs. dim |
 | `conservation` | MSA Shannon entropy: blue (variable) → red (conserved) |
-| `aligned` | Structurally aligned regions: bright vs. dim gray. Uses the alignment when the result has one, otherwise falls back to distance |
+| `align` | Structurally aligned regions: bright vs. dim gray. Uses the alignment when the result has one, otherwise falls back to distance |
 | `align-fs` | Only what Foldseek aligned (`qaln`/`taln` columns). Never falls back — errors out if the result carries no alignment |
 | `align-near` | Distance only: residues with a counterpart within the cutoff, whatever the result says |
 
@@ -267,7 +267,7 @@ The viewer builds that 17-column layout internally either way; passing
 `-a --format-output` keeps a copy in `result.m8`, so the same hits can be
 reopened later with `-fsr` and still show lDDT, TM scores and the aligned
 regions. Without it the file keeps Foldseek's 12-column default, which carries
-no alignment — `align-fs` then refuses to run and `aligned` falls back to
+no alignment — `align-fs` then refuses to run and `align` falls back to
 distance.
 
 **Multimer (complex-level) search** — the viewer works out of the box, since the per-complex report (`--multimer-report-mode 1`) is the default; setting `--multimer-report-mode 0` skips the launch. The viewer reads the `_report` file the workflow already writes, so it stays after the viewer closes:

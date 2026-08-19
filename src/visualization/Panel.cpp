@@ -309,7 +309,7 @@ void Panel::draw_panel(int start_row, int start_col,
     ++r;
     if (!in_rows(r)) return;
 
-    // 기능 4: aligned 모드일 때 정렬 방식 표시
+    // 기능 4: align 계열 모드일 때 정렬 방식 표시
     if (is_aligned_mode(panel_mode) && !align_method.empty()) {
         if (!in_rows(r)) return;
         clear_line(r);
