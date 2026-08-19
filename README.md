@@ -126,8 +126,11 @@ https://github.com/user-attachments/assets/f9cfca51-bba3-4090-b021-a93ad1e671bc
 
 ### Foldseek hit navigation
 
+The same hit under both alignment modes — `align-fs` colours only what Foldseek
+aligned, `align-near` colours whatever ends up close in space:
+
 ```bash
-./StrucTTY ../example/foldseek_result/DB1/ \
+./StrucTTY ../example/foldseek_result/DB1/3cna-assembly1.cif \
   -fst ../example/foldseek_result/DB2/ \
   -fsr ../example/foldseek_result/result \
   -m align-fs -s
@@ -136,10 +139,22 @@ https://github.com/user-attachments/assets/f9cfca51-bba3-4090-b021-a93ad1e671bc
 ./StrucTTY ../example/foldseek_result/DB1/3cna-assembly1.cif \
   -fst ../example/foldseek_result/DB2/ \
   -fsr ../example/foldseek_result/result \
-  -m align-fs -s
+  -m align-near -s
 ```
 
+In the recording, the right pane is `align-fs` and the left one is `align-near`.
+
 https://github.com/user-attachments/assets/0118ba8f-e77e-455c-87c8-197f008ffe7a
+
+Pass the query directory instead of one structure to walk every query in the
+result with `]`/`[`:
+
+```bash
+./StrucTTY ../example/foldseek_result/DB1/ \
+  -fst ../example/foldseek_result/DB2/ \
+  -fsr ../example/foldseek_result/result \
+  -m align-fs -s
+```
 
 ### FoldMason MSA superposition
 
