@@ -554,15 +554,16 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 7: Align method
+            // Line 7: superposition method (how U/T was obtained). The colour
+            // source is the "Align:" line above and can differ from this one.
             clear_line(r);
             {
                 int x = left;
                 if (!fi.align_method.empty()) {
-                    put_cstr(r, x, "Align:  ");
+                    put_cstr(r, x, "Superpose: ");
                     put_str(r, x, fi.align_method);
                 } else {
-                    put_cstr(r, x, "Align:  -");
+                    put_cstr(r, x, "Superpose: -");
                 }
             }
             ++r; if (!in_rows(r)) return;
