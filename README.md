@@ -67,8 +67,8 @@ repository root, next to `build/`:
 
 ```bash
 cd StrucTTY
-curl -L -o example.zip https://github.com/user-attachments/files/31012856/structty_example.zip
-unzip example.zip && rm example.zip
+curl -L -o example.zip https://github.com/user-attachments/files/31204019/structty_example.zip
+unzip -d example example.zip && rm example.zip
 ```
 
 ## Quick Start
@@ -180,8 +180,8 @@ The kind of every input is detected automatically (no format flags):
 | Foldseek DB | base path of a DB built **from structures** (needs `<db>_ca`) | query, `-fst` |
 | Foldseek result | `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) | `-fsr` |
 
-A `_report` (14 columns) enters the multimer path and requires a Foldseek **query DB** as the query,
-because the per-complex chains are read from that DB.
+A `_report` (14 columns) enters the multimer path. The query is where the per-complex chains are
+read from, so it must be a Foldseek **query DB** or a **directory** of structures.
 
 With `-fst <directory>`, hits are looked up by accession. Foldseek splits multimers per chain
 (`1dci-assembly1_B-2`), so the trailing `_<chain>` is stripped until a file matches
@@ -317,9 +317,11 @@ foldseek convertalis queryDB targetDB resultDB result.m8 \
 # Colour by distance instead, whatever the result says (works on 12-column files)
 ./StrucTTY query.pdb -fst /path/to/targetDB -fsr result.m8 -m align-near
 
-# Multimer: 14-column _report, chains read per complex from the query DB.
+# Multimer: 14-column _report, chains read per complex from the query DB or directory.
 # A _report carries no alignment strings, so align-near is the only align mode.
-./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result_report -m align-near
+./StrucTTY ../example/foldseek_result/DB1/ \
+  -fst ../example/foldseek_result/DB2/ \
+  -fsr ../example/foldseek_result/result_multimer_report -m align-near
 ```
 
 ### FoldMason
