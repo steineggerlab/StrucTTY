@@ -133,7 +133,7 @@ https://github.com/user-attachments/assets/f9cfca51-bba3-4090-b021-a93ad1e671bc
   -m align-fs -s
 ```
 ```bash
-./StrucTTY ../example/foldseek_result/DB1/1rex-assembly1.cif \
+./StrucTTY ../example/foldseek_result/DB1/3CNA.cif \
   -fst ../example/foldseek_result/DB2/ \
   -fsr ../example/foldseek_result/result \
   -m align-fs -s
