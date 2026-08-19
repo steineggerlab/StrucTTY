@@ -139,7 +139,7 @@ https://github.com/user-attachments/assets/f9cfca51-bba3-4090-b021-a93ad1e671bc
   -m align-fs -s
 ```
 
-https://github.com/user-attachments/assets/9bf428eb-4506-40f2-9c86-b92fab0d47b7
+https://github.com/user-attachments/assets/0118ba8f-e77e-455c-87c8-197f008ffe7a
 
 ### FoldMason MSA superposition
 
@@ -221,8 +221,11 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `align-fs` | Only what Foldseek aligned (`qaln`/`taln` columns). Never falls back — errors out if the result carries no alignment |
 | `align-near` | Distance only: residues with a counterpart within the cutoff, whatever the result says |
 
-The panel's `Align:` line names the source actually used: `aln-string` (Foldseek
-alignment), `msa-col` (FoldMason MSA columns) or `nearest-nbr` (distance).
+The panel's `Align:` line names the colour source actually used: `aln-string`
+(Foldseek alignment), `msa-col` (FoldMason MSA columns) or `nearest-nbr`
+(distance). The `Superpose:` line in the hit block is a different thing — how the
+structures were laid on top of each other (`aln-string`, `kabsch-qaln`, ...) —
+and does not change with the colour mode.
 
 > The alignment-based modes need `qaln`/`taln`, i.e. a 17/21/29-column `.m8`.
 > Foldseek's default 12-column output has none.
