@@ -130,13 +130,13 @@ https://github.com/user-attachments/assets/f9cfca51-bba3-4090-b021-a93ad1e671bc
 ./StrucTTY ../example/foldseek_result/DB1/ \
   -fst ../example/foldseek_result/DB2/ \
   -fsr ../example/foldseek_result/result \
-  -m aligned -s
+  -m align-fs -s
 ```
 ```bash
 ./StrucTTY ../example/foldseek_result/DB1/1rex-assembly1.cif \
   -fst ../example/foldseek_result/DB2/ \
   -fsr ../example/foldseek_result/result \
-  -m aligned -s
+  -m align-fs -s
 ```
 
 https://github.com/user-attachments/assets/9bf428eb-4506-40f2-9c86-b92fab0d47b7
@@ -266,7 +266,9 @@ foldseek easy-search query.cif targetDir result.m8 tmp --view-structty \
 The viewer builds that 17-column layout internally either way; passing
 `-a --format-output` keeps a copy in `result.m8`, so the same hits can be
 reopened later with `-fsr` and still show lDDT, TM scores and the aligned
-regions. `example/foldseek_result/result` is such a file.
+regions. Without it the file keeps Foldseek's 12-column default, which carries
+no alignment — `align-fs` then refuses to run and `aligned` falls back to
+distance.
 
 **Multimer (complex-level) search** — the viewer works out of the box, since the per-complex report (`--multimer-report-mode 1`) is the default; setting `--multimer-report-mode 0` skips the launch. The viewer reads the `_report` file the workflow already writes, so it stays after the viewer closes:
 
@@ -275,6 +277,25 @@ foldseek easy-multimersearch queryDir targetDir result tmp --view-structty
 ```
 
 #### Standalone usage
+
+First produce a result that carries the alignment. The two columns that matter
+are `qaln` and `taln`; `-a` makes the search keep the backtraces they come from:
+
+```bash
+foldseek easy-search query.pdb targetDir result.m8 tmp \
+  -a --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln"
+```
+
+Add `--alignment-type 1` to align with TM-align instead of 3Di+AA — slower, but
+it usually reports a tighter set of aligned residues.
+
+For a result that already exists as a Foldseek database, convert it instead of
+searching again:
+
+```bash
+foldseek convertalis queryDB targetDB resultDB result.m8 \
+  --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln"
+```
 
 ```bash
 # Read target Cα coordinates straight from a Foldseek DB (offline)
@@ -287,7 +308,10 @@ foldseek easy-multimersearch queryDir targetDir result tmp --view-structty
 ./StrucTTY query.pdb -fst auto -fsr result.m8
 
 # Query from a Foldseek DB — multi-query navigation with ]/[
-./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result.m8 -m aligned
+./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result.m8 -m align-fs
+
+# Colour by distance instead, whatever the result says (works on 12-column files)
+./StrucTTY query.pdb -fst /path/to/targetDB -fsr result.m8 -m align-near
 
 # Multimer: 14-column _report, chains read per complex from the query DB
 ./StrucTTY /path/to/queryDB -fst /path/to/targetDB -fsr result_report
