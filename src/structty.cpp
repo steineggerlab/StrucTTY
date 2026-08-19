@@ -147,6 +147,13 @@ bool run(const RunOptions& opts) {
     // query/target complex 전체 체인을 로드하고 complex U/T 로 겹침. query/target DB 는
     // complex DB(체인별 엔트리). -fsr 이 _report 일 때만 진입(.m8 경로와 배타적).
     bool multimer_report = false;
+    if (result_kind == InputKind::ResultReport && opts.mode == "align-fs") {
+        std::cerr << "Error: -m align-fs needs alignment strings, but a multimer report "
+                  << "carries none.\n"
+                  << "       Use -m align-near, or run a monomer search with qaln/taln."
+                  << std::endl;
+        return false;
+    }
     if (result_kind == InputKind::ResultReport) {
         MultimerReportParser mr_parser;
         if (mr_parser.load(fs_result) && mr_parser.hit_count() > 0) {
@@ -225,22 +232,27 @@ bool run(const RunOptions& opts) {
 
         // 기능 4: aligned 모드는 정렬 문자열(qaln/taln)이 필요하다. 12컬럼 m8 처럼
         // 정렬 문자열이 없으면 최근접 이웃(10 Å) 판정으로 대체되므로 그 사실을 알린다.
-        if (fs_hits_loaded && opts.mode == "aligned") {
+        if (fs_hits_loaded && (opts.mode == "aligned" || opts.mode == "align-fs")) {
             bool any_aln = false;
             for (const FoldseekHit& hit : fs_nav_parser.get_hits()) {
                 if (hit.has_aln) { any_aln = true; break; }
             }
             if (!any_aln) {
-                std::cerr << "Warning: -m aligned needs alignment strings (qaln/taln), "
+                const bool strict = (opts.mode == "align-fs");
+                std::cerr << (strict ? "Error: -m align-fs needs alignment strings (qaln/taln), "
+                                     : "Warning: -m aligned needs alignment strings (qaln/taln), ")
                           << "but none are present in " << fs_result << ".\n"
-                          << "         Falling back to nearest-neighbour (10 A) colouring "
-                          << "-- the panel shows 'nearest-nbr'.\n"
-                          << "         Regenerate the result with:\n"
+                          << (strict ? "       Use -m align-near for distance-based colouring, "
+                                       "or regenerate the result with:\n"
+                                     : "         Falling back to nearest-neighbour (10 A) colouring "
+                                       "-- the panel shows 'nearest-nbr'.\n"
+                                       "         Regenerate the result with:\n")
                           << "           foldseek convertalis <queryDB> <targetDB> <resultDB> out.m8 \\\n"
                           << "             --format-output query,target,fident,alnlen,mismatch,gapopen,"
                           << "qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln\n"
                           << "         (the search itself must run with -a so backtraces exist)"
                           << std::endl;
+                if (strict) return false;
             }
         }
     }
@@ -384,7 +396,14 @@ bool run(const RunOptions& opts) {
     }
 
     // 기능 4: aligned 모드 — foldseek/FoldMason 결과가 없는 경우 (nearest-neighbor fallback)
-    if (opts.mode == "aligned" && fs_result.empty() && opts.foldmason_file.empty()) {
+    if (is_aligned_mode(opts.mode) && fs_result.empty() && opts.foldmason_file.empty()) {
+        if (opts.mode == "align-fs") {
+            std::cerr << "Error: -m align-fs needs a Foldseek result (-fsr) or a FoldMason "
+                      << "alignment (-fm).\n"
+                      << "       Use -m align-near to colour by distance instead."
+                      << std::endl;
+            return false;
+        }
         screen.compute_aligned_all();
     }
 
@@ -521,7 +540,8 @@ bool run(const RunOptions& opts) {
             // 두 구조 superposition (두 번째 PDB 있을 때만)
             bool do_superposition = ((int)opts.input_files.size() >= 2 && total_entries >= 2);
             if (do_superposition) {
-                fm_info.align_method = (opts.mode == "aligned") ? "msa-col" : "-";
+                fm_info.align_method = (opts.mode == "align-near") ? "nearest-nbr"
+                                     : (is_aligned_mode(opts.mode) ? "msa-col" : "-");
             } else {
                 fm_info.align_method = "-";
             }

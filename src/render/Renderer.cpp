@@ -14,7 +14,8 @@ Renderer::Renderer(int width, int height, const std::string& mode, bool show_str
     else if (mode_ == "rainbow")      mode_id_ = Mode::Rainbow;
     else if (mode_ == "plddt")        mode_id_ = Mode::Plddt;
     else if (mode_ == "interface")    mode_id_ = Mode::Interface;
-    else if (mode_ == "aligned")      mode_id_ = Mode::Aligned;
+    else if (mode_ == "aligned" || mode_ == "align-fs" || mode_ == "align-near")
+                                      mode_id_ = Mode::Aligned;
     else if (mode_ == "conservation") mode_id_ = Mode::Conservation;
     else                              mode_id_ = Mode::Protein;
 }

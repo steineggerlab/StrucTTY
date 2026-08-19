@@ -1,5 +1,6 @@
 #include "Screen.hpp"
 #include "Terminal.hpp"
+#include "Common.hpp"
 #include <cstring>       // strncpy, memset
 #include <unordered_set>
 #include <string>
@@ -545,7 +546,9 @@ void Screen::load_multimer_hit(int delta) {
         }
     }
 
-    if (screen_mode == "aligned") {
+    if (is_aligned_mode(screen_mode)) {
+        // 멀티머 _report 에는 정렬 문자열이 없어 거리 판정만 가능하다. align-fs 는
+        // 진입 전에 거부되므로(structty.cpp) 여기서는 폴백 사실만 패널에 남긴다.
         for (int qi = 0; qi < mm_query_chain_count_; qi++) {
             for (int ti = mm_query_chain_count_; ti < (int)data.size(); ti++) {
                 if (data[qi] && data[ti]) data[qi]->compute_aligned_regions_nn(*data[ti], 4.0f);
@@ -1906,11 +1909,17 @@ void Screen::load_next_hit(int delta) {
     if (panel) panel->set_foldseek_hit_info(fs_info);
 
     // aligned 모드일 때 is_aligned 계산
-    if (screen_mode == "aligned") {
-        if (hit.has_aln) {
+    if (is_aligned_mode(screen_mode)) {
+        if (screen_mode == "align-near") {
+            // 거리 판정을 명시적으로 요구한 경우: 정렬 문자열이 있어도 쓰지 않는다.
+            compute_aligned_all();
+        } else if (hit.has_aln) {
             // qaln/taln 은 hit.qstart/hit.tstart 잔기에서 시작한다
             compute_aligned_from_aln(hit.qaln, hit.taln, hit.qstart, hit.tstart, 5.0f, true);
             set_align_method("aln-string");
+        } else if (screen_mode == "align-fs") {
+            // 폴백 금지. 진입 전에 거부되지만, 혼합 포맷에 대비해 아무것도 칠하지 않는다.
+            set_align_method("none");
         } else {
             // 정렬 문자열이 없는 포맷(12컬럼 등): 최근접 이웃 폴백.
             // compute_aligned_all() 이 패널 라벨을 "nearest-nbr" 로 설정한다.
@@ -2095,12 +2104,16 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
     }
 
     // aligned 모드일 때 is_aligned 계산
-    if (screen_mode == "aligned") {
-        if (hit.has_aln) {
+    if (is_aligned_mode(screen_mode)) {
+        if (screen_mode == "align-near") {
+            compute_aligned_all();
+        } else if (hit.has_aln) {
             data[0]->compute_aligned_regions_from_aln(
                 *data[target_protein_idx], hit.qaln, hit.taln,
                 hit.qstart, hit.tstart, 5.0f, true);
             set_align_method("aln-string");
+        } else if (screen_mode == "align-fs") {
+            set_align_method("none");
         } else {
             compute_aligned_all();
         }
@@ -2193,7 +2206,9 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
 
     // aligned 모드일 때 is_aligned 잔기 설정
     // MSA aa strings을 qaln/taln으로 사용 (gap 형식 동일)
-    if (screen_mode == "aligned") {
+    if (screen_mode == "align-near") {
+        compute_aligned_all();
+    } else if (is_aligned_mode(screen_mode)) {
         // MSA aa 문자열은 서열 전체를 덮으므로 시작 오프셋은 1, 1
         data[query_protein_idx]->compute_aligned_regions_from_aln(
             *data[target_protein_idx],

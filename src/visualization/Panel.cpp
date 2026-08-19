@@ -1,5 +1,6 @@
 #include "Panel.hpp"
 #include "Terminal.hpp"
+#include "Common.hpp"
 #include <cstring>  // strncpy
 #include <cstdio>   // snprintf, fwrite, fputc, fputs
 
@@ -196,7 +197,7 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
 int Panel::get_height() const {
     int lines = 0;
     lines += 3;
-    if (panel_mode == "aligned" && !align_method.empty()) {
+    if (is_aligned_mode(panel_mode) && !align_method.empty()) {
         lines += 1;  // "Align: nearest-nbr" or "Align: aln-string"
     }
     for (const auto& entry : entries) {
@@ -309,7 +310,7 @@ void Panel::draw_panel(int start_row, int start_col,
     if (!in_rows(r)) return;
 
     // 기능 4: aligned 모드일 때 정렬 방식 표시
-    if (panel_mode == "aligned" && !align_method.empty()) {
+    if (is_aligned_mode(panel_mode) && !align_method.empty()) {
         if (!in_rows(r)) return;
         clear_line(r);
         int x = left;
@@ -332,7 +333,7 @@ void Panel::draw_panel(int start_row, int start_col,
         int protein_pair = 0;
         if (panel_mode == "protein") {
             protein_pair = (color_idx % num_protein_colors) + 1;  // pairs 1-9
-        } else if (panel_mode == "aligned") {
+        } else if (is_aligned_mode(panel_mode)) {
             protein_pair = (color_idx % num_protein_colors) + 101;  // pairs 101-109
         } else if (panel_mode == "chain" && entry.chain_color_base >= 0) {
             // entry 하나가 체인 하나인 경우(멀티머)에는 이름 줄에 그 체인 색을 쓴다
@@ -388,7 +389,7 @@ void Panel::draw_panel(int start_row, int start_col,
                     chain_pair = 21 + ((base + count) % num_chain_colors);  // pairs 21-35
                 }
 
-                int pair_to_use = (panel_mode == "protein" || panel_mode == "aligned") ? protein_pair : chain_pair;
+                int pair_to_use = (panel_mode == "protein" || is_aligned_mode(panel_mode)) ? protein_pair : chain_pair;
 
                 if (pair_to_use > 0) fputs(Palettes::palette_to_ansi_fg_str(pair_to_use).c_str(), stdout);
                 put_n(r, x, buf, token_len);
@@ -698,7 +699,7 @@ int Panel::get_height_for_width(int max_cols, int compact_level) const {
 
     lines += 3; // Top border + Help line + Separator
 
-    if (panel_mode == "aligned" && !align_method.empty()) {
+    if (is_aligned_mode(panel_mode) && !align_method.empty()) {
         lines += 1;  // "Align: ..." line
     }
 
