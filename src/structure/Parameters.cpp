@@ -7,7 +7,9 @@ void print_help(){
     std::cout << "Options:\n";
     std::cout << "  -m, --mode <MODE>       Color mode:\n";
     std::cout << "                            protein (default), chain, rainbow,\n";
-    std::cout << "                            plddt, interface, conservation, aligned\n";
+    std::cout << "                            plddt, interface, conservation, aligned,\n";
+    std::cout << "                            align-fs (Foldseek alignment only),\n";
+    std::cout << "                            align-near (nearest-neighbour distance)\n";
     std::cout << "  -c, --chains <FILE>     Show only selected chains (see example/chainfile)\n";
     std::cout << "  -s, --structure         Show secondary structure (alpha helix, beta sheet)\n";
     std::cout << "  --msa <FILE>            MSA file for conservation score (FASTA/A3M)\n";
@@ -65,11 +67,12 @@ Parameters::Parameters(int argc, char* argv[]) {
                     std::string val(argv[i + 1]);
                     std::transform(val.begin(), val.end(), val.begin(), ::tolower); // to lowercase
                     if (val == "chain" || val == "rainbow" || val == "protein" ||
-                        val == "plddt" || val == "interface" || val == "conservation" || val == "aligned") {
+                        val == "plddt" || val == "interface" || val == "conservation" ||
+                        val == "aligned" || val == "align-fs" || val == "align-near") {
                         mode = val;
                         i++;
                     } else {
-                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'plddt', 'interface', 'conservation', or 'aligned'.");
+                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'plddt', 'interface', 'conservation', 'aligned', 'align-fs', or 'align-near'.");
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");

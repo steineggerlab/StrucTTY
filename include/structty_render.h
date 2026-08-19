@@ -8,7 +8,8 @@ namespace structty {
 
 // Render atoms to an ANSI escape string.
 // width/height: terminal character dimensions.
-// mode: "protein"|"chain"|"rainbow"|"plddt"|"interface"|"conservation"|"aligned"
+// mode: "protein"|"chain"|"rainbow"|"plddt"|"interface"|"conservation"
+//       |"aligned"|"align-fs"|"align-near"
 inline std::string render_to_ansi(
     const std::vector<RenderAtom>& atoms,
     int width,

@@ -217,13 +217,18 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `plddt` | AlphaFold confidence: blue (≥90), cyan (70–90), yellow (50–70), orange (<50) |
 | `interface` | Inter-chain contacts (CA–CA < 8 Å): magenta vs. dim |
 | `conservation` | MSA Shannon entropy: blue (variable) → red (conserved) |
-| `aligned` | Structurally aligned regions: bright vs. dim gray |
+| `aligned` | Structurally aligned regions: bright vs. dim gray. Uses the alignment when the result has one, otherwise falls back to distance |
+| `align-fs` | Only what Foldseek aligned (`qaln`/`taln` columns). Never falls back — errors out if the result carries no alignment |
+| `align-near` | Distance only: residues with a counterpart within the cutoff, whatever the result says |
 
-> `aligned` needs alignment strings (`qaln`/`taln`), i.e. a 17/21/29-column `.m8`.
-> Foldseek's default 12-column output has none, so StrucTTY falls back to a
-> nearest-neighbour (10 Å) judgement and the panel shows `nearest-nbr`.
+The panel's `Align:` line names the source actually used: `aln-string` (Foldseek
+alignment), `msa-col` (FoldMason MSA columns) or `nearest-nbr` (distance).
+
+> The alignment-based modes need `qaln`/`taln`, i.e. a 17/21/29-column `.m8`.
+> Foldseek's default 12-column output has none.
 > Generate a usable result with `--format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln`
 > (the search itself must run with `-a`). `foldseek ... --view-structty` does this for you.
+> Multimer `_report` files carry no alignment strings at all, so they only work with `align-near`.
 
 All modes support **3-band depth fog**: near (vivid), mid (normal), far (dark, hue-retaining).
 

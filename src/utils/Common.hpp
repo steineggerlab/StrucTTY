@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <string>
 
 static std::string current_timestamp() {
     using namespace std::chrono;
@@ -25,4 +26,9 @@ static std::string current_timestamp() {
         << "_" << std::setw(3) << std::setfill('0') << ms.count();
 
     return oss.str();
+}
+
+// aligned 계열 색 모드: 자동(aligned) · foldseek 정렬 구간만(align-fs) · 거리 기반(align-near)
+static bool is_aligned_mode(const std::string& mode) {
+    return mode == "aligned" || mode == "align-fs" || mode == "align-near";
 }
