@@ -28,7 +28,7 @@ static std::string current_timestamp() {
     return oss.str();
 }
 
-// aligned 계열 색 모드: 자동(aligned) · foldseek 정렬 구간만(align-fs) · 거리 기반(align-near)
+// align 계열 색 모드: 자동(align) · foldseek 정렬 구간만(align-fs) · 거리 기반(align-near)
 static bool is_aligned_mode(const std::string& mode) {
-    return mode == "aligned" || mode == "align-fs" || mode == "align-near";
+    return mode == "align" || mode == "align-fs" || mode == "align-near";
 }

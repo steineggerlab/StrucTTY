@@ -45,6 +45,35 @@ std::string first_target_accession(const std::string& result_path) {
     return std::string();
 }
 
+// 기능 4: align 계열 모드는 정렬 문자열(qaln/taln)이 필요하다. 12컬럼 m8 처럼 정렬
+// 문자열이 없으면 align 은 최근접 이웃 판정으로 대체하고, align-fs 는 진행하지 않는다.
+// 진행해도 되면 true.
+bool check_alignment_available(const std::vector<FoldseekHit>& hits,
+                               const std::string& mode,
+                               const std::string& result_path) {
+    if (mode != "align" && mode != "align-fs") return true;
+
+    for (const FoldseekHit& hit : hits) {
+        if (hit.has_aln) return true;
+    }
+
+    const bool strict = (mode == "align-fs");
+    std::cerr << (strict ? "Error: -m align-fs needs alignment strings (qaln/taln), "
+                         : "Warning: -m align needs alignment strings (qaln/taln), ")
+              << "but none are present in " << result_path << ".\n"
+              << (strict ? "       Use -m align-near for distance-based colouring, "
+                           "or regenerate the result with:\n"
+                         : "         Falling back to nearest-neighbour (10 A) colouring "
+                           "-- the panel shows 'nearest-nbr'.\n"
+                           "         Regenerate the result with:\n")
+              << "           foldseek convertalis <queryDB> <targetDB> <resultDB> out.m8 \\\n"
+              << "             --format-output query,target,fident,alnlen,mismatch,gapopen,"
+              << "qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln\n"
+              << "         (the search itself must run with -a so backtraces exist)"
+              << std::endl;
+    return !strict;
+}
+
 }  // namespace
 
 bool run(const RunOptions& opts) {
@@ -189,6 +218,10 @@ bool run(const RunOptions& opts) {
                 }
             }
             query_from_db = !query_ids.empty();
+            if (query_from_db &&
+                !check_alignment_available(q_parser.get_hits(), opts.mode, fs_result)) {
+                return false;
+            }
         }
     }
 
@@ -230,30 +263,9 @@ bool run(const RunOptions& opts) {
         // target 소스가 없다는 경고는 필요 없어졌다 — -fsr 은 -fst 와 쌍으로만 받으므로
         // (Parameters 검증 2) 결과 파일이 있으면 target 소스도 항상 있다.
 
-        // 기능 4: aligned 모드는 정렬 문자열(qaln/taln)이 필요하다. 12컬럼 m8 처럼
-        // 정렬 문자열이 없으면 최근접 이웃(10 Å) 판정으로 대체되므로 그 사실을 알린다.
-        if (fs_hits_loaded && (opts.mode == "aligned" || opts.mode == "align-fs")) {
-            bool any_aln = false;
-            for (const FoldseekHit& hit : fs_nav_parser.get_hits()) {
-                if (hit.has_aln) { any_aln = true; break; }
-            }
-            if (!any_aln) {
-                const bool strict = (opts.mode == "align-fs");
-                std::cerr << (strict ? "Error: -m align-fs needs alignment strings (qaln/taln), "
-                                     : "Warning: -m aligned needs alignment strings (qaln/taln), ")
-                          << "but none are present in " << fs_result << ".\n"
-                          << (strict ? "       Use -m align-near for distance-based colouring, "
-                                       "or regenerate the result with:\n"
-                                     : "         Falling back to nearest-neighbour (10 A) colouring "
-                                       "-- the panel shows 'nearest-nbr'.\n"
-                                       "         Regenerate the result with:\n")
-                          << "           foldseek convertalis <queryDB> <targetDB> <resultDB> out.m8 \\\n"
-                          << "             --format-output query,target,fident,alnlen,mismatch,gapopen,"
-                          << "qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln\n"
-                          << "         (the search itself must run with -a so backtraces exist)"
-                          << std::endl;
-                if (strict) return false;
-            }
+        if (fs_hits_loaded && !check_alignment_available(fs_nav_parser.get_hits(),
+                                                        opts.mode, fs_result)) {
+            return false;
         }
     }
 
@@ -395,7 +407,7 @@ bool run(const RunOptions& opts) {
         screen.compute_interface_all();
     }
 
-    // 기능 4: aligned 모드 — foldseek/FoldMason 결과가 없는 경우 (nearest-neighbor fallback)
+    // 기능 4: align 계열 모드 — foldseek/FoldMason 결과가 없는 경우 (nearest-neighbor fallback)
     if (is_aligned_mode(opts.mode) && fs_result.empty() && opts.foldmason_file.empty()) {
         if (opts.mode == "align-fs") {
             std::cerr << "Error: -m align-fs needs a Foldseek result (-fsr) or a FoldMason "
