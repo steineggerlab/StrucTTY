@@ -6,27 +6,23 @@
 #include <algorithm>
 #include <cctype>
 
-// ─── 간단한 JSON 파서 헬퍼 ───────────────────────────────────────────────────
-
 static void skip_whitespace(const std::string& s, size_t& i) {
     while (i < s.size() && std::isspace((unsigned char)s[i])) i++;
 }
 
-// 현재 위치가 '"' 일 때 JSON 문자열을 읽어 반환 (탈출 시퀀스 미지원)
 static std::string parse_json_string(const std::string& s, size_t& i) {
     if (i >= s.size() || s[i] != '"') return "";
-    i++; // skip opening quote
+    i++;
     std::string result;
     while (i < s.size() && s[i] != '"') {
         if (s[i] == '\\') { i++; if (i < s.size()) result += s[i]; }
         else result += s[i];
         i++;
     }
-    if (i < s.size()) i++; // skip closing quote
+    if (i < s.size()) i++;
     return result;
 }
 
-// 현재 위치에서 JSON 숫자를 float으로 읽어 반환
 static float parse_json_float(const std::string& s, size_t& i) {
     size_t start = i;
     if (i < s.size() && (s[i] == '-' || s[i] == '+')) i++;
@@ -36,7 +32,6 @@ static float parse_json_float(const std::string& s, size_t& i) {
     return std::stof(s.substr(start, i - start));
 }
 
-// JSON에서 "key" 를 찾아 이동 (현재 위치부터 탐색)
 static bool find_json_key(const std::string& s, size_t& i, const std::string& key) {
     std::string needle = "\"" + key + "\"";
     size_t pos = s.find(needle, i);
@@ -47,8 +42,6 @@ static bool find_json_key(const std::string& s, size_t& i, const std::string& ke
     skip_whitespace(s, i);
     return true;
 }
-
-// ─── FoldMasonParser::load_json ─────────────────────────────────────────────
 
 bool FoldMasonParser::load_json(const std::string& path) {
     std::ifstream f(path);
@@ -67,14 +60,13 @@ bool FoldMasonParser::load_json(const std::string& path) {
 
     size_t i = 0;
 
-    // entries 배열 파싱
     if (!find_json_key(content, i, "entries")) {
         std::cerr << "FoldMasonParser: 'entries' key not found in " << path << std::endl;
         return false;
     }
     skip_whitespace(content, i);
     if (i >= content.size() || content[i] != '[') return false;
-    i++; // skip '['
+    i++;
 
     while (i < content.size()) {
         skip_whitespace(content, i);
@@ -84,7 +76,6 @@ bool FoldMasonParser::load_json(const std::string& path) {
 
         FoldMasonEntry entry;
         size_t entry_end = i;
-        // 중첩 중괄호 매칭으로 entry 블록 끝 찾기
         int depth = 0;
         for (size_t j = i; j < content.size(); j++) {
             if (content[j] == '{') depth++;
@@ -92,32 +83,28 @@ bool FoldMasonParser::load_json(const std::string& path) {
         }
         std::string entry_str = content.substr(i, entry_end - i + 1);
 
-        // name
         size_t ei = 1;
         if (find_json_key(entry_str, ei, "name")) {
             entry.name = parse_json_string(entry_str, ei);
         }
-        // aa
         ei = 0;
         if (find_json_key(entry_str, ei, "aa")) {
             entry.aa = parse_json_string(entry_str, ei);
         }
-        // ss
         ei = 0;
         if (find_json_key(entry_str, ei, "ss")) {
             entry.ss = parse_json_string(entry_str, ei);
         }
-        // ca — 배열 of 배열 [[x,y,z], ...]
         ei = 0;
         if (find_json_key(entry_str, ei, "ca")) {
             skip_whitespace(entry_str, ei);
             if (ei < entry_str.size() && entry_str[ei] == '[') {
-                ei++; // outer [
+                ei++;
                 while (ei < entry_str.size()) {
                     skip_whitespace(entry_str, ei);
                     if (ei >= entry_str.size() || entry_str[ei] == ']') { ei++; break; }
                     if (entry_str[ei] == '[') {
-                        ei++; // inner [
+                        ei++;
                         std::array<float,3> coord;
                         skip_whitespace(entry_str, ei);
                         coord[0] = parse_json_float(entry_str, ei);
@@ -144,12 +131,10 @@ bool FoldMasonParser::load_json(const std::string& path) {
         entries.push_back(std::move(entry));
         i = entry_end + 1;
 
-        // skip comma
         skip_whitespace(content, i);
         if (i < content.size() && content[i] == ',') i++;
     }
 
-    // scores 배열 파싱
     size_t si = 0;
     if (find_json_key(content, si, "scores")) {
         skip_whitespace(content, si);
@@ -168,7 +153,6 @@ bool FoldMasonParser::load_json(const std::string& path) {
         }
     }
 
-    // statistics.msaLDDT 파싱
     size_t stat_i = 0;
     if (find_json_key(content, stat_i, "statistics")) {
         if (find_json_key(content, stat_i, "msaLDDT")) {
@@ -178,8 +162,6 @@ bool FoldMasonParser::load_json(const std::string& path) {
 
     return !entries.empty();
 }
-
-// ─── FoldMasonParser::load_fasta ─────────────────────────────────────────────
 
 bool FoldMasonParser::load_fasta(const std::string& path) {
     std::ifstream f(path);
@@ -201,7 +183,6 @@ bool FoldMasonParser::load_fasta(const std::string& path) {
         if (line[0] == '>') {
             if (has_entry) entries.push_back(std::move(cur));
             cur = FoldMasonEntry{};
-            // name: trim '>' prefix and whitespace
             cur.name = line.substr(1);
             size_t p = cur.name.find_first_of(" \t");
             if (p != std::string::npos) cur.name = cur.name.substr(0, p);
@@ -215,14 +196,10 @@ bool FoldMasonParser::load_fasta(const std::string& path) {
     return !entries.empty();
 }
 
-// ─── msa_length ─────────────────────────────────────────────────────────────
-
 int FoldMasonParser::msa_length() const {
     if (entries.empty()) return 0;
     return (int)entries[0].aa.size();
 }
-
-// ─── build_query_col_map ────────────────────────────────────────────────────
 
 std::vector<int> FoldMasonParser::build_query_col_map(int ref_idx) const {
     if (ref_idx < 0 || ref_idx >= (int)entries.size()) return {};
@@ -233,8 +210,6 @@ std::vector<int> FoldMasonParser::build_query_col_map(int ref_idx) const {
     }
     return col_map;
 }
-
-// ─── build_aligned_pairs ────────────────────────────────────────────────────
 
 std::vector<std::pair<int,int>> FoldMasonParser::build_aligned_pairs(
         int ref_idx, int other_idx) const {
@@ -257,8 +232,6 @@ std::vector<std::pair<int,int>> FoldMasonParser::build_aligned_pairs(
     }
     return pairs;
 }
-
-// ─── compute_column_entropy ─────────────────────────────────────────────────
 
 std::vector<float> FoldMasonParser::compute_column_entropy(bool use_ss) const {
     if (entries.empty()) return {};
@@ -284,7 +257,6 @@ std::vector<float> FoldMasonParser::compute_column_entropy(bool use_ss) const {
             float p = (float)counts[ci] / (float)total;
             H -= p * std::log2(p);
         }
-        // conservation = 1 - H / log2(20)
         static const float log2_20 = std::log2(20.0f);
         float conservation = 1.0f - H / log2_20;
         if (conservation < 0.0f) conservation = 0.0f;

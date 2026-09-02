@@ -6,7 +6,7 @@ Camera::Camera(const int width, const int height, const std::string mode){
     camera_width = width;
     camera_height = height;
     camera_mode = mode;
-    
+
     camera_dir = get_home_dir() + "/Pictures/StrucTTY_screenshot/";
 
     try {
@@ -53,8 +53,8 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& pixels, int width
                     else if (cid >= 1  && cid <= 9)    xterm = Palettes::PROTEIN_COLORS[cid - 1];
                     else if (cid >= 11 && cid <= 19)   xterm = Palettes::PROTEIN_DIM_COLORS[cid - 11];
                     else if (cid >= 21 && cid <= 35)   xterm = Palettes::CHAIN_COLORS[cid - 21];
-                    else if (cid == 41)                xterm = 226;  // yellow helix
-                    else if (cid == 42)                xterm = 51;   // cyan sheet
+                    else if (cid == 41)                xterm = 226;
+                    else if (cid == 42)                xterm = 51;
                     else if (cid == 43)                xterm = Palettes::INTERFACE_COLOR;
                     else if (cid == 44)                xterm = Palettes::INTERFACE_DIM_COLOR;
                     else if (cid == 45)                xterm = Palettes::ALIGNED_COLOR;
@@ -80,7 +80,7 @@ void Camera::renderPoint2image(const std::vector<RenderPoint>& pixels, int width
                     else if (cid == 240)               xterm = Palettes::INTERFACE_DIM_FAR_COLOR;
                     else if (cid >= 241 && cid <= 249) xterm = Palettes::ALIGNED_BRIGHT_NEAR[cid - 241];
                     else if (cid == 250)               xterm = Palettes::ALIGNED_NONALIGNED_FAR;
-                    else                               xterm = 231;  // fallback white
+                    else                               xterm = 231;
                     screenImage[((y * height_duplicate) + d) * width + x] =
                         Palettes::ID2RGBA[xterm];
                 }

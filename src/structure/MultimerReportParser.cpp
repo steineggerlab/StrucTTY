@@ -6,7 +6,6 @@
 
 namespace {
 
-// 구분자로 문자열 분리 (빈 토큰 포함, 단 마지막 trailing 빈 토큰은 보존).
 std::vector<std::string> split(const std::string& s, char delim) {
     std::vector<std::string> out;
     std::string cur;
@@ -18,7 +17,6 @@ std::vector<std::string> split(const std::string& s, char delim) {
     return out;
 }
 
-// 쉼표 분리 float 목록 파싱. expected 개수만큼 out 에 채움(부족하면 false).
 bool parse_floats(const std::string& s, float* out, int expected) {
     std::vector<std::string> toks = split(s, ',');
     if ((int)toks.size() < expected) return false;
@@ -28,7 +26,7 @@ bool parse_floats(const std::string& s, float* out, int expected) {
     return true;
 }
 
-} // namespace
+}
 
 bool MultimerReportParser::load(const std::string& filepath) {
     std::ifstream in(filepath);
@@ -41,7 +39,7 @@ bool MultimerReportParser::load(const std::string& filepath) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
 
         std::vector<std::string> cols = split(line, '\t');
-        if (cols.size() < 14) continue;  // 14컬럼 미만은 스킵
+        if (cols.size() < 14) continue;
 
         MultimerHit h;
         h.qComplex = cols[0];

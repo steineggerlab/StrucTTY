@@ -20,16 +20,13 @@ class Parameters{
         string mode = "protein";
         string msa_file = "";
         string foldmason_file = "";
-        // -fst : target 구조 소스 (Foldseek DB | 구조 디렉터리 | 구조 파일 | "auto")
         string foldseek_target = "";
-        // -fsr : Foldseek 결과 (m8 12/17/21/29 컬럼 | 멀티머 _report 14 컬럼)
         string foldseek_result = "";
     public:
         Parameters(int argc, char* argv[]);
 
         void print_args();
 
-        // get, set
         vector<string>& get_in_file(){
             return in_file;
         }

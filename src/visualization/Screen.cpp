@@ -1,7 +1,7 @@
 #include "Screen.hpp"
 #include "Terminal.hpp"
 #include "Common.hpp"
-#include <cstring>       // strncpy, memset
+#include <cstring>
 #include <unordered_set>
 #include <string>
 #include <limits>
@@ -61,12 +61,9 @@ static float compute_scene_radius_from_render_positions(const std::vector<Protei
     return std::sqrt(max_r2);
 }
 
-
 std::string Screen::chain_from_accession(const std::string& accession,
                                          const std::string& file_path) {
     if (accession.empty() || file_path.empty()) return "-";
-    // foldseek createdb 는 체인마다 `<파일 stem>_<auth chain>` 엔트리를 만든다
-    // (예: 1nzy-assembly1_A, 1nzy-assembly1_C-2).
     const std::string stem = std::filesystem::path(file_path).stem().string();
     if (stem.empty()) return "-";
     const std::string prefix = stem + "_";
@@ -79,7 +76,7 @@ std::string Screen::chain_from_accession(const std::string& accession,
 std::string Screen::apply_accession_chain(int idx, const std::string& accession,
                                           const std::string& file_path) {
     if (idx < 0 || idx >= (int)chainVec.size()) return "";
-    if (chainVec[idx] != "-") return "";  // 사용자 --chains 지정이 우선
+    if (chainVec[idx] != "-") return "";
     const std::string chain = chain_from_accession(accession, file_path);
     if (chain == "-") return "";
     chainVec[idx] = chain;
@@ -109,7 +106,6 @@ bool Screen::load_query_into_data0(const std::string& accession,
     data.push_back(query_protein);
     pan_x.push_back(0.0f);
     pan_y.push_back(0.0f);
-    // chainVec was sized by set_chainfile(); ensure an entry exists for data[0].
     if ((int)chainVec.size() < (int)data.size()) chainVec.push_back("-");
     return true;
 }
@@ -185,7 +181,6 @@ void Screen::set_query_nav(const std::vector<std::string>& query_ids,
     target_db_path_ = target_db_path;
     multi_query_show_structure_ = show_structure;
 
-    // Open + prepare the query DB once for all query accessions.
     if (!query_db_reader_.is_open()) {
         if (!query_db_reader_.open(query_db_path)) {
             std::cerr << "Warning: Failed to open query Foldseek DB: " << query_db_path << "\n";
@@ -195,7 +190,6 @@ void Screen::set_query_nav(const std::vector<std::string>& query_ids,
     std::unordered_set<std::string> q_set(query_ids.begin(), query_ids.end());
     query_db_reader_.prepare(q_set);
 
-    // Open the target DB once (targets are read per-hit in load_next_hit).
     if (!target_db_path.empty() && !fs_db_reader_.is_open()) {
         open_foldseek_db(target_db_path);
     }
@@ -217,8 +211,6 @@ void Screen::set_query_nav_from_file(const std::vector<std::string>& query_ids,
     target_db_path_ = target_db_path;
     multi_query_show_structure_ = show_structure;
 
-    // Targets still come from a Foldseek DB when one was given; the query side is
-    // the only difference from set_query_nav().
     if (!target_db_path.empty() && !fs_db_reader_.is_open()) {
         open_foldseek_db(target_db_path);
     }
@@ -232,7 +224,6 @@ void Screen::activate_query(int idx) {
     current_query_idx_ = idx;
     const std::string& acc = query_ids_[idx];
 
-    // Tear down the current scene (query + any loaded targets).
     for (Protein* p : data) delete p;
     data.clear();
     pan_x.clear();
@@ -241,14 +232,9 @@ void Screen::activate_query(int idx) {
     chainVec.push_back("-");
     if (panel) panel->reset_entries();
 
-    // Load the new query structure as data[0]. With a structure file as the query the
-    // same file is re-read with the chain the accession names; otherwise it comes from
-    // the (already prepared) query DB.
     if (!query_file_.empty()) {
         std::string query_path = query_file_;
         if (query_file_is_dir_) {
-            // accession(`<stem>_<chain>`) 으로 디렉터리에서 원본 파일을 찾는다 —
-            // target 쪽과 같은 규칙(뒤쪽 `_<chain>` 을 떼며 탐색).
             std::string ignored;
             query_path = PDBDownloader::resolve_target_file(acc, query_file_, ignored);
             if (query_path.empty()) {
@@ -258,21 +244,16 @@ void Screen::activate_query(int idx) {
             }
         }
         const std::string chain = chain_from_accession(acc, query_path);
-        chainVec[0] = chain;   // "-" 면 전체 체인
+        chainVec[0] = chain;
         set_protein(query_path, 0, multi_query_show_structure_);
     } else if (!load_query_into_data0(acc, multi_query_show_structure_)) {
         return;
     }
 
-    // Re-normalize for this query: set_tmatrix re-sizes vectorpointer, and
-    // normalize_proteins() recomputes norm_scale / centroid from data[0] and
-    // re-adds the query panel entry (entries were cleared above).
     set_tmatrix();
     normalize_proteins();
     update_total_len_ca();
 
-    // Set this query's hit list and load its first target (which applies the
-    // per-hit superposition using the freshly computed norm_scale / centroid).
     const auto it = hits_by_query_.find(acc);
     if (it != hits_by_query_.end() && !it->second.empty()) {
         set_foldseek_hits(it->second);
@@ -299,8 +280,6 @@ void Screen::switch_query(int delta) {
     if (new_idx == current_query_idx_) return;
     activate_query(new_idx);
 }
-
-// ── Step 7 (D6): multimer `_report` 경로 ──────────────────────────────────────
 
 static std::vector<std::string> split_csv(const std::string& s) {
     std::vector<std::string> out;
@@ -336,7 +315,6 @@ bool Screen::load_chain_into_data(FoldseekDBReader& reader,
 }
 
 void Screen::normalize_complex() {
-    // 모든 query 체인을 하나의 공유 centroid/scale 로 정규화 (상대 위치 보존, grid 없음).
     global_bb = BoundingBox();
     for (auto* p : data) {
         p->set_bounding_box();
@@ -361,7 +339,7 @@ void Screen::normalize_complex() {
     norm_cx = gx; norm_cy = gy; norm_cz = gz;
     rot_pivot_[0] = rot_pivot_[1] = rot_pivot_[2] = 0.f;
     for (size_t i = 0; i < pan_x.size(); i++) { pan_x[i] = 0.0f; pan_y[i] = 0.0f; }
-    yesUT = true;             // overlay 프레임 (grid layout 비활성)
+    yesUT = true;
     depth_calibrated = false;
 
     float radius = compute_scene_radius_from_render_positions(data);
@@ -373,14 +351,11 @@ void Screen::transform_target_chain(int idx, const float U[9], const float T[3])
     Protein* tp = data[idx];
     tp->set_bounding_box();
     float t_cx = tp->cx, t_cy = tp->cy, t_cz = tp->cz;
-    // query 와 동일한 norm_scale 로 우선 중심+스케일 (per-chain centroid 는 아래 공식에서 상쇄)
     tp->set_scale(norm_scale);
     float t_shift[3] = { -t_cx, -t_cy, -t_cz };
     tp->do_shift(t_shift);
     tp->do_scale(norm_scale);
 
-    // complex U/T(Å, target→query) → norm 공간 T. 공식은 load_next_hit 29컬럼 경로와 동일:
-    // result = (U*orig + T - norm_c) * norm_scale (per-chain t_cen 상쇄).
     float Utc[3] = {
         U[0]*t_cx + U[1]*t_cy + U[2]*t_cz,
         U[3]*t_cx + U[4]*t_cy + U[5]*t_cz,
@@ -401,7 +376,7 @@ std::pair<int,int> Screen::mm_complex_range(int complex_idx) const {
         int hi = std::min(mm_query_chain_count_ - 1, dsz - 1);
         return {0, hi};
     } else {
-        if (mm_query_chain_count_ >= dsz) return {dsz, dsz - 1}; // empty range: no target loaded
+        if (mm_query_chain_count_ >= dsz) return {dsz, dsz - 1};
         return {mm_query_chain_count_, dsz - 1};
     }
 }
@@ -420,7 +395,6 @@ void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
     query_db_path_ = query_is_db ? query_source : std::string();
     target_db_path_ = target_db_path;
 
-    // query complex 별로 그룹화 (등장 순서 보존)
     for (const auto& h : hits) {
         auto it = mm_hits_by_query_.find(h.qComplex);
         if (it == mm_hits_by_query_.end()) {
@@ -432,7 +406,6 @@ void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
     }
     if (mm_query_complexes_.empty()) { multimer_mode_ = false; return; }
 
-    // query 가 DB 면 열고 모든 query 체인 accession 을 인덱싱한다.
     if (mm_query_is_db_) {
         if (!query_db_reader_.open(query_source)) {
             std::cerr << "Warning: Failed to open query complex DB: " << query_source << "\n";
@@ -445,7 +418,6 @@ void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
                 q_acc.insert(qc + "_" + ch);
         query_db_reader_.prepare(q_acc);
     } else if (!mm_query_is_dir_) {
-        // 구조 파일 하나로는 그 파일이 담은 complex 만 볼 수 있다.
         const std::string stem = std::filesystem::path(mm_query_source_).stem().string();
         std::vector<std::string> kept;
         for (const std::string& qc : mm_query_complexes_) {
@@ -466,7 +438,6 @@ void Screen::set_multimer_report(const std::vector<MultimerHit>& hits,
         mm_query_complexes_ = kept;
     }
 
-    // target complex DB 열고 모든 target 체인 accession 인덱싱
     if (!target_db_path.empty() && fs_db_reader_.open(target_db_path)) {
         std::unordered_set<std::string> t_acc;
         for (const auto& h : hits)
@@ -484,7 +455,6 @@ void Screen::activate_multimer_query(int idx) {
     mm_current_query_idx_ = idx;
     const std::string& qc = mm_query_complexes_[idx];
 
-    // scene teardown
     for (Protein* p : data) delete p;
     data.clear();
     pan_x.clear();
@@ -493,7 +463,6 @@ void Screen::activate_multimer_query(int idx) {
     mm_chain_labels_.clear();
     if (panel) panel->reset_entries();
 
-    // query complex 의 모든 체인 로드 (체인 목록은 같은 query 의 모든 hit 가 동일 → front 사용)
     const std::vector<std::string>& qChains = mm_hits_by_query_[qc].front().qChains;
     load_complex_chains(qc, qChains, mm_query_is_db_, query_db_reader_,
                         mm_query_source_, mm_query_is_dir_, multi_query_show_structure_);
@@ -526,7 +495,6 @@ void Screen::load_multimer_hit(int delta) {
     mm_current_hit_idx_ = new_idx;
     const MultimerHit& h = hits[new_idx];
 
-    // 이전 target 체인 제거 (query 체인 보존)
     while ((int)data.size() > mm_query_chain_count_) {
         delete data.back();
         data.pop_back();
@@ -536,7 +504,6 @@ void Screen::load_multimer_hit(int delta) {
     while ((int)chainVec.size() > mm_query_chain_count_) chainVec.pop_back();
     while ((int)mm_chain_labels_.size() > mm_query_chain_count_) mm_chain_labels_.pop_back();
 
-    // target complex 체인 로드 + complex U/T 적용
     const int before = (int)data.size();
     load_complex_chains(h.tComplex, h.tChains, fs_db_reader_.is_open(), fs_db_reader_,
                         fs_db_path, true, screen_show_structure);
@@ -547,8 +514,6 @@ void Screen::load_multimer_hit(int delta) {
     }
 
     if (is_aligned_mode(screen_mode)) {
-        // 멀티머 _report 에는 정렬 문자열이 없어 거리 판정만 가능하다. align-fs 는
-        // 진입 전에 거부되므로(structty.cpp) 여기서는 폴백 사실만 패널에 남긴다.
         for (int qi = 0; qi < mm_query_chain_count_; qi++) {
             for (int ti = mm_query_chain_count_; ti < (int)data.size(); ti++) {
                 if (data[qi] && data[ti]) data[qi]->compute_aligned_regions_nn(*data[ti], 4.0f);
@@ -557,7 +522,6 @@ void Screen::load_multimer_hit(int delta) {
         if (panel) panel->set_align_method("nearest-nbr");
     }
 
-    // 패널 재구성: query+target 전체 entry + hit 정보
     if (panel) {
         const std::vector<std::string> q_tms = split_csv(h.qChainTms);
         const std::vector<std::string> t_tms = split_csv(h.tChainTms);
@@ -605,7 +569,7 @@ void Screen::switch_multimer_query(int delta) {
 }
 
 void Screen::set_tmatrix() {
-    free_tmatrix();  // release previous allocation (multi-query re-setup)
+    free_tmatrix();
     size_t filenum = data.size();
     vectorpointer = new float*[filenum];
     for (size_t i = 0; i < filenum; i++) {
@@ -649,13 +613,9 @@ void Screen::set_chainfile(const std::string& chainfile, int filesize) {
 void Screen::normalize_proteins() {
     for (size_t i = 0; i < data.size(); i++) {
         auto* p = data[i];
-        // Cα-only proteins (loaded from a Foldseek DB via load_from_ca, e.g. the
-        // query-from-DB path) already have init_atoms/screen_atoms populated and
-        // have no plaintext file to parse — skip the gemmi load_data step.
         if (!p->is_ca_only()) {
             p->load_data(vectorpointer[i], yesUT);
         }
-        // 적용된 체인 필터를 파일명 뒤에 표기 (좁으면 Panel 이 잘라낸다)
         std::string label = p->get_file_name();
         if (i < chainVec.size() && chainVec[i] != "-") {
             label += " [" + chainVec[i] + "]";
@@ -676,27 +636,18 @@ void Screen::normalize_proteins() {
     max_ext = std::max(max_ext, global_bb.max_z - global_bb.min_z);
     float scale = (max_ext > 0.f) ? (2.0f / max_ext) : 1.0f;
 
-    // hit 변환 공식(load_next_hit / apply_hit_transform / transform_target_chain)은
-    // "query 는 norm_c* 만큼 shift 된 뒤 norm_scale 로 스케일됐다" 를 전제한다.
-    // 따라서 실제로 shift 에 사용한 값을 그대로 norm_c* 로 남긴다.
     float applied_cx = 0.0f;
     float applied_cy = 0.0f;
     float applied_cz = 0.0f;
 
     {
         for (auto* p : data) {
-            // set_scale() 이 bounding box 중심을 cx/cy/cz 에 채운다. 따라서 center_shift 는
-            // set_scale() 이후에 계산해야 한다. (이전에는 먼저 캡처해서 생성자 초기값 0 이
-            // 들어가 중심 이동이 무효였고, 체인 단위 입력이 화면 밖으로 밀렸다)
             p->set_scale(scale);
             float center_shift[3] = { -p->cx, -p->cy, -p->cz };
             p->do_shift(center_shift);
             p->do_scale(scale);
         }
 
-        // 단백질마다 자기 centroid 로 shift 한다. hit 변환의 기준은 query(data[0])
-        // 이므로 그 값을 남긴다. set_scale() 이 이미 실행됐으므로 data[0]->cx 는
-        // shift 에 사용한 centroid 와 같은 값이다.
         if (!data.empty() && data[0]) {
             applied_cx = data[0]->cx;
             applied_cy = data[0]->cy;
@@ -706,14 +657,11 @@ void Screen::normalize_proteins() {
 
     depth_calibrated = false;
 
-    // 기능 3: 정규화 파라미터 저장 (hit 탐색 시 동일 스케일 적용)
     norm_scale = scale;
     norm_cx = applied_cx;
     norm_cy = applied_cy;
     norm_cz = applied_cz;
 
-    // 정규화 후 씬 중심이 원점이므로 회전 pivot 은 원점이다
-    // (normalize_complex() 의 멀티머 경로와 동일).
     rot_pivot_[0] = 0.f;
     rot_pivot_[1] = 0.f;
     rot_pivot_[2] = 0.f;
@@ -774,8 +722,6 @@ void Screen::calibrate_depth_baseline_first_view() {
                 float* position = chain_atoms[i].get_position();
                 float x = position[0];
                 float y = position[1];
-                // 카메라 Z 부호 통일: Renderer::project_and_fill() 과 동일한 관례 사용
-                // (회전행렬은 +Z가 시청자 쪽인 표준 오른손좌표계를 가정하므로 부호 반전 필요).
                 float z = -position[2] + focal_offset;
 
                 if (z < nearPlane) continue;
@@ -857,7 +803,6 @@ std::vector<RenderAtom> Screen::to_render_atoms() {
     return result;
 }
 
-
 void Screen::draw_screen(bool no_panel) {
     const bool prof = (bm && bm->enabled);
     auto t0 = Benchmark::clock::now();
@@ -878,8 +823,7 @@ void Screen::draw_screen(bool no_panel) {
     int cols = term_sz.cols;
     int panel_cols = std::min(cols, screen_width);
 
-    // compact_level 자동 결정: 패널이 터미널 높이의 40% 이하가 되도록
-    int max_panel_h = rows * 2 / 5;  // 40%
+    int max_panel_h = rows * 2 / 5;
     int compact = 0;
     int panel_h = panel->get_height_for_width(panel_cols, 0);
     if (panel_h > max_panel_h) {
@@ -917,7 +861,6 @@ void Screen::draw_screen(bool no_panel) {
     if (!no_panel){
         panel->draw_panel(start_row, 0, panel_h, panel_cols, compact);
     }
-    // 기능 6: 패널 위치 저장 (hover 갱신 시 부분 재렌더링에 사용)
     last_panel_h         = no_panel ? 0 : panel_h;
     last_panel_start_row = no_panel ? rows : start_row;
     last_panel_cols      = panel_cols;
@@ -928,18 +871,15 @@ void Screen::draw_screen(bool no_panel) {
     int64_t render_dt_ms = Benchmark::ms_since(t0, t1);
 
     if (prof) {
-        // 서브페이즈 계측 (µs). dt_ms 컬럼에 µs 값, num_ca 컬럼에 보조 수치.
         bm->log("ph_calibrate", -1, Benchmark::us_since(t0,       t_cal),    total_len_ca);
         bm->log("ph_torender",  -1, Benchmark::us_since(t_cal,    t_tra),    total_len_ca);
         bm->log("ph_render",    -1, Benchmark::us_since(t_tra,    t_ren),    total_len_ca);
-        // render 내부 3분할 (µs): clear / project_and_fill / zbuffer_resolve
         bm->log("ph_r_clear",   -1, renderer_.get_last_us_clear(), total_len_ca);
         bm->log("ph_r_fill",    -1, renderer_.get_last_us_fill(),  total_len_ca);
         bm->log("ph_r_zbuf",    -1, renderer_.get_last_us_zbuf(),  total_len_ca);
         bm->log("ph_layout",    -1, Benchmark::us_since(t_ren,    t_layout), total_len_ca);
         bm->log("ph_print",     -1, Benchmark::us_since(t_layout, t_print),  total_len_ca);
         bm->log("ph_panel",     -1, Benchmark::us_since(t_print,  t1),       total_len_ca);
-        // project_and_fill 이 생성한 RenderPoint 총 개수 (num_ca 컬럼 재활용).
         bm->log("points",       -1, (int64_t)renderer_.get_last_point_count(), total_len_ca);
 
         if (!ttff_logged) {
@@ -951,19 +891,9 @@ void Screen::draw_screen(bool no_panel) {
 }
 
 void Screen::print_screen_braille(int y_offset) {
-    // Render logicalPixels (2*W x 4*H) to terminal using Unicode Braille characters.
-    // Each terminal cell covers a 2-wide x 4-tall sub-pixel block:
-    //
-    //   subcol=0  subcol=1          Braille dot numbering (bit positions):
-    //   subrow=0: dot1(0)  dot4(3)
-    //   subrow=1: dot2(1)  dot5(4)
-    //   subrow=2: dot3(2)  dot6(5)
-    //   subrow=3: dot7(6)  dot8(7)
-    //
-    // Unicode Braille: U+2800 + bitmask
     static const int dot_bits[2][4] = {
-        {0, 1, 2, 6},  // left column  (subcol=0)
-        {3, 4, 5, 7}   // right column (subcol=1)
+        {0, 1, 2, 6},
+        {3, 4, 5, 7}
     };
 
     Terminal::Size sz = Terminal::get_size();
@@ -975,7 +905,6 @@ void Screen::print_screen_braille(int y_offset) {
 
     const auto& pixels = renderer_.get_pixels();
 
-    // Accumulate ANSI output into a single buffer, then fwrite once per frame
     std::string out;
     out.reserve(static_cast<size_t>(screen_width) * screen_height * 32);
 
@@ -984,7 +913,6 @@ void Screen::print_screen_braille(int y_offset) {
         if (row < 0) continue;
         if (row >= rows) break;
 
-        // Erase this terminal row before drawing — prevents ghosting from prior frames
         char row_clear[32];
         int rn = snprintf(row_clear, sizeof(row_clear), "\033[%d;1H\033[K", row + 1);
         if (rn > 0) out.append(row_clear, static_cast<size_t>(rn));
@@ -1014,23 +942,18 @@ void Screen::print_screen_braille(int y_offset) {
             }
 
             if (bitmask > 0 && best_color_id > 0) {
-                // Cursor position (1-based)
                 char pos[24];
                 int pn = snprintf(pos, sizeof(pos), "\033[%d;%dH", row + 1, tx + 1);
                 if (pn > 0) out.append(pos, static_cast<size_t>(pn));
 
-                // ANSI fg colour
                 out += Palettes::palette_to_ansi_fg_str(best_color_id);
 
-                // Braille UTF-8: U+2800+bitmask encoded as 3-byte UTF-8
                 out += (char)0xE2;
                 out += (char)(0xA0 | (bitmask >> 6));
                 out += (char)(0x80 | (bitmask & 0x3F));
 
-                // Reset colour
                 out += "\033[0m";
             }
-            // Empty cells: already cleared by \033[K at row start, no extra output needed
         }
     }
 
@@ -1054,11 +977,7 @@ void Screen::set_zoom_level(float zoom){
     }
 }
 
-// 기능 6: 마우스 커서 위치의 잔기 정보 검색 → 패널 hover 섹션 부분 갱신
 void Screen::update_hover_info(int mx, int my) {
-    // 터미널 좌표 → 스크린 좌표 변환
-    // print_screen() 공식: row = screen_i - (y_offset/2) - 3
-    // 역변환: screen_i = terminal_row + (panel_h/2) + 3
     int panel_offset = last_panel_h / 2 + 3;
 
     const RenderPoint* best = nullptr;
@@ -1093,7 +1012,6 @@ void Screen::update_hover_info(int mx, int my) {
         panel->clear_hover_residue();
     }
 
-    // 패널이 보이는 경우에만 hover 섹션을 부분 갱신
     if (!last_no_panel && last_panel_h > 0) {
         int hover_row = panel->get_last_hover_row();
         if (hover_row >= 0) {
@@ -1114,14 +1032,14 @@ bool Screen::handle_input(int key) {
 }
 
 bool Screen::handle_input_impl(int key, bool& needs_redraw) {
-    needs_redraw = true;  // 기본: 전체 재렌더링 필요
+    needs_redraw = true;
 
     if (key == Terminal::KEY_MOUSE) {
         Terminal::MouseEvent ev;
         if (Terminal::read_mouse(ev)) {
             update_hover_info(ev.x, ev.y);
         }
-        needs_redraw = false;  // 마우스 이동은 전체 재렌더링 불필요
+        needs_redraw = false;
         return true;
     }
 
@@ -1139,7 +1057,6 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
     if (bm && bm->enabled) bm->mark_event(key);
     Terminal::flush_input();
     switch(key){
-        // select protein / complex
         case 48:
             structNum = -1;
             break;
@@ -1153,14 +1070,12 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
         case 56:
         case 57:
             if (multimer_mode_) {
-                // 1 = query complex (idx 0), 2 = target complex (idx 1); 3+ ignored
                 int requested = key - 49;
                 if (requested < 2) structNum = requested;
             } else {
                 if (key - 48 <= (int)data.size()) structNum = key - 49;
             }
             break;
-        // A, a (minus x-axis)
         case 65:
         case 97:
             if (multimer_mode_ && structNum >= 0) {
@@ -1172,7 +1087,6 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
                 for (int i = 0; i < (int)data.size(); i++) apply_pan(i, -pan_step_x, 0.0f);
             }
             break;
-        // D, d (plus x-axis)
         case 68:
         case 100:
             if (multimer_mode_ && structNum >= 0) {
@@ -1184,7 +1098,6 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
                 for (int i = 0; i < (int)data.size(); i++) apply_pan(i, +pan_step_x, 0.0f);
             }
             break;
-        // S, s (minus y-axis)
         case 83:
         case 115:
             if (multimer_mode_ && structNum >= 0) {
@@ -1196,7 +1109,6 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
                 for (int i = 0; i < (int)data.size(); i++) apply_pan(i, 0.0f, -pan_step_y);
             }
             break;
-        // W, w (plus y-axis)
         case 87:
         case 119:
             if (multimer_mode_ && structNum >= 0) {
@@ -1209,7 +1121,6 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             }
             break;
 
-        // X, x (rotate x-centered)
         case 88:
         case 120:
             if (multimer_mode_ && structNum >= 0) {
@@ -1230,7 +1141,6 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
                 for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(1, 0, 0);
             }
             break;
-        // Y, y (rotate y-centered)
         case 89:
         case 121:
             if (multimer_mode_ && structNum >= 0) {
@@ -1251,7 +1161,6 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
                 for (int i = 0; i < (int)data.size(); i++) data[i]->set_rotate(0, 1, 0);
             }
             break;
-        // Z, z (rotate z-centered)
         case 90:
         case 122:
             if (multimer_mode_ && structNum >= 0) {
@@ -1273,51 +1182,43 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
             }
             break;
 
-        // F, f (zoom out)
         case 70:
         case 102:
             set_zoom_level(-0.3);
-            break;   
-        // R, R (zoom in)
+            break;
         case 82:
         case 114:
             set_zoom_level(0.3);
-            break;   
+            break;
 
-        // C, c (camera)
         case 67:
-        case 99:     
+        case 99:
         {
             camera->screenshot(renderer_.get_pixels(), screen_width * 2, screen_height * 4);
             break;
         }
-        // N, n (next Foldseek hit / target complex)
         case 78:
         case 110:
             if (multimer_mode_) load_multimer_hit(+1);
             else if (!foldseek_hits.empty()) load_next_hit(+1);
             break;
 
-        // P, p (prev Foldseek hit / target complex)
         case 80:
         case 112:
             if (multimer_mode_) load_multimer_hit(-1);
             else if (!foldseek_hits.empty()) load_next_hit(-1);
             break;
 
-        // ] (next query — Step 5 multi-query / Step 7 multimer nav)
         case 93:
             if (multimer_mode_) switch_multimer_query(+1);
             else switch_query(+1);
             break;
 
-        // [ (prev query)
         case 91:
             if (multimer_mode_) switch_multimer_query(-1);
             else switch_query(-1);
             break;
 
-        // Q, q
         case 81:
         case 113:
             keep_show = false;
@@ -1330,24 +1231,20 @@ bool Screen::handle_input_impl(int key, bool& needs_redraw) {
     return keep_show;
 }
 
-// 기능 1: 로드된 모든 Protein에 대해 inter-chain interface를 계산
 void Screen::compute_interface_all(float threshold) {
     for (Protein* p : data) {
         if (p) p->compute_interface(threshold);
     }
 }
 
-// 기능 5: 지정 protein에 conservation scores 적용
 void Screen::apply_msa_conservation(int protein_idx, const std::vector<float>& scores) {
     if (protein_idx >= 0 && protein_idx < (int)data.size() && data[protein_idx]) {
         data[protein_idx]->apply_conservation_scores(scores);
     }
 }
 
-// 기능 4: 로드된 모든 Protein 쌍에 대해 nearest-neighbor 기반 정렬 잔기를 계산
 void Screen::compute_aligned_all(float threshold) {
     if (data.size() < 2) {
-        // 단일 단백질인 경우: 전체 잔기를 aligned로 표시
         for (Protein* p : data) {
             if (p) p->compute_aligned_regions_nn(*p, threshold);
         }
@@ -1360,41 +1257,29 @@ void Screen::compute_aligned_all(float threshold) {
             }
         }
     }
-    // 정렬 문자열이 아니라 거리 기반 판정임을 패널에 정직하게 표시한다.
-    // (기존에는 단백질이 1개일 때 early return 하면서 라벨이 누락됐다)
     if (panel) panel->set_align_method("nearest-nbr");
 }
 
-// 기능 4: -fs 기반 — Foldseek hit의 U/T transform을 지정 protein에 적용
-// T_norm: 정규화 공간 T (screen_atoms 이동용)
-// T_angstrom: Å 공간 T (init_atoms 갱신용). nullptr이면 init_atoms 미갱신.
-//   → compute_aligned_regions_from_aln은 init_atoms 기준 거리 비교를 하므로
-//     반드시 Å 공간 T를 전달해야 aligned 색상이 올바르게 동작함.
 void Screen::apply_foldseek_transform(int protein_idx, const float* U_flat,
                                       const float* T_norm, const float* T_angstrom) {
     if (protein_idx < 0 || protein_idx >= (int)data.size() || !data[protein_idx]) return;
-    // screen_atoms에 적용 (시각적 정렬)
     data[protein_idx]->do_naive_rotation(const_cast<float*>(U_flat));
     data[protein_idx]->do_shift(const_cast<float*>(T_norm));
-    // init_atoms에 Å 공간 T로 적용 (거리 비교 기준)
     if (T_angstrom) {
         data[protein_idx]->apply_ut_to_init_atoms(U_flat, T_angstrom);
     }
     yesUT = true;
 
-    // pan 초기화 — overlay 모드로 전환 (grid layout 해제)
     for (size_t i = 0; i < pan_x.size(); i++) {
         pan_x[i] = 0.0f;
         pan_y[i] = 0.0f;
     }
 
-    // focal_offset 재계산 (bounding box 변경 반영)
     float radius = compute_scene_radius_from_render_positions(data);
     focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
     depth_calibrated = false;
 }
 
-// 기능 4: -fs 기반 — alignment string으로 aligned 잔기 계산 (protein0 vs protein1)
 void Screen::compute_aligned_from_aln(const std::string& qaln, const std::string& taln,
                                       int q_start, int t_start,
                                       float threshold, bool skip_distance_check) {
@@ -1404,15 +1289,10 @@ void Screen::compute_aligned_from_aln(const std::string& qaln, const std::string
                                              threshold, skip_distance_check);
 }
 
-// 기능 4: 패널에 정렬 방식 표시 설정
 void Screen::set_align_method(const std::string& method) {
     if (panel) panel->set_align_method(method);
 }
 
-// ── 기능 3: Foldseek hit 탐색 ──────────────────────────────────────────────────
-
-// 3×3 대칭 행렬 Jacobi 고유값 분해
-// a: 입력 (수정됨), d: 고유값, v: 고유벡터 (열 = 고유벡터)
 static void jacobi3_sym(float a[3][3], float d[3], float v[3][3]) {
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++) v[i][j] = (i == j) ? 1.f : 0.f;
@@ -1455,17 +1335,12 @@ static float mat3_det_flat(const float m[9]) {
           +m[2]*(m[3]*m[7]-m[4]*m[6]);
 }
 
-// Kabsch 알고리즘: U*Q[i]+T ≈ P[i] 최소화
-// P: 참조 좌표 (Nx3 flat), Q: 회전 대상 좌표 (Nx3 flat), N: 쌍 수
-// 결과: U[9] (row-major 3×3), T[3]
 static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
                    int N, float U[9], float T[3]) {
-    // 단위 행렬로 초기화
     for (int i = 0; i < 9; i++) U[i] = (i % 4 == 0) ? 1.f : 0.f;
     T[0] = T[1] = T[2] = 0.f;
     if (N < 3) return;
 
-    // 무게중심
     float Pc[3] = {}, Qc[3] = {};
     for (int i = 0; i < N; i++) {
         Pc[0] += P[i*3]; Pc[1] += P[i*3+1]; Pc[2] += P[i*3+2];
@@ -1473,7 +1348,6 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
     }
     for (int k = 0; k < 3; k++) { Pc[k] /= N; Qc[k] /= N; }
 
-    // H = Σ (Q[i]-Qc)(P[i]-Pc)^T  [3×3]
     float H[3][3] = {};
     for (int i = 0; i < N; i++) {
         float q[3] = { Q[i*3]-Qc[0], Q[i*3+1]-Qc[1], Q[i*3+2]-Qc[2] };
@@ -1483,7 +1357,6 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
                 H[r][c] += q[r] * p[c];
     }
 
-    // H^T H (대칭) → 고유값 분해로 V (오른쪽 특이벡터) 계산
     float HtH[3][3] = {};
     for (int r = 0; r < 3; r++)
         for (int c = 0; c < 3; c++)
@@ -1494,7 +1367,6 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
     float Vmat[3][3];
     jacobi3_sym(HtH, d, Vmat);
 
-    // 고유값 내림차순 정렬
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 2-i; j++) {
             if (d[j] < d[j+1]) {
@@ -1504,11 +1376,9 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
         }
     }
 
-    // 특이값
     float sigma[3];
     for (int i = 0; i < 3; i++) sigma[i] = (d[i] > 0.f) ? std::sqrt(d[i]) : 0.f;
 
-    // 왼쪽 특이벡터: Umat[:,i] = H * Vmat[:,i] / sigma[i]
     float Umat[3][3] = {};
     for (int i = 0; i < 3; i++) {
         if (sigma[i] < 1e-7f) continue;
@@ -1517,14 +1387,12 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
             Umat[r][i] /= sigma[i];
         }
     }
-    // 退화 처리: 세 번째 열 = 교차곱
     if (sigma[2] < 1e-7f) {
         Umat[0][2] = Umat[1][0]*Umat[2][1] - Umat[2][0]*Umat[1][1];
         Umat[1][2] = Umat[2][0]*Umat[0][1] - Umat[0][0]*Umat[2][1];
         Umat[2][2] = Umat[0][0]*Umat[1][1] - Umat[1][0]*Umat[0][1];
     }
 
-    // det(V*U^T) 반사 보정
     float VUt[9];
     for (int r = 0; r < 3; r++)
         for (int c = 0; c < 3; c++) {
@@ -1533,7 +1401,6 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
         }
     float det_sign = (mat3_det_flat(VUt) < 0) ? -1.f : 1.f;
 
-    // R = V * diag(1,1,det_sign) * U^T
     float diag[3] = {1.f, 1.f, det_sign};
     for (int r = 0; r < 3; r++)
         for (int c = 0; c < 3; c++) {
@@ -1541,7 +1408,6 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
             for (int k = 0; k < 3; k++) U[r*3+c] += Vmat[r][k] * diag[k] * Umat[c][k];
         }
 
-    // T = Pc - R*Qc
     for (int r = 0; r < 3; r++) {
         T[r] = Pc[r];
         for (int c = 0; c < 3; c++) T[r] -= U[r*3+c] * Qc[c];
@@ -1551,7 +1417,6 @@ static void kabsch(const std::vector<float>& P, const std::vector<float>& Q,
 void Screen::set_foldseek_hits(const std::vector<FoldseekHit>& hits) {
     foldseek_hits = hits;
     current_hit_idx = -1;
-    // 패널에 총 hit 수 표시
     if (panel && !hits.empty()) {
         FoldseekHitInfo fi;
         fi.valid = true;
@@ -1590,7 +1455,6 @@ void Screen::load_next_hit(int delta) {
 
     int new_idx;
     if (current_hit_idx < 0) {
-        // 초기 로드: delta > 0 이면 0번, delta < 0 이면 마지막
         new_idx = (delta >= 0) ? 0 : (int)foldseek_hits.size() - 1;
     } else {
         new_idx = current_hit_idx + delta;
@@ -1615,7 +1479,6 @@ void Screen::load_next_hit(int delta) {
     fs_info.query_idx     = (current_query_idx_ >= 0) ? current_query_idx_ + 1 : 0;
     fs_info.total_queries = (int)query_ids_.size();
 
-    // 기존 target protein (index 1+) 제거
     while ((int)data.size() > 1) {
         delete data.back();
         data.pop_back();
@@ -1627,7 +1490,6 @@ void Screen::load_next_hit(int delta) {
     Protein* target_protein = nullptr;
     bool loaded_from_db = false;
 
-    // ★ DB 직접 읽기 경로
     if (fs_db_reader_.is_open()) {
         std::vector<float> coords;
         std::string aa_seq;
@@ -1647,7 +1509,6 @@ void Screen::load_next_hit(int delta) {
         }
     }
 
-    // Fallback: 기존 PDBDownloader 경로
     if (!loaded_from_db) {
         std::string file_path = PDBDownloader::resolve_target_file(
             hit.target, fs_db_path, status_msg);
@@ -1661,10 +1522,6 @@ void Screen::load_next_hit(int delta) {
         DBType db_type = PDBDownloader::detect_db_type(hit.target);
         std::string chain_filter = PDBDownloader::extract_chain(hit.target, db_type);
         if (chain_filter == "-") {
-            // foldseek 체인 accession(`<stem>_<chain>`)은 detect_db_type 이 Unknown 으로
-            // 보기 때문에 extract_chain 이 "-" 를 준다. 해석된 파일명으로 한 번 더 시도.
-            // 어느 체인이 걸렸는지는 패널의 `[B-2]` 라벨에 나오므로 로그는 남기지 않는다
-            // (hit 을 넘길 때마다 찍히면 화면이 밀린다).
             const std::string from_acc = chain_from_accession(hit.target, file_path);
             if (from_acc != "-") {
                 chain_filter = from_acc;
@@ -1684,7 +1541,6 @@ void Screen::load_next_hit(int delta) {
     fs_info.status_msg = status_msg;
     if (panel) panel->set_foldseek_hit_info(fs_info);
 
-    // 패널 entry 갱신 (적용된 체인 필터를 파일명 뒤에 표기)
     if (panel) {
         std::string label = target_protein->get_file_name();
         if (chainVec.size() > 1 && chainVec[1] != "-") {
@@ -1695,7 +1551,6 @@ void Screen::load_next_hit(int delta) {
                             target_protein->get_residue_count());
     }
 
-    // query와 동일한 norm_scale 로 target 정규화
     target_protein->set_bounding_box();
     target_protein->set_scale(norm_scale);
     float t_cx = target_protein->cx;
@@ -1705,19 +1560,13 @@ void Screen::load_next_hit(int delta) {
     target_protein->do_shift(t_shift);
     target_protein->do_scale(norm_scale);
 
-    // U/T transform 계산
     float U[9] = {1,0,0, 0,1,0, 0,0,1};
     float T[3]  = {0,0,0};
-    float T_ang[3] = {0,0,0};  // Å 공간 T (init_atoms 갱신용)
+    float T_ang[3] = {0,0,0};
     bool computed_transform = false;
     std::string align_method_str;
 
     if (hit.has_transform) {
-        // 29컬럼 포맷: U/T를 정규화 공간으로 변환
-        // target_norm = (target_orig - t_centroid) * norm_scale
-        // alns_norm   = (alns_orig   - q_centroid) * norm_scale
-        // U_norm      = U_fs (회전은 스케일 불변)
-        // T_norm      = (U_fs*t_centroid + T_fs - q_centroid) * norm_scale
         const float* Uf = hit.U;
         const float* Tf = hit.T;
         float Utc[3] = {
@@ -1729,17 +1578,12 @@ void Screen::load_next_hit(int delta) {
         T[0] = (Utc[0] + Tf[0] - norm_cx) * norm_scale;
         T[1] = (Utc[1] + Tf[1] - norm_cy) * norm_scale;
         T[2] = (Utc[2] + Tf[2] - norm_cz) * norm_scale;
-        // init_atoms용: Foldseek 원본 Å 공간 T (hit.T)를 그대로 사용
         T_ang[0] = Tf[0]; T_ang[1] = Tf[1]; T_ang[2] = Tf[2];
         computed_transform = true;
         align_method_str = "aln-string";
 
     } else if (hit.is_alis_format && !hit.alns.empty() && hit.has_aln) {
-        // alis 21컬럼 포맷: Kabsch SVD로 U/T 역산
-        // alns는 원래 query frame 좌표 → 정규화: (alns - q_centroid) * norm_scale
-        // target CA 좌표는 이미 정규화됨 (do_shift + do_scale 후)
 
-        // target CA atom 플랫 리스트 (정규화된 좌표)
         std::vector<std::array<float,3>> target_cas;
         for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
@@ -1749,20 +1593,17 @@ void Screen::load_next_hit(int delta) {
             }
         }
 
-        // taln 순회: 비-갭 위치마다 쌍 수집
         std::vector<float> P_norm, Q_norm;
-        int aln_idx = 0;  // alns 인덱스 (3 float/잔기)
-        int t_seq_idx = hit.tstart - 1;  // target CA 0-based 인덱스
+        int aln_idx = 0;
+        int t_seq_idx = hit.tstart - 1;
 
         for (size_t ai = 0; ai < hit.taln.size(); ai++) {
             if (hit.taln[ai] == '-') continue;
             if (t_seq_idx < (int)target_cas.size() &&
                 aln_idx * 3 + 2 < (int)hit.alns.size()) {
-                // 정규화된 alns
                 P_norm.push_back((hit.alns[aln_idx*3]   - norm_cx) * norm_scale);
                 P_norm.push_back((hit.alns[aln_idx*3+1] - norm_cy) * norm_scale);
                 P_norm.push_back((hit.alns[aln_idx*3+2] - norm_cz) * norm_scale);
-                // 정규화된 target CA
                 Q_norm.push_back(target_cas[t_seq_idx][0]);
                 Q_norm.push_back(target_cas[t_seq_idx][1]);
                 Q_norm.push_back(target_cas[t_seq_idx][2]);
@@ -1774,8 +1615,6 @@ void Screen::load_next_hit(int delta) {
         int N = (int)std::min(P_norm.size(), Q_norm.size()) / 3;
         if (N >= 3) {
             kabsch(P_norm, Q_norm, N, U, T);
-            // BUG-A 2단계: kabsch는 정규화 공간에서 계산됨.
-            // init_atoms는 Å 공간이므로 T_Å = T_norm/norm_scale + q_centroid - U*t_centroid
             {
                 const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
                 const float t_cen[3] = {t_cx, t_cy, t_cz};
@@ -1788,10 +1627,7 @@ void Screen::load_next_hit(int delta) {
             align_method_str = "kabsch-alns";
         }
     } else if (hit.has_aln && !hit.is_alis_format) {
-        // 작업 1-A: 17컬럼 포맷 — qaln/taln 기반 Kabsch SVD
-        // qaln/taln에서 양쪽 비-갭 위치의 CA 쌍을 수집 → 정규화 공간에서 Kabsch
 
-        // query CA flat 리스트 (정규화된 screen_atoms)
         std::vector<std::array<float,3>> query_cas;
         for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
             for (const auto& atom : chain) {
@@ -1801,7 +1637,6 @@ void Screen::load_next_hit(int delta) {
             }
         }
 
-        // target CA flat 리스트 (정규화된 screen_atoms)
         std::vector<std::array<float,3>> target_cas;
         for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
@@ -1811,10 +1646,9 @@ void Screen::load_next_hit(int delta) {
             }
         }
 
-        // qaln/taln 순회하여 aligned CA 쌍 수집
         std::vector<float> P_norm, Q_norm;
-        int q_idx = hit.qstart - 1;  // 0-based
-        int t_idx = hit.tstart - 1;  // 0-based
+        int q_idx = hit.qstart - 1;
+        int t_idx = hit.tstart - 1;
         const int q_size = (int)query_cas.size();
         const int t_size = (int)target_cas.size();
 
@@ -1853,7 +1687,6 @@ void Screen::load_next_hit(int delta) {
         }
     }
 
-    // 작업 1-B: fallback — 12컬럼 등 transform 정보 없는 경우 전체 CA 순서 매칭 Kabsch
     if (!computed_transform) {
         std::vector<std::array<float,3>> query_cas;
         for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
@@ -1904,25 +1737,18 @@ void Screen::load_next_hit(int delta) {
         apply_foldseek_transform(1, U, T, T_ang);
     }
 
-    // 정렬 방식 패널 갱신
     fs_info.align_method = align_method_str;
     if (panel) panel->set_foldseek_hit_info(fs_info);
 
-    // align 계열 모드일 때 is_aligned 계산
     if (is_aligned_mode(screen_mode)) {
         if (screen_mode == "align-near") {
-            // 거리 판정을 명시적으로 요구한 경우: 정렬 문자열이 있어도 쓰지 않는다.
             compute_aligned_all();
         } else if (hit.has_aln) {
-            // qaln/taln 은 hit.qstart/hit.tstart 잔기에서 시작한다
             compute_aligned_from_aln(hit.qaln, hit.taln, hit.qstart, hit.tstart, 5.0f, true);
             set_align_method("aln-string");
         } else if (screen_mode == "align-fs") {
-            // 폴백 금지. 진입 전에 거부되지만, 혼합 포맷에 대비해 아무것도 칠하지 않는다.
             set_align_method("none");
         } else {
-            // 정렬 문자열이 없는 포맷(12컬럼 등): 최근접 이웃 폴백.
-            // compute_aligned_all() 이 패널 라벨을 "nearest-nbr" 로 설정한다.
             compute_aligned_all();
         }
     }
@@ -1930,7 +1756,6 @@ void Screen::load_next_hit(int delta) {
     depth_calibrated = false;
 }
 
-// ── 기능 3: 이미 로드된 target에 hit transform 적용 ─────────────────────────
 void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit) {
     if (target_protein_idx < 0 || target_protein_idx >= (int)data.size() || !data[target_protein_idx]) return;
     if (!data[0]) return;
@@ -1946,7 +1771,6 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
     bool computed_transform = false;
 
     if (hit.has_transform) {
-        // 29컬럼 포맷: U/T 직접 사용
         const float* Uf = hit.U;
         const float* Tf = hit.T;
         float Utc[3] = {
@@ -1961,7 +1785,6 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
         T_ang[0] = Tf[0]; T_ang[1] = Tf[1]; T_ang[2] = Tf[2];
         computed_transform = true;
     } else if (hit.is_alis_format && !hit.alns.empty() && hit.has_aln) {
-        // 21컬럼 alis 포맷: Kabsch SVD
         std::vector<std::array<float,3>> target_cas;
         for (const auto& [cid, chain] : target_protein->get_ca_atoms()) {
             for (const auto& atom : chain) {
@@ -2002,7 +1825,6 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
             computed_transform = true;
         }
     } else if (hit.has_aln && !hit.is_alis_format) {
-        // 17컬럼: qaln/taln 기반 Kabsch
         std::vector<std::array<float,3>> query_cas;
         for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
             for (const auto& atom : chain) {
@@ -2056,7 +1878,6 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
         }
     }
 
-    // fallback: 전체 CA 순서 매칭
     if (!computed_transform) {
         std::vector<std::array<float,3>> query_cas;
         for (const auto& [cid, chain] : data[0]->get_ca_atoms()) {
@@ -2103,7 +1924,6 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
         apply_foldseek_transform(target_protein_idx, U, T, T_ang);
     }
 
-    // align 계열 모드일 때 is_aligned 계산
     if (is_aligned_mode(screen_mode)) {
         if (screen_mode == "align-near") {
             compute_aligned_all();
@@ -2121,8 +1941,6 @@ void Screen::apply_hit_transform(int target_protein_idx, const FoldseekHit& hit)
 
     depth_calibrated = false;
 }
-
-// ── 기능 8: FoldMason MSA 기반 superposition ─────────────────────────────────
 
 void Screen::set_foldmason(std::unique_ptr<FoldMasonParser> parser) {
     foldmason_parser = std::move(parser);
@@ -2143,7 +1961,6 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
 
     auto pairs = foldmason_parser->build_aligned_pairs(fm_query_entry_idx, fm_target_entry_idx);
 
-    // query/target protein CA atoms 플랫화 (screen_atoms 순서)
     std::vector<std::array<float,3>> query_cas;
     for (auto& [cid, chain] : data[query_protein_idx]->get_atoms()) {
         for (const auto& a : chain) query_cas.push_back({a.x, a.y, a.z});
@@ -2156,11 +1973,9 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
     const int q_size = (int)query_cas.size();
     const int t_size = (int)target_cas.size();
 
-    // P = query (참조), Q = target (회전 대상)
     std::vector<float> P_flat, Q_flat;
 
     if (!pairs.empty()) {
-        // MSA aligned pairs 사용
         for (const auto& [ref_res, oth_res] : pairs) {
             if (ref_res >= q_size || oth_res >= t_size) continue;
             P_flat.push_back(query_cas[ref_res][0]);
@@ -2171,7 +1986,6 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
             Q_flat.push_back(target_cas[oth_res][2]);
         }
     } else {
-        // 작업 1-C: fallback — pairs가 비어있으면 전체 CA 순서 매칭
         int fallback_n = std::min(q_size, t_size);
         for (int i = 0; i < fallback_n; i++) {
             P_flat.push_back(query_cas[i][0]);
@@ -2189,8 +2003,6 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
     float U[9], T[3];
     kabsch(P_flat, Q_flat, N, U, T);
 
-    // BUG-A 2단계: kabsch는 정규화 screen_atoms 공간에서 계산됨.
-    // init_atoms는 Å 공간이므로 T_Å = T_norm/norm_scale + q_centroid - U*t_centroid
     float T_ang[3];
     {
         const float q_cen[3] = {norm_cx, norm_cy, norm_cz};
@@ -2204,12 +2016,9 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
     }
     apply_foldseek_transform(target_protein_idx, U, T, T_ang);
 
-    // align 계열 모드일 때 is_aligned 잔기 설정
-    // MSA aa strings을 qaln/taln으로 사용 (gap 형식 동일)
     if (screen_mode == "align-near") {
         compute_aligned_all();
     } else if (is_aligned_mode(screen_mode)) {
-        // MSA aa 문자열은 서열 전체를 덮으므로 시작 오프셋은 1, 1
         data[query_protein_idx]->compute_aligned_regions_from_aln(
             *data[target_protein_idx],
             entries[fm_query_entry_idx].aa,

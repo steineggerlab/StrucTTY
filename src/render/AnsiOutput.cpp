@@ -4,16 +4,9 @@
 #include <cstdio>
 #include <limits>
 
-// Braille dot layout (matches Screen::print_screen_braille):
-//   subcol=0  subcol=1
-//   subrow=0: dot1(bit0)  dot4(bit3)
-//   subrow=1: dot2(bit1)  dot5(bit4)
-//   subrow=2: dot3(bit2)  dot6(bit5)
-//   subrow=3: dot7(bit6)  dot8(bit7)
-// Unicode Braille block: U+2800 + bitmask
 static constexpr int DOT_BITS[2][4] = {
-    {0, 1, 2, 6},  // left column  (subcol=0)
-    {3, 4, 5, 7}   // right column (subcol=1)
+    {0, 1, 2, 6},
+    {3, 4, 5, 7}
 };
 
 std::string AnsiOutput::to_ansi_string(
@@ -25,8 +18,6 @@ std::string AnsiOutput::to_ansi_string(
     const int term_h = logical_height / 4;
 
     std::string out;
-    // Each non-empty cell emits: color_escape(~12 bytes) + braille_utf8(3 bytes) + reset(4 bytes).
-    // Plus one space per empty cell and one newline per row.
     out.reserve(static_cast<size_t>(term_w * term_h * 20 + term_h));
 
     for (int ty = 0; ty < term_h; ++ty) {
@@ -54,7 +45,6 @@ std::string AnsiOutput::to_ansi_string(
 
             if (bitmask > 0 && best_color_id > 0) {
                 out += Palettes::palette_to_ansi_fg_str(best_color_id);
-                // Encode U+2800+bitmask as UTF-8 (3-byte sequence)
                 out += static_cast<char>(0xE2);
                 out += static_cast<char>(0xA0 | (bitmask >> 6));
                 out += static_cast<char>(0x80 | (bitmask & 0x3F));

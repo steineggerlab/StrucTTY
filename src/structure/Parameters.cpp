@@ -53,7 +53,7 @@ Parameters::Parameters(int argc, char* argv[]) {
             std::exit(0);
         }
     }
-    
+
     if (argc <= 1) {
         std::cerr << "Need input file dir" << std::endl;
         arg_okay = false;
@@ -65,7 +65,7 @@ Parameters::Parameters(int argc, char* argv[]) {
             if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--mode")) {
                 if (i + 1 < argc) {
                     std::string val(argv[i + 1]);
-                    std::transform(val.begin(), val.end(), val.begin(), ::tolower); // to lowercase
+                    std::transform(val.begin(), val.end(), val.begin(), ::tolower);
                     if (val == "chain" || val == "rainbow" || val == "protein" ||
                         val == "plddt" || val == "interface" || val == "conservation" ||
                         val == "align" || val == "align-fs" || val == "align-near") {
@@ -91,8 +91,6 @@ Parameters::Parameters(int argc, char* argv[]) {
             } else if (fs::exists(argv[i]) &&
                        (fs::is_regular_file(argv[i]) || fs::is_directory(argv[i])) &&
                        in_file.size() < 9){
-                // 디렉터리 query: -fsr 의 query accession 들을 이 디렉터리에서 찾아
-                // 체인마다 하나씩 순회한다(foldseek 뷰어가 query DB 로 하는 것과 같은 구성).
                 in_file.push_back(argv[i]);
             } else if (!strcmp(argv[i], "--msa")) {
                 if (i + 1 < argc) {
@@ -124,7 +122,7 @@ Parameters::Parameters(int argc, char* argv[]) {
             } else {
                 throw std::runtime_error("Error: Unknown parameter: " + std::string(argv[i]));
             }
-        }       
+        }
         catch (const std::exception& e) {
             std::cerr << "Wrong input parameters: " << e.what() << std::endl;
             std::cerr << "Error at argument: " << argv[i] << std::endl;

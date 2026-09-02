@@ -3,24 +3,23 @@
 #include <map>
 #include <cmath>
 #include <cstddef>
-#include "Atom.hpp"  
+#include "Atom.hpp"
 
 class SSPredictor {
 public:
     float scale = 1.0f;
-    float d13_helix_min = 4.8f, d13_helix_max = 6.0f; 
-    float d14_helix_min = 4.8f, d14_helix_max = 6.0f; 
-    float d13_beta_min  = 6.4f;                       
-    float d14_beta_min  = 8.5f;                     
+    float d13_helix_min = 4.8f, d13_helix_max = 6.0f;
+    float d14_helix_min = 4.8f, d14_helix_max = 6.0f;
+    float d13_beta_min  = 6.4f;
+    float d14_beta_min  = 8.5f;
 
-    float tors_helix_abs_min = 35.0f, tors_helix_abs_max = 75.0f;  
-    float tors_beta_abs_min  = 110.0f;                              
+    float tors_helix_abs_min = 35.0f, tors_helix_abs_max = 75.0f;
+    float tors_beta_abs_min  = 110.0f;
 
     int   helix_min_len = 4;
     int   beta_min_len  = 3;
 
     float break_gap = 4.8f;
-
 
     int   vote_threshold = 2;
 
@@ -78,23 +77,18 @@ private:
         return angle;
     }
 
-    // break mask: if nearest residue is far, break. true
     std::vector<char> compute_breaks(const std::vector<Atom>& A);
 
-    // vote based on the distance/torsion
     void vote(const std::vector<Atom>& A,
               const std::vector<char>& is_break,
               std::vector<int>& h_score,
               std::vector<int>& e_score);
 
-    // score -> label
     std::vector<char> label_from_scores(const std::vector<int>& h_score,
                                         const std::vector<int>& e_score);
 
-    // smoothing (remove island, min len filter)
     void smooth_labels(const std::vector<char>& is_break,
                        std::vector<char>& lab);
 
-    // sequenctial region length check
     static void squash_short_segments(std::vector<char>& lab, char target, int min_len);
 };

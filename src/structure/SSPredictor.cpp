@@ -60,7 +60,7 @@ std::vector<char> SSPredictor::label_from_scores(const std::vector<int>& h_score
                                                  const std::vector<int>& e_score)
 {
     const size_t n = h_score.size();
-    std::vector<char> lab(n, 'x'); // default
+    std::vector<char> lab(n, 'x');
     for (size_t i = 0; i < n; ++i) {
         int h = h_score[i], e = e_score[i];
         if (h >= vote_threshold && h > e) lab[i] = 'H';
@@ -97,7 +97,6 @@ void SSPredictor::smooth_labels(const std::vector<char>& is_break,
         return true;
     };
 
-    // remove island (size <=smooth_island)
     int K = smooth_island;
     if (K >= 1) {
         for (char t : {'H', 'S'}) {
@@ -121,7 +120,6 @@ void SSPredictor::smooth_labels(const std::vector<char>& is_break,
         }
     }
 
-    // min len filter
     squash_short_segments(lab, 'H', helix_min_len);
     squash_short_segments(lab, 'S',  beta_min_len);
 }
@@ -130,25 +128,21 @@ void SSPredictor::run_chain(std::vector<Atom>& chain_atoms) {
     const size_t n = chain_atoms.size();
     if (n == 0) return;
 
-    // break position
     std::vector<char> is_break = compute_breaks(chain_atoms);
 
-    // vote
     std::vector<int> h_score(n, 0), e_score(n, 0);
     vote(chain_atoms, is_break, h_score, e_score);
 
-    // label -> smoothing
     std::vector<char> lab = label_from_scores(h_score, e_score);
     smooth_labels(is_break, lab);
 
-    // result
     for (size_t i = 0; i < n; ++i) {
         chain_atoms[i].set_structure(lab[i]);
     }
 }
 
 void SSPredictor::run(std::map<std::string, std::vector<Atom>>& atoms) {
-    std:: cout << "  predict secondary structure\n";    
+    std:: cout << "  predict secondary structure\n";
     for (auto& chain : atoms) {
         auto& chain_atoms = chain.second;
         run_chain(chain_atoms);
