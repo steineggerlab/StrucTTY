@@ -7,10 +7,10 @@
 #include "RenderPoint.hpp"
 #include <ctime>
 #include <thread>
-#include <chrono>  
+#include <chrono>
 #include <vector>
 #include <iostream>
-#include <filesystem> 
+#include <filesystem>
 #include <unordered_map>
 #include <iomanip>
 #include <sstream>

@@ -9,7 +9,7 @@
 
 class StructureMaker {
 public:
-    StructureMaker(); 
+    StructureMaker();
     ~StructureMaker();
 
     void calculate_ss_points(std::map<std::string, std::vector<Atom>>& init_atoms,
@@ -18,10 +18,9 @@ public:
     std::vector<std::vector<Atom>> extract_helix_segments(const Atom* atoms, int num_atoms);
 private:
     float radius = 2.5f;
-    int circle_steps = 16;  // unused (kept for compatibility)
-    int width = 4;          // half-width of beta-sheet ribbon (±4 steps)
-    float sheet_step = 0.28f; // ribbon offset per step unit (~2.2 Å total width)
+    int circle_steps = 16;
+    int width = 4;
+    float sheet_step = 0.28f;
 };
-
 
 #endif

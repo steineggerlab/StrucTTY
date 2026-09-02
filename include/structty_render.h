@@ -6,10 +6,6 @@
 
 namespace structty {
 
-// Render atoms to an ANSI escape string.
-// width/height: terminal character dimensions.
-// mode: "protein"|"chain"|"rainbow"|"plddt"|"interface"|"conservation"
-//       |"align"|"align-fs"|"align-near"
 inline std::string render_to_ansi(
     const std::vector<RenderAtom>& atoms,
     int width,
@@ -23,7 +19,6 @@ inline std::string render_to_ansi(
         r.get_pixels(), r.get_logical_width(), r.get_logical_height());
 }
 
-// Render atoms and write ANSI output directly to stdout.
 inline void render_to_stdout(
     const std::vector<RenderAtom>& atoms,
     int width,
@@ -37,4 +32,4 @@ inline void render_to_stdout(
         r.get_pixels(), r.get_logical_width(), r.get_logical_height());
 }
 
-} // namespace structty
+}

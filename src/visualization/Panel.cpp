@@ -1,14 +1,14 @@
 #include "Panel.hpp"
 #include "Terminal.hpp"
 #include "Common.hpp"
-#include <cstring>  // strncpy
-#include <cstdio>   // snprintf, fwrite, fputc, fputs
+#include <cstring>
+#include <cstdio>
 
 Panel::Panel(int width, const std::string& mode, bool show_structure)
     : panel_width(width), panel_mode(mode), panel_show_structure(show_structure) {}
 
-void Panel::add_panel_info(const std::string& file_name, 
-                           const std::map<std::string, int>& chain_info, 
+void Panel::add_panel_info(const std::string& file_name,
+                           const std::map<std::string, int>& chain_info,
                            const std::map<std::string, int>& chain_residue_info,
                            int color_group, int chain_color_base) {
     entries.push_back(Entry{
@@ -24,7 +24,6 @@ void Panel::set_align_method(const std::string& method) {
     align_method = method;
 }
 
-// 기능 3: entry 갱신 (target protein 교체 시)
 void Panel::update_entry(int idx, const std::string& file_name,
                           const std::map<std::string, int>& chain_info,
                           const std::map<std::string, int>& chain_residue_info) {
@@ -39,7 +38,6 @@ void Panel::update_entry(int idx, const std::string& file_name,
     }
 }
 
-// 기능 3: Foldseek hit info 섹션
 void Panel::set_foldseek_hit_info(const FoldseekHitInfo& info) {
     fs_hit_info = info;
 }
@@ -53,8 +51,6 @@ int Panel::get_foldseek_section_height() const {
     return fs_hit_info.multimer ? 6 : 8;
 }
 
-// 기능 8: FoldMason MSA 섹션 ------------------------------------------------
-
 void Panel::set_foldmason_info(const FoldMasonInfo& info) {
     fm_info = info;
 }
@@ -65,10 +61,8 @@ void Panel::clear_foldmason_info() {
 
 int Panel::get_foldmason_section_height() const {
     if (!fm_info.valid) return 0;
-    return 3;  // "FoldMason MSA" + "Entries: N" + "Align: X"
+    return 3;
 }
-
-// 기능 6: Residue Info hover -----------------------------------------------
 
 void Panel::set_hover_residue(const std::string& chainID,
                                const char* residue_name,
@@ -95,8 +89,6 @@ int Panel::get_last_hover_row() const {
 }
 
 int Panel::get_residue_section_height() const {
-    // 항상 고정: header + chain + res + ss (= 4 기본)
-    // + pLDDT 줄 (plddt 모드일 때) + Cons 줄 (conservation 모드일 때)
     int h = 4;
     if (panel_mode == "plddt")        h += 1;
     if (panel_mode == "conservation") h += 1;
@@ -104,8 +96,6 @@ int Panel::get_residue_section_height() const {
 }
 
 void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
-    // hover_start_row: "Residue Info" 헤더 행 (separator는 이미 draw_panel이 그렸으므로 제외)
-    // 이 함수는 Residue Info 섹션만 다시 그린다 (bottom border 제외)
     int r = hover_start_row;
     int right_limit = max_cols - 1;
 
@@ -122,12 +112,10 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
         if (k > 0) fwrite(s, 1, (size_t)k, stdout);
     };
 
-    // "Residue Info" 헤더
     clear_ln(r);
     put_text(r, "Residue Info");
     ++r;
 
-    // Chain: X  or  Chain: -
     clear_ln(r);
     if (hover_valid) {
         char buf[64];
@@ -138,7 +126,6 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
     }
     ++r;
 
-    // Res: GLU 42  or  Res: -
     clear_ln(r);
     if (hover_valid && hover_residue_number >= 0) {
         char buf[64];
@@ -151,7 +138,6 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
     }
     ++r;
 
-    // SS: Helix / Sheet / Coil  or  SS: -
     clear_ln(r);
     if (hover_valid) {
         const char* ss_str = "Coil";
@@ -165,7 +151,6 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
     }
     ++r;
 
-    // pLDDT: 87.3  (plddt 모드일 때만)
     if (panel_mode == "plddt") {
         clear_ln(r);
         if (hover_valid) {
@@ -178,7 +163,6 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
         ++r;
     }
 
-    // Cons: 0.82  (conservation 모드일 때만)
     if (panel_mode == "conservation") {
         clear_ln(r);
         if (hover_valid && hover_conservation >= 0.0f) {
@@ -192,37 +176,32 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
     }
 }
 
-// 기능 6 끝 -----------------------------------------------------------------
-
 int Panel::get_height() const {
     int lines = 0;
     lines += 3;
     if (is_aligned_mode(panel_mode) && !align_method.empty()) {
-        lines += 1;  // "Align: nearest-nbr" or "Align: aln-string"
+        lines += 1;
     }
     for (const auto& entry : entries) {
         lines += 1;
         int n = (int)entry.chain_atom_info.size();
-        int chain_lines = (n == 0) ? 1 : ((n + 2) / 3); // 3 per line
+        int chain_lines = (n == 0) ? 1 : ((n + 2) / 3);
         lines += chain_lines;
         lines += 1;
     }
-    // 기능 3: Foldseek hit info 섹션
     int fs_h = get_foldseek_section_height();
     if (fs_h > 0) {
-        lines += 1;   // separator
+        lines += 1;
         lines += fs_h;
     }
-    // 기능 8: FoldMason MSA 섹션
     int fm_h = get_foldmason_section_height();
     if (fm_h > 0) {
-        lines += 1;   // separator
+        lines += 1;
         lines += fm_h;
     }
-    // 기능 6: separator + Residue Info 섹션
-    lines += 1;                             // separator (---)
-    lines += get_residue_section_height();  // 고정 줄 수
-    lines += 1;                             // bottom border
+    lines += 1;
+    lines += get_residue_section_height();
+    lines += 1;
     return lines;
 }
 void Panel::draw_panel(int start_row, int start_col,
@@ -234,8 +213,8 @@ void Panel::draw_panel(int start_row, int start_col,
 
     const int top    = start_row;
     const int left   = start_col;
-    const int bottom = start_row + max_rows; // exclusive
-    const int right  = start_col + max_cols; // exclusive
+    const int bottom = start_row + max_rows;
+    const int right  = start_col + max_cols;
 
     const int right_limit = right - 1;
 
@@ -273,7 +252,6 @@ void Panel::draw_panel(int start_row, int start_col,
 
     int r = start_row;
 
-    // Top border
     clear_line(r);
     {
         int x = left;
@@ -285,7 +263,6 @@ void Panel::draw_panel(int start_row, int start_col,
     ++r;
     if (!in_rows(r)) return;
 
-    // Help line
     clear_line(r);
     {
         int x = left;
@@ -298,7 +275,6 @@ void Panel::draw_panel(int start_row, int start_col,
     ++r;
     if (!in_rows(r)) return;
 
-    // Separator
     clear_line(r);
     {
         Terminal::move_cursor(r, left);
@@ -309,7 +285,6 @@ void Panel::draw_panel(int start_row, int start_col,
     ++r;
     if (!in_rows(r)) return;
 
-    // 기능 4: align 계열 모드일 때 정렬 방식 표시
     if (is_aligned_mode(panel_mode) && !align_method.empty()) {
         if (!in_rows(r)) return;
         clear_line(r);
@@ -320,7 +295,6 @@ void Panel::draw_panel(int start_row, int start_col,
         if (!in_rows(r)) return;
     }
 
-    // Body
     int file_idx = 0;
     for (const auto& entry : entries) {
         if (!in_rows(r)) break;
@@ -332,15 +306,13 @@ void Panel::draw_panel(int start_row, int start_col,
 
         int protein_pair = 0;
         if (panel_mode == "protein") {
-            protein_pair = (color_idx % num_protein_colors) + 1;  // pairs 1-9
+            protein_pair = (color_idx % num_protein_colors) + 1;
         } else if (is_aligned_mode(panel_mode)) {
-            protein_pair = (color_idx % num_protein_colors) + 101;  // pairs 101-109
+            protein_pair = (color_idx % num_protein_colors) + 101;
         } else if (panel_mode == "chain" && entry.chain_color_base >= 0) {
-            // entry 하나가 체인 하나인 경우(멀티머)에는 이름 줄에 그 체인 색을 쓴다
             protein_pair = 21 + (entry.chain_color_base % num_chain_colors);
         }
 
-        // file name line
         clear_line(r);
         {
             int x = left;
@@ -351,9 +323,7 @@ void Panel::draw_panel(int start_row, int start_col,
         ++r;
         if (!in_rows(r)) break;
 
-        // chain lines (compact_level < 3)
         if (compact_level <= 1) {
-            // Level 0, 1: 기존 chain 상세 표시
             clear_line(r);
             Terminal::move_cursor(r, left);
             int x = left;
@@ -386,7 +356,7 @@ void Panel::draw_panel(int start_row, int start_col,
                 if (panel_mode == "chain") {
                     const int base = (entry.chain_color_base >= 0)
                                      ? entry.chain_color_base : file_idx * 10;
-                    chain_pair = 21 + ((base + count) % num_chain_colors);  // pairs 21-35
+                    chain_pair = 21 + ((base + count) % num_chain_colors);
                 }
 
                 int pair_to_use = (panel_mode == "protein" || is_aligned_mode(panel_mode)) ? protein_pair : chain_pair;
@@ -399,7 +369,6 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r;
         } else if (compact_level == 2) {
-            // Level 2: "N chains" 한 줄 요약
             clear_line(r);
             {
                 int x = left;
@@ -410,29 +379,22 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r;
         }
-        // Level 3: chain 정보 생략 (파일명만 표시)
 
-        // blank lines
         if (compact_level == 0) {
-            // Level 0: blank line 2줄
             if (!in_rows(r)) break;
             clear_line(r);
             ++r;
         } else if (compact_level == 1) {
-            // Level 1: blank line 없음 (++r은 chain 블록에서 이미 수행)
         }
-        // Level 2, 3: blank line 없음
 
         ++file_idx;
     }
 
     if (!in_rows(r)) return;
 
-    // 기능 3: Foldseek hit info 섹션
     {
         int fs_h = get_foldseek_section_height();
         if (fs_h > 0) {
-            // separator
             clear_line(r);
             {
                 Terminal::move_cursor(r, left);
@@ -445,7 +407,6 @@ void Panel::draw_panel(int start_row, int start_col,
 
             const FoldseekHitInfo& fi = fs_hit_info;
 
-            // Line 1: "Foldseek Hits" (+ "Q[i/N]" when multiple queries)
             clear_line(r);
             {
                 int x = left;
@@ -459,7 +420,6 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 2: "[X / Y]" or hit count
             clear_line(r);
             {
                 int x = left;
@@ -469,7 +429,6 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 3: "Target: ..."
             clear_line(r);
             {
                 int x = left;
@@ -501,7 +460,6 @@ void Panel::draw_panel(int start_row, int start_col,
                 }
                 ++r; if (!in_rows(r)) return;
             } else {
-            // Line 4: "E-val:  ..."
             clear_line(r);
             {
                 int x = left;
@@ -511,7 +469,6 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 5: prob or status_msg
             clear_line(r);
             {
                 int x = left;
@@ -527,7 +484,6 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 6: lDDT and TM scores
             clear_line(r);
             {
                 int x = left;
@@ -554,8 +510,6 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 7: superposition method (how U/T was obtained). The colour
-            // source is the "Align:" line above and can differ from this one.
             clear_line(r);
             {
                 int x = left;
@@ -569,7 +523,6 @@ void Panel::draw_panel(int start_row, int start_col,
             ++r; if (!in_rows(r)) return;
             }
 
-            // Line 8: nav hint ( ]/[ query hint when multiple queries )
             clear_line(r);
             {
                 int x = left;
@@ -583,11 +536,9 @@ void Panel::draw_panel(int start_row, int start_col,
         }
     }
 
-    // 기능 8: FoldMason MSA 섹션
     {
         int fm_h = get_foldmason_section_height();
         if (fm_h > 0) {
-            // separator
             clear_line(r);
             {
                 Terminal::move_cursor(r, left);
@@ -599,12 +550,10 @@ void Panel::draw_panel(int start_row, int start_col,
 
             const FoldMasonInfo& fi = fm_info;
 
-            // Line 1: "FoldMason MSA"
             clear_line(r);
             { int x = left; put_cstr(r, x, "FoldMason MSA"); }
             ++r; if (!in_rows(r)) return;
 
-            // Line 2: "Entries: N"
             clear_line(r);
             {
                 int x = left;
@@ -614,7 +563,6 @@ void Panel::draw_panel(int start_row, int start_col,
             }
             ++r; if (!in_rows(r)) return;
 
-            // Line 3: "Align: msa-col" or "Align: -"
             clear_line(r);
             {
                 int x = left;
@@ -629,7 +577,6 @@ void Panel::draw_panel(int start_row, int start_col,
         }
     }
 
-    // 기능 6: Residue Info 섹션 separator
     clear_line(r);
     {
         Terminal::move_cursor(r, left);
@@ -640,16 +587,12 @@ void Panel::draw_panel(int start_row, int start_col,
     ++r;
     if (!in_rows(r)) return;
 
-    // 기능 6: Residue Info 섹션 (draw_hover_section과 동일한 내용)
-    // draw_panel()은 전체 패널을 그리므로 여기서도 Residue Info를 그린다.
-    // hover가 없을 때는 모두 "-" 표시.
-    last_hover_row = r;  // hover 부분 갱신 시 정확한 행 사용
+    last_hover_row = r;
     draw_hover_section(r, max_cols);
     r += get_residue_section_height();
 
     if (!in_rows(r)) return;
 
-    // Bottom border
     clear_line(r);
     {
         int x = left;
@@ -698,56 +641,48 @@ static int count_wrapped_lines_for_chaininfo(
 int Panel::get_height_for_width(int max_cols, int compact_level) const {
     int lines = 0;
 
-    lines += 3; // Top border + Help line + Separator
+    lines += 3;
 
     if (is_aligned_mode(panel_mode) && !align_method.empty()) {
-        lines += 1;  // "Align: ..." line
+        lines += 1;
     }
 
     int avail_cols = max_cols;
     if (avail_cols < 1) avail_cols = 1;
 
     for (const auto& entry : entries) {
-        lines += 1; // file name line
+        lines += 1;
 
         if (compact_level <= 1) {
-            // Level 0, 1: chain 정보 표시
             lines += count_wrapped_lines_for_chaininfo(
                 entry.chain_atom_info, entry.chain_residue_info,
-                /*avail_cols=*/avail_cols,
-                /*indent_cols=*/2
+avail_cols,
+2
             );
         } else if (compact_level == 2) {
-            // Level 2: "N chains" 한 줄 요약
             lines += 1;
         }
-        // Level 3: 파일명만 (chain 정보 없음)
 
-        // blank lines
         if (compact_level == 0) {
             lines += 2;
         } else if (compact_level == 1) {
             lines += 1;
         }
-        // Level 2, 3: blank line 없음
     }
 
-    // 기능 3: Foldseek hit info 섹션
     int fs_h = get_foldseek_section_height();
     if (fs_h > 0) {
-        lines += 1;   // separator
+        lines += 1;
         lines += fs_h;
     }
-    // 기능 8: FoldMason MSA 섹션
     int fm_h = get_foldmason_section_height();
     if (fm_h > 0) {
-        lines += 1;   // separator
+        lines += 1;
         lines += fm_h;
     }
-    // 기능 6: separator + Residue Info 섹션 + bottom border
-    lines += 1;                             // separator (---)
-    lines += get_residue_section_height();  // 고정 줄 수
-    lines += 1;                             // Bottom border
+    lines += 1;
+    lines += get_residue_section_height();
+    lines += 1;
     return lines;
 }
 

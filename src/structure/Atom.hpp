@@ -6,21 +6,16 @@ struct Atom {
     float x;
     float y;
     float z;
-    char structure='x';        // 'x' : default, 'H' : helix, 'S' : sheet
+    char structure='x';
 
-    // 기능 2: pLDDT (B-factor column)
     float bfactor = 0.0f;
 
-    // 기능 1: interface region
     bool is_interface = false;
 
-    // 기능 4: UTMatrix 정렬 구조
     bool is_aligned = false;
 
-    // 기능 5: MSA conservation score (-1 = 미설정)
     float conservation_score = -1.0f;
 
-    // 기능 6: 잔기 정보 hover
     int residue_number = -1;
     std::string residue_name;
 
@@ -36,7 +31,7 @@ struct Atom {
     }
 
     float* get_position() const {
-        static float coords[3]; 
+        static float coords[3];
         coords[0] = x;
         coords[1] = y;
         coords[2] = z;

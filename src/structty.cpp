@@ -25,8 +25,6 @@ namespace structty {
 
 namespace {
 
-// 결과 파일 첫 데이터 행의 target 컬럼(2번째). `-fst auto` 가 그 accession 을 공개 DB
-// 패턴으로 해석할 수 있는지 미리 알리는 데만 쓴다. 실패하면 빈 문자열.
 std::string first_target_accession(const std::string& result_path) {
     std::ifstream ifs(result_path);
     if (!ifs.is_open()) return std::string();
@@ -45,9 +43,6 @@ std::string first_target_accession(const std::string& result_path) {
     return std::string();
 }
 
-// 기능 4: align 계열 모드는 정렬 문자열(qaln/taln)이 필요하다. 12컬럼 m8 처럼 정렬
-// 문자열이 없으면 align 은 최근접 이웃 판정으로 대체하고, align-fs 는 진행하지 않는다.
-// 진행해도 되면 true.
 bool check_alignment_available(const std::vector<FoldseekHit>& hits,
                                const std::string& mode,
                                const std::string& result_path) {
@@ -74,7 +69,7 @@ bool check_alignment_available(const std::vector<FoldseekHit>& hits,
     return !strict;
 }
 
-}  // namespace
+}
 
 bool run(const RunOptions& opts) {
     if (!input_probe::validate_inputs(opts.input_files, opts.foldseek_target,
@@ -107,13 +102,6 @@ bool run(const RunOptions& opts) {
 
     screen.set_chainfile(opts.chains_file, (int)opts.input_files.size());
 
-    // -fst / -fsr 로 들어온 입력의 종류를 판별해 씬 경로를 정한다.
-    // 과거의 --db / --db-path / --query-db / --report-format 조합을 대체한다:
-    //   query 가 Foldseek DB   → query-from-DB (구 --query-db)
-    //   -fst 가 Foldseek DB    → CA 직접 읽기 (구 --db)
-    //   -fst 가 디렉터리·구조  → accession 이름으로 로컬 탐색 (구 --db-path)
-    //   -fst auto              → PDBDownloader 로 내려받기
-    //   -fsr 이 14컬럼 _report → 멀티머 경로 (구 --report-format)
     using input_probe::InputKind;
     const std::string& fs_result   = opts.foldseek_result;
     const bool         target_auto = (opts.foldseek_target == "auto");
@@ -128,8 +116,6 @@ bool run(const RunOptions& opts) {
                                     ? opts.input_files[0] : std::string();
     const std::string target_db = (target_kind == InputKind::FoldseekDB)
                                     ? opts.foldseek_target : std::string();
-    // PDBDownloader::find_in_db_path() 는 디렉터리를 받는다. 구조 파일 하나를 -fst 로 준
-    // 경우에는 그 파일이 있는 디렉터리를 탐색 대상으로 삼는다.
     std::string target_dir;
     if (target_kind == InputKind::StructureDir) {
         target_dir = opts.foldseek_target;
@@ -138,11 +124,7 @@ bool run(const RunOptions& opts) {
         if (target_dir.empty()) target_dir = ".";
     }
 
-    // 해석된 입력 1줄 요약 — 자동 판별 결과를 눈으로 확인할 수 있어야 한다
-    // (판별이 틀리면 씬 경로 자체가 달라지므로).
     if (!fs_result.empty() || !opts.foldseek_target.empty()) {
-        // stderr 로 낸다: stdout 은 렌더 출력(raw write)과 std::cout 이 섞여 있어서
-        // 여기서 cout 을 flush 하면 프레임 앞부분 개행 위치가 달라진다.
         std::cerr << "Foldseek input: query=" << input_probe::kind_name(query_kind)
                   << ", target=";
         if (target_auto) {
@@ -154,8 +136,6 @@ bool run(const RunOptions& opts) {
                   << input_probe::kind_name(result_kind) << "), mode=" << opts.mode
                   << std::endl;
 
-        // auto 는 공개 DB accession 패턴만 해석한다. foldseek createdb 가 만든
-        // 체인 accession(`<stem>_<chain>`)은 어느 패턴에도 맞지 않아 URL 이 없다.
         if (target_auto) {
             const std::string acc = first_target_accession(fs_result);
             if (!acc.empty() && PDBDownloader::detect_db_type(acc) == DBType::Unknown) {
@@ -167,14 +147,6 @@ bool run(const RunOptions& opts) {
         }
     }
 
-    // Query-from-DB (D3/D4) + multi-query nav (D7/D8/D9): when the query input is
-    // a Foldseek DB, read the query structure(s) from it instead of parsing a
-    // structure file. Handles folder/tar/gz query inputs that gemmi's single-file
-    // reader cannot open. Hits are grouped by the .m8 query column so ]/[ can
-    // navigate between queries.
-    // Step 7 (D6): multimer `_report` 경로. 14컬럼 tsv 를 complex 단위로 파싱해
-    // query/target complex 전체 체인을 로드하고 complex U/T 로 겹침. query/target DB 는
-    // complex DB(체인별 엔트리). -fsr 이 _report 일 때만 진입(.m8 경로와 배타적).
     bool multimer_report = false;
     if (result_kind == InputKind::ResultReport && opts.mode == "align-fs") {
         std::cerr << "Error: -m align-fs needs alignment strings, but a multimer report "
@@ -203,8 +175,8 @@ bool run(const RunOptions& opts) {
     }
 
     bool query_from_db = false;
-    std::vector<std::string> query_ids;                              // .m8 순서
-    std::map<std::string, std::vector<FoldseekHit>> hits_by_query;   // query별 hit 그룹
+    std::vector<std::string> query_ids;
+    std::map<std::string, std::vector<FoldseekHit>> hits_by_query;
     if (!multimer_report && !query_db.empty() && result_kind == InputKind::ResultM8) {
         FoldseekParser q_parser;
         if (q_parser.load(fs_result) && q_parser.hit_count() > 0) {
@@ -225,8 +197,6 @@ bool run(const RunOptions& opts) {
         }
     }
 
-    // query 가 Foldseek DB 인데 위 두 경로 어느 쪽도 서지 않으면 더 진행할 수 없다.
-    // plaintext 경로는 gemmi 로 구조 파일을 여는데, DB 데이터 파일은 열 수 없다.
     if (!query_db.empty() && !multimer_report && !query_from_db) {
         std::cerr << "Error: query '" << query_db << "' is a Foldseek DB, but no usable hits "
                   << "were read from " << (fs_result.empty() ? "(no -fsr given)" : fs_result)
@@ -237,19 +207,10 @@ bool run(const RunOptions& opts) {
     }
 
     if (multimer_report) {
-        // Scene already set up by set_multimer_report() above (complex chains
-        // loaded + superposed). Nothing more to do here.
     } else if (query_from_db) {
-        // Screen owns the full per-query setup (load query from DB, normalize,
-        // open target DB, load first hit). Query switching via ]/[ reuses the
-        // same path. The workflow handoff passes only the query as input_files,
-        // so plaintext targets are not loaded here.
         screen.set_query_nav(query_ids, hits_by_query, query_db,
                              target_db, opts.show_structure);
     } else {
-    // plaintext 경로: 체인 필터를 구조 로드 전에 정해야 하므로 m8 을 먼저 읽는다.
-    // foldseek createdb 는 멀티머를 체인마다 쪼개므로(`<stem>_<chain>`), m8 accession 이
-    // 가리키는 체인만 남겨야 qaln/taln 인덱스가 파일의 CA 순서와 맞는다.
     FoldseekParser fs_nav_parser;
     bool fs_hits_loaded = false;
     if (!fs_result.empty()) {
@@ -260,25 +221,17 @@ bool run(const RunOptions& opts) {
                       << fs_result << std::endl;
         }
 
-        // target 소스가 없다는 경고는 필요 없어졌다 — -fsr 은 -fst 와 쌍으로만 받으므로
-        // (Parameters 검증 2) 결과 파일이 있으면 target 소스도 항상 있다.
-
         if (fs_hits_loaded && !check_alignment_available(fs_nav_parser.get_hits(),
                                                         opts.mode, fs_result)) {
             return false;
         }
     }
 
-    // easy-search 는 query 디렉터리 전체의 hit 을 m8 하나에 쓴다. 지금 열어둔 구조와
-    // 무관한 query 의 hit 까지 [N]ext 로 순회하면 엉뚱한 구조가 겹쳐 뜨므로, query
-    // accession 이 이 파일을 가리키는 hit 만 남긴다
-    // (accession = `<파일 stem>` 또는 foldseek createdb 의 `<파일 stem>_<chain>`).
     std::vector<FoldseekHit> nav_hits;
     if (fs_hits_loaded) {
         std::string qstem = opts.input_files.empty()
                                 ? std::string()
                                 : fs::path(opts.input_files[0]).stem().string();
-        // `x.cif.gz` 는 stem() 이 `x.cif` 를 주므로 한 번 더 벗긴다
         if (qstem.find('.') != std::string::npos) {
             qstem = fs::path(qstem).stem().string();
         }
@@ -293,7 +246,6 @@ bool run(const RunOptions& opts) {
         }
         const size_t total = fs_nav_parser.get_hits().size();
         if (nav_hits.empty()) {
-            // accession 이름 규칙이 다른 m8(직접 만든 결과 등)에서는 전부 유지한다.
             nav_hits = fs_nav_parser.get_hits();
         } else if (nav_hits.size() != total) {
             std::cerr << "Foldseek hits for query '" << qstem << "': " << nav_hits.size()
@@ -302,15 +254,11 @@ bool run(const RunOptions& opts) {
         }
     }
 
-    // 구조 파일 query 라도 체인이 여러 개면 `]`/`[` 로 체인을 넘기고 각 체인의 hit 을
-    // `N`/`P` 로 볼 수 있게 한다. 체인 전환 때마다 같은 파일을 다른 체인 필터로 다시 읽는다.
-    // 사용자가 `-c` 로 체인을 직접 고르거나 target 파일을 추가로 준 경우, MSA/FoldMason 을
-    // 쓰는 경우는 아래 단일 체인 경로를 그대로 둔다(각각 별도 씬 구성이 필요하다).
     bool file_query_nav = false;
     const bool query_is_dir = (query_kind == InputKind::StructureDir);
     if (fs_hits_loaded && opts.input_files.size() == 1 && opts.chains_file.empty() &&
         opts.foldmason_file.empty() && opts.msa_file.empty()) {
-        std::vector<std::string> chain_ids;                              // m8 등장 순서
+        std::vector<std::string> chain_ids;
         std::map<std::string, std::vector<FoldseekHit>> hits_by_chain;
         for (const FoldseekHit& hit : nav_hits) {
             auto it = hits_by_chain.find(hit.query);
@@ -321,8 +269,6 @@ bool run(const RunOptions& opts) {
                 it->second.push_back(hit);
             }
         }
-        // 체인이 하나뿐이면 기존 경로가 더 단순하다(씬 구성이 동일하다).
-        // 디렉터리 query 는 하나여도 이 경로로 간다 — 파일을 accession 으로 찾아야 하므로.
         if (chain_ids.size() >= 2 || (query_is_dir && !chain_ids.empty())) {
             std::cerr << "Foldseek queries in " << opts.input_files[0] << ": "
                       << chain_ids.size()
@@ -338,9 +284,6 @@ bool run(const RunOptions& opts) {
 
     if (!file_query_nav) {
     if (fs_hits_loaded) {
-        // query(0번 입력): m8 query 컬럼이 이 파일의 체인을 가리키면 그 체인만 남긴다.
-        // 그 체인 하나만 로드하므로, **같은 파일의 다른 체인이 낸 hit 은 버려야 한다** —
-        // 남겨두면 체인 B 의 정렬을 체인 A 위에 겹치게 된다.
         std::string query_acc;
         if (!opts.input_files.empty()) {
             for (const FoldseekHit& hit : nav_hits) {
@@ -380,7 +323,6 @@ bool run(const RunOptions& opts) {
             nav_hits = std::move(chain_hits);
         }
         const std::vector<FoldseekHit>& all_hits = nav_hits;
-        // target(1번 이후 입력): m8 target 컬럼 기준으로 동일 처리
         for (int ti = 1; ti < (int)opts.input_files.size(); ti++) {
             for (const FoldseekHit& hit : all_hits) {
                 const std::string applied =
@@ -402,12 +344,10 @@ bool run(const RunOptions& opts) {
     screen.normalize_proteins();
     screen.update_total_len_ca();
 
-    // 기능 1: interface 모드일 때 inter-chain interface 계산 (threshold=8.0Å)
     if (opts.mode == "interface") {
         screen.compute_interface_all();
     }
 
-    // 기능 4: align 계열 모드 — foldseek/FoldMason 결과가 없는 경우 (nearest-neighbor fallback)
     if (is_aligned_mode(opts.mode) && fs_result.empty() && opts.foldmason_file.empty()) {
         if (opts.mode == "align-fs") {
             std::cerr << "Error: -m align-fs needs a Foldseek result (-fsr) or a FoldMason "
@@ -419,16 +359,13 @@ bool run(const RunOptions& opts) {
         screen.compute_aligned_all();
     }
 
-    // Foldseek DB 직접 읽기 모드 (-fst 가 Foldseek DB 일 때)
     if (!target_db.empty()) {
         screen.open_foldseek_db(target_db);
     }
 
-    // 기능 3: Foldseek hit 탐색 설정 (-fsr 결과가 있을 때)
     if (!fs_result.empty()) {
         if (fs_hits_loaded) {
             if ((int)opts.input_files.size() > 1) {
-                // 작업 3-A: 다중 타겟 — m8 hit을 CLI target 파일명 기준으로 필터링
                 std::vector<std::string> target_stems;
                 for (int i = 1; i < (int)opts.input_files.size(); i++) {
                     fs::path p(opts.input_files[i]);
@@ -450,7 +387,6 @@ bool run(const RunOptions& opts) {
                 screen.set_fs_db_path(target_dir);
                 screen.prepare_foldseek_db(filtered_hits);
 
-                // 작업 3-B: 각 target protein에 매칭 hit의 transform 적용
                 for (int ti = 1; ti < (int)opts.input_files.size(); ti++) {
                     fs::path tp(opts.input_files[ti]);
                     std::string tstem = tp.stem().string();
@@ -464,7 +400,6 @@ bool run(const RunOptions& opts) {
                     }
                 }
             } else {
-                // 단일 입력: 기존 동작 유지
                 screen.set_foldseek_hits(nav_hits);
                 screen.set_fs_db_path(target_dir);
                 screen.prepare_foldseek_db(nav_hits);
@@ -473,7 +408,6 @@ bool run(const RunOptions& opts) {
         }
     }
 
-    // 기능 5: conservation 모드일 때 MSA 파일 로드 및 conservation score 계산
     if (opts.mode == "conservation" && !opts.msa_file.empty()) {
         MSAParser msa_parser;
         if (msa_parser.load(opts.msa_file)) {
@@ -484,7 +418,6 @@ bool run(const RunOptions& opts) {
         }
     }
 
-    // 기능 8: FoldMason MSA 기반 superposition + conservation
     if (!opts.foldmason_file.empty()) {
         auto fm_parser = std::make_unique<FoldMasonParser>();
         const std::string& fm_path = opts.foldmason_file;
@@ -506,7 +439,6 @@ bool run(const RunOptions& opts) {
         if (!fm_loaded || fm_parser->entry_count() == 0) {
             std::cerr << "Warning: Failed to load FoldMason file: " << fm_path << std::endl;
         } else {
-            // entry 매칭: 파일명(확장자 제외) 기준으로 탐색, 실패 시 0/1 순서 가정
             int fm_query_idx = 0;
             int fm_target_idx = 1;
             const auto& entries = fm_parser->get_entries();
@@ -532,7 +464,6 @@ bool run(const RunOptions& opts) {
 
             int total_entries = fm_parser->entry_count();
 
-            // conservation 색상 (단일/다중 구조 모두)
             if (opts.mode == "conservation") {
                 std::vector<float> entropy = fm_parser->compute_column_entropy(false);
                 auto col_map = fm_parser->build_query_col_map(fm_query_idx);
@@ -544,12 +475,10 @@ bool run(const RunOptions& opts) {
                 screen.apply_msa_conservation(0, mapped_scores);
             }
 
-            // 패널 정보 구성
             FoldMasonInfo fm_info;
             fm_info.valid = true;
             fm_info.entry_count = total_entries;
 
-            // 두 구조 superposition (두 번째 PDB 있을 때만)
             bool do_superposition = ((int)opts.input_files.size() >= 2 && total_entries >= 2);
             if (do_superposition) {
                 fm_info.align_method = (opts.mode == "align-near") ? "nearest-nbr"
@@ -566,8 +495,8 @@ bool run(const RunOptions& opts) {
             }
         }
     }
-    } // end if (!file_query_nav)
-    } // end else (non-query-from-DB scene setup)
+    }
+    }
 
     if (bench) {
         auto t_load1 = Benchmark::clock::now();
@@ -580,7 +509,6 @@ bool run(const RunOptions& opts) {
         const int warmup = 200;
         const int events = 2000;
 
-        // Warmup run (not measured)
         bool old_enabled = bm.enabled;
         bm.enabled = false;
         for (int i = 0; i < warmup; i++) {
@@ -589,7 +517,6 @@ bool run(const RunOptions& opts) {
         }
         bm.enabled = old_enabled;
 
-        // Measured run
         bm.log("bench_begin", -1, 0.0);
         for (int i = 0; i < events; i++) {
             screen.draw_screen(opts.no_panel);
@@ -603,8 +530,6 @@ bool run(const RunOptions& opts) {
             if (needs_redraw) {
                 screen.draw_screen(opts.no_panel);
             }
-            // KEY_MOUSE 이벤트 시 needs_redraw=false: 패널 부분 갱신만 수행
-            // 키보드 이벤트 시 needs_redraw=true: 전체 재렌더링
             running = screen.handle_input(needs_redraw);
         }
     }
@@ -613,4 +538,4 @@ bool run(const RunOptions& opts) {
     return true;
 }
 
-} // namespace structty
+}

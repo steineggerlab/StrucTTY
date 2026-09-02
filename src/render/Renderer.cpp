@@ -9,7 +9,6 @@ Renderer::Renderer(int width, int height, const std::string& mode, bool show_str
     : width_(width), height_(height), mode_(mode), show_structure_(show_structure)
 {
     logical_pixels_.resize(width_ * 2 * height_ * 4);
-    // per-point 문자열 비교를 피하기 위해 모드를 enum 으로 1회 캐시.
     if      (mode_ == "chain")        mode_id_ = Mode::Chain;
     else if (mode_ == "rainbow")      mode_id_ = Mode::Rainbow;
     else if (mode_ == "plddt")        mode_id_ = Mode::Plddt;
@@ -29,15 +28,14 @@ void Renderer::set_depth_params(float focal_offset, float zoom_level,
 }
 
 void Renderer::render(const std::vector<RenderAtom>& atoms) {
-    t_enter_ = std::chrono::steady_clock::now();  // 계측: clear 이전 시각
+    t_enter_ = std::chrono::steady_clock::now();
     clear();
     auto t_clear = std::chrono::steady_clock::now();
 
     last_point_count_ = 0;
-    project_and_fill(atoms);  // 생성 즉시 logical_pixels_ 에 z-test 기록 (중간 벡터 없음)
+    project_and_fill(atoms);
     auto t_fill = std::chrono::steady_clock::now();
 
-    // 계측: clear / fill. zbuffer 는 fill 에 흡수되어 0.
     last_us_clear_ = std::chrono::duration_cast<std::chrono::microseconds>(t_clear - t_enter_).count();
     last_us_fill_  = std::chrono::duration_cast<std::chrono::microseconds>(t_fill  - t_clear).count();
     last_us_zbuf_  = 0;
@@ -63,12 +61,9 @@ int Renderer::compute_depth_band(float z) const {
     else                return 2;
 }
 
-
 int Renderer::color_from_style(const PlotStyle& s, int band) const {
     const RenderAtom& a = *s.a;
 
-    // show_structure 는 protein 모드에서만 SS 색으로 override (원본 assign_colors_impl 과 동일).
-    // helix/sheet 는 전용 near/far 색(47-50), coil 은 protein near/far 배열을 재사용해 3밴드.
     if (show_structure_ && mode_id_ == Mode::Protein) {
         if (a.structure == 'H') {
             if (band == 0) return 47;
@@ -81,9 +76,9 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
             return 50;
         }
         const int coil_idx = s.protein_idx % 9;
-        if (band == 0) return coil_idx + 120;  // PROTEIN_NEAR
-        if (band == 1) return coil_idx + 11;   // PROTEIN_DIM
-        return coil_idx + 85;                  // PROTEIN_COIL_FAR (DIM 보다 한 단계 어둡다)
+        if (band == 0) return coil_idx + 120;
+        if (band == 1) return coil_idx + 11;
+        return coil_idx + 85;
     }
 
     switch (mode_id_) {
@@ -123,18 +118,17 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
         case Mode::Aligned: {
             const int idx = s.protein_idx % 9;
             if (a.is_aligned) {
-                if (band == 0) return idx + 241;  // aligned near
-                if (band == 1) return idx + 101;  // aligned mid (bright)
-                return idx + 251;                 // aligned far
+                if (band == 0) return idx + 241;
+                if (band == 1) return idx + 101;
+                return idx + 251;
             }
-            if (band == 0) return 111;  // non-aligned near
-            if (band == 1) return 110;  // non-aligned mid
-            return 250;                 // non-aligned far
+            if (band == 0) return 111;
+            if (band == 1) return 110;
+            return 250;
         }
         case Mode::Conservation: {
             float score = a.conservation_score;
             if (score < 0) {
-                // 미채점 잔기: 중립 회색 3단 (10 / 36 / 20)
                 if (band == 0) return 10;
                 if (band == 1) return 36;
                 return 20;
@@ -151,15 +145,15 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
 }
 
 void Renderer::plot(int x, int y, float depth, const PlotStyle& s) {
-    ++last_point_count_;  // 계측: 생성 시도한 점 수
+    ++last_point_count_;
     const int logical_w = width_  * 2;
     const int logical_h = height_ * 4;
     if (x < 0 || x >= logical_w || y < 0 || y >= logical_h) return;
 
     RenderPoint& p = logical_pixels_[y * logical_w + x];
-    if (depth >= p.depth) return;  // 뒤쪽/동일 → 버림 (frontmost 유지 = 기존 zbuffer 시맨틱)
+    if (depth >= p.depth) return;
 
-    int band = compute_depth_band(depth);  // 통과한 점만 band/color 계산 (오버드로 절약)
+    int band = compute_depth_band(depth);
     const RenderAtom& a = *s.a;
     p.x = x; p.y = y; p.depth = depth; p.pixel = ' ';
     p.color_id           = color_from_style(s, band);
@@ -195,7 +189,7 @@ void Renderer::draw_line_impl(int x1, int x2, int y1, int y2,
         for (int oy = -half; oy <= half; oy++) {
             for (int ox = -half; ox <= half; ox++) {
                 if (ox != 0 && oy != 0) continue;
-                plot(ix + ox, iy + oy, fz, s);  // plot 이 경계검사 + z-test 수행
+                plot(ix + ox, iy + oy, fz, s);
             }
         }
         fx += xInc; fy += yInc; fz += zInc;
@@ -219,7 +213,7 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
             ++protein_end;
         int protein_atoms = (int)(protein_end - protein_start);
 
-        int chain_color_idx = 0;  // protein 내 chain 순번 (chain 모드)
+        int chain_color_idx = 0;
         size_t chain_start = protein_start;
         while (chain_start < protein_end) {
             int cur_chain = atoms[chain_start].chain_id;
@@ -235,8 +229,6 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
                 const RenderAtom& a = atoms[chain_start + i];
                 float x = a.x;
                 float y = a.y;
-                // 카메라 Z 부호 통일: 회전행렬(Protein::set_rotate)은 표준 오른손좌표계(+Z가 시청자 쪽)를
-                // 가정하므로, 카메라 공간에서는 로컬 Z가 클수록(=시청자에 가까울수록) near가 되어야 함.
                 float z = -a.z + focal_offset_;
 
                 if (z < nearPlane) {
@@ -251,7 +243,6 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
                 int screenX = (int)((projectedX + 1.0f) * 0.5f * logical_w);
                 int screenY = (int)((1.0f - projectedY) * 0.5f * logical_h);
 
-                // rainbow: protein 내 원자 진행도 (원본 point-index 기반 → atom-index 기반, deviation)
                 int local = (int)((chain_start + i) - protein_start);
                 float frac = (protein_atoms > 1) ? (float)local / (protein_atoms - 1) : 0.0f;
                 PlotStyle style{ &a, cur_protein, chain_color_idx, frac };
@@ -273,8 +264,6 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
                             float cy = 0.5f * ((-P0.y + 3*P1.y - 3*P2.y + P3.y)*t3
                                              + ( 2*P0.y - 5*P1.y + 4*P2.y - P3.y)*t2
                                              + (-P0.y + P2.y)*t + 2*P1.y);
-                            // 카메라 Z 부호 통일: 위 단일-원자 투영과 동일하게 블렌드된 로컬 Z 전체를
-                            // 음수화한 뒤 focal_offset_ 를 더함 (focal_offset_ 자체는 부호 반전 대상 아님).
                             float cz = -(0.5f * ((-P0.z + 3*P1.z - 3*P2.z + P3.z)*t3
                                              + ( 2*P0.z - 5*P1.z + 4*P2.z - P3.z)*t2
                                              + (-P0.z + P2.z)*t + 2*P1.z)) + focal_offset_;
