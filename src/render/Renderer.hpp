@@ -22,10 +22,12 @@ struct RenderAtom {
 
 class Renderer {
 public:
-    Renderer(int width, int height, const std::string& mode, bool show_structure);
+    Renderer(int width, int height, const std::string& mode, bool show_structure,
+             float aspect = 1.0f);
 
     void set_depth_params(float focal_offset, float zoom_level,
                           float depth_min_z, float depth_max_z);
+    void resize(int width, int height);
     void render(const std::vector<RenderAtom>& atoms);
 
     const std::vector<RenderPoint>& get_pixels() const;
@@ -52,6 +54,7 @@ private:
     std::string mode_;
     Mode        mode_id_ = Mode::Protein;
     bool        show_structure_;
+    float       aspect_           = 1.0f;
     float       focal_offset_     = 3.0f;
     float       zoom_level_       = 2.0f;
     float       depth_base_min_z_ = 0.0f;

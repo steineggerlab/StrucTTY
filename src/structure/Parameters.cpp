@@ -7,7 +7,10 @@ void print_help(){
     std::cout << "Options:\n";
     std::cout << "  -m, --mode <MODE>       Color mode:\n";
     std::cout << "                            protein (default), chain, rainbow,\n";
-    std::cout << "                            plddt, interface, conservation, align,\n";
+    std::cout << "                            bfactor (alias: plddt; B-factor column,\n";
+    std::cout << "                              which holds pLDDT in predicted models),\n";
+    std::cout << "                            interface, conservation, scale,\n";
+    std::cout << "                            align,\n";
     std::cout << "                            align-fs (Foldseek alignment only),\n";
     std::cout << "                            align-near (nearest-neighbour distance)\n";
     std::cout << "  -c, --chains <FILE>     Show only selected chains (see example/chainfile)\n";
@@ -23,6 +26,14 @@ void print_help(){
     std::cout << "                          -fst and -fsr must be given together\n";
     std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSA)\n";
     std::cout << "  -n, --nopanel           Hide info panel\n";
+    std::cout << "  --aspect <FLOAT>        Horizontal stretch of the rendered scene\n";
+    std::cout << "                          (default 1.0; raise it when cells look narrow)\n";
+    std::cout << "  --theme <dark|light>    Colour scheme for dark (default) or light\n";
+    std::cout << "                          terminal backgrounds\n";
+    std::cout << "  --assembly <ID>         Load the given biological assembly (e.g. 1)\n";
+    std::cout << "                          instead of the asymmetric unit\n";
+    std::cout << "  --scale <FILE>          Per-residue values for -m scale; each line is\n";
+    std::cout << "                          '<one-letter AA> <value>' (e.g. 'A 1.8')\n";
     std::cout << "  -b, --benchmark         Benchmark mode (measure FPS/latency)\n";
     std::cout << "  --help                  Show this help message\n";
     std::cout << "\nSupported inputs (4 kinds; detected automatically):\n";
@@ -36,8 +47,8 @@ void print_help(){
     std::cout << "  Sequence FASTA is NOT supported -- it carries no 3D coordinates.\n";
     std::cout << "\nRecipes:\n";
     std::cout << "  StrucTTY query.cif\n";
-    std::cout << "  StrucTTY query.cif target.cif -m aligned\n";
-    std::cout << "  StrucTTY query.cif -fst targetDB   -fsr result.m8   -m aligned\n";
+    std::cout << "  StrucTTY query.cif target.cif -m align\n";
+    std::cout << "  StrucTTY query.cif -fst targetDB   -fsr result.m8   -m align\n";
     std::cout << "  StrucTTY query.cif -fst pdb_dir/   -fsr result.m8\n";
     std::cout << "  StrucTTY query.cif -fst auto       -fsr result.m8\n";
     std::cout << "  StrucTTY query_dir/ -fst targetDB  -fsr result.m8   (multi-query: ]/[)\n";
@@ -66,13 +77,17 @@ Parameters::Parameters(int argc, char* argv[]) {
                 if (i + 1 < argc) {
                     std::string val(argv[i + 1]);
                     std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+                    if (val == "bfactor" || val == "b-factor") {
+                        val = "plddt";
+                    }
                     if (val == "chain" || val == "rainbow" || val == "protein" ||
                         val == "plddt" || val == "interface" || val == "conservation" ||
+                        val == "scale" ||
                         val == "align" || val == "align-fs" || val == "align-near") {
                         mode = val;
                         i++;
                     } else {
-                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'plddt', 'interface', 'conservation', 'align', 'align-fs', or 'align-near'.");
+                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'bfactor' (alias 'plddt'), 'interface', 'conservation', 'align', 'align-fs', or 'align-near'.");
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");
@@ -115,6 +130,46 @@ Parameters::Parameters(int argc, char* argv[]) {
                     foldmason_file = argv[++i];
                 } else {
                     throw std::runtime_error("Error: Missing value for --foldmason / -fm.");
+                }
+            } else if (!strcmp(argv[i], "--aspect")) {
+                if (i + 1 < argc) {
+                    float val = 0.0f;
+                    try {
+                        val = std::stof(argv[i + 1]);
+                    } catch (...) {
+                        throw std::runtime_error("Error: --aspect needs a number.");
+                    }
+                    if (val < 0.1f || val > 10.0f) {
+                        throw std::runtime_error("Error: --aspect must be between 0.1 and 10.");
+                    }
+                    aspect = val;
+                    i++;
+                } else {
+                    throw std::runtime_error("Error: Missing value for --aspect.");
+                }
+            } else if (!strcmp(argv[i], "--theme")) {
+                if (i + 1 < argc) {
+                    std::string val(argv[i + 1]);
+                    std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+                    if (val != "dark" && val != "light") {
+                        throw std::runtime_error("Error: --theme must be 'dark' or 'light'.");
+                    }
+                    theme = val;
+                    i++;
+                } else {
+                    throw std::runtime_error("Error: Missing value for --theme.");
+                }
+            } else if (!strcmp(argv[i], "--assembly")) {
+                if (i + 1 < argc) {
+                    assembly = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --assembly.");
+                }
+            } else if (!strcmp(argv[i], "--scale")) {
+                if (i + 1 < argc) {
+                    scale_file = argv[++i];
+                } else {
+                    throw std::runtime_error("Error: Missing value for --scale.");
                 }
             } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--benchmark")) {
                 benchmark_mode = true;

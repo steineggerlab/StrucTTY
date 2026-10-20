@@ -12,6 +12,10 @@ int main(int argc, char* argv[]) {
     opts.show_structure = params.get_show_structure();
     opts.no_panel       = params.get_no_panel();
     opts.benchmark      = params.get_benchmark_mode();
+    opts.aspect         = params.get_aspect();
+    opts.theme          = params.get_theme();
+    opts.assembly       = params.get_assembly();
+    opts.scale_file     = params.get_scale_file();
     opts.chains_file    = params.get_chainfile();
     opts.msa_file       = params.get_msa_file();
     opts.foldmason_file = params.get_foldmason_file();

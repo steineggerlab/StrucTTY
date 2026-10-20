@@ -15,6 +15,10 @@ class Parameters{
         bool no_panel = false;
         bool arg_okay = true;
         bool benchmark_mode = false;
+        float aspect = 1.0f;
+        string theme = "dark";
+        string assembly = "";
+        string scale_file = "";
         vector<string> in_file;
         string chainfile = "";
         string mode = "protein";
@@ -50,6 +54,18 @@ class Parameters{
         }
         bool get_benchmark_mode(){
             return benchmark_mode;
+        }
+        float get_aspect(){
+            return aspect;
+        }
+        string get_theme(){
+            return theme;
+        }
+        string get_assembly(){
+            return assembly;
+        }
+        string get_scale_file(){
+            return scale_file;
         }
         bool check_arg_okay(){
             return arg_okay;
