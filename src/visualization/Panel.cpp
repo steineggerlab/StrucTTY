@@ -48,7 +48,7 @@ void Panel::clear_foldseek_hit_info() {
 
 int Panel::get_foldseek_section_height() const {
     if (!fs_hit_info.valid && fs_hit_info.total_hits == 0) return 0;
-    return fs_hit_info.multimer ? 6 : 8;
+    return fs_hit_info.multimer ? 6 : 9;
 }
 
 void Panel::set_foldmason_info(const FoldMasonInfo& info) {
@@ -92,6 +92,7 @@ int Panel::get_residue_section_height() const {
     int h = 4;
     if (panel_mode == "plddt")        h += 1;
     if (panel_mode == "conservation") h += 1;
+    if (panel_mode == "scale")        h += 1;
     return h;
 }
 
@@ -154,23 +155,26 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
     if (panel_mode == "plddt") {
         clear_ln(r);
         if (hover_valid) {
-            char buf[32];
-            std::snprintf(buf, sizeof(buf), "pLDDT: %.1f", hover_bfactor);
+            char buf[48];
+            std::snprintf(buf, sizeof(buf), "B-factor (pLDDT): %.1f", hover_bfactor);
             put_text(r, buf);
         } else {
-            put_text(r, "pLDDT: -");
+            put_text(r, "B-factor (pLDDT): -");
         }
         ++r;
     }
 
-    if (panel_mode == "conservation") {
+    if (panel_mode == "conservation" || panel_mode == "scale") {
+        const char* label = (panel_mode == "scale") ? "Scale" : "Cons ";
         clear_ln(r);
         if (hover_valid && hover_conservation >= 0.0f) {
-            char buf[32];
-            std::snprintf(buf, sizeof(buf), "Cons:  %.2f", hover_conservation);
+            char buf[48];
+            std::snprintf(buf, sizeof(buf), "%s: %.2f", label, hover_conservation);
             put_text(r, buf);
         } else {
-            put_text(r, "Cons:  -");
+            char buf[48];
+            std::snprintf(buf, sizeof(buf), "%s: -", label);
+            put_text(r, buf);
         }
         ++r;
     }
@@ -518,6 +522,24 @@ void Panel::draw_panel(int start_row, int start_col,
                     put_str(r, x, fi.align_method);
                 } else {
                     put_cstr(r, x, "Superpose: -");
+                }
+            }
+            ++r; if (!in_rows(r)) return;
+
+            clear_line(r);
+            {
+                int x = left;
+                char buf[80];
+                if (fi.rmsd >= 0.0f && fi.aligned_res > 0) {
+                    std::snprintf(buf, sizeof(buf), "RMSD:   %.2f A over %d res",
+                                  fi.rmsd, fi.aligned_res);
+                    put_cstr(r, x, buf);
+                } else if (fi.aligned_res > 0) {
+                    std::snprintf(buf, sizeof(buf), "RMSD:   -   (%d aligned res)",
+                                  fi.aligned_res);
+                    put_cstr(r, x, buf);
+                } else {
+                    put_cstr(r, x, "RMSD:   -");
                 }
             }
             ++r; if (!in_rows(r)) return;

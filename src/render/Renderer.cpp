@@ -5,8 +5,10 @@
 #include <cstring>
 #include <limits>
 
-Renderer::Renderer(int width, int height, const std::string& mode, bool show_structure)
-    : width_(width), height_(height), mode_(mode), show_structure_(show_structure)
+Renderer::Renderer(int width, int height, const std::string& mode, bool show_structure,
+                   float aspect)
+    : width_(width), height_(height), mode_(mode), show_structure_(show_structure),
+      aspect_(aspect > 0.0f ? aspect : 1.0f)
 {
     logical_pixels_.resize(width_ * 2 * height_ * 4);
     if      (mode_ == "chain")        mode_id_ = Mode::Chain;
@@ -15,7 +17,7 @@ Renderer::Renderer(int width, int height, const std::string& mode, bool show_str
     else if (mode_ == "interface")    mode_id_ = Mode::Interface;
     else if (mode_ == "align" || mode_ == "align-fs" || mode_ == "align-near")
                                       mode_id_ = Mode::Aligned;
-    else if (mode_ == "conservation") mode_id_ = Mode::Conservation;
+    else if (mode_ == "conservation" || mode_ == "scale") mode_id_ = Mode::Conservation;
     else                              mode_id_ = Mode::Protein;
 }
 
@@ -25,6 +27,15 @@ void Renderer::set_depth_params(float focal_offset, float zoom_level,
     zoom_level_       = zoom_level;
     depth_base_min_z_ = depth_min_z;
     depth_base_max_z_ = depth_max_z;
+}
+
+void Renderer::resize(int width, int height) {
+    if (width < 1) width = 1;
+    if (height < 1) height = 1;
+    if (width == width_ && height == height_) return;
+    width_ = width;
+    height_ = height;
+    logical_pixels_.assign(width_ * 2 * height_ * 4, RenderPoint());
 }
 
 void Renderer::render(const std::vector<RenderAtom>& atoms) {
@@ -238,7 +249,7 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
                 }
 
                 char structure = a.structure;
-                float projectedX = (x / z) * fovRads + a.pan_x;
+                float projectedX = ((x / z) * fovRads + a.pan_x) * aspect_;
                 float projectedY = (y / z) * fovRads + a.pan_y;
                 int screenX = (int)((projectedX + 1.0f) * 0.5f * logical_w);
                 int screenY = (int)((1.0f - projectedY) * 0.5f * logical_h);
@@ -268,7 +279,7 @@ void Renderer::project_and_fill(const std::vector<RenderAtom>& atoms) {
                                              + ( 2*P0.z - 5*P1.z + 4*P2.z - P3.z)*t2
                                              + (-P0.z + P2.z)*t + 2*P1.z)) + focal_offset_;
                             if (cz < nearPlane) break;
-                            float cpX = (cx / cz) * fovRads + a.pan_x;
+                            float cpX = ((cx / cz) * fovRads + a.pan_x) * aspect_;
                             float cpY = (cy / cz) * fovRads + a.pan_y;
                             int cX = (int)((cpX + 1.0f) * 0.5f * logical_w);
                             int cY = (int)((1.0f - cpY) * 0.5f * logical_h);

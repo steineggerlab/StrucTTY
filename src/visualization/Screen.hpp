@@ -25,7 +25,7 @@
 class Screen {
 public:
     Screen(const int& width, const int& height, const bool& show_structure,
-           const std::string& mode);
+           const std::string& mode, float aspect = 1.0f);
     ~Screen();
 
     bool handle_input(bool& needs_redraw);
@@ -75,6 +75,10 @@ public:
     void compute_aligned_all(float threshold = 10.0f);
 
     void apply_msa_conservation(int protein_idx, const std::vector<float>& scores);
+
+    void set_assembly(const std::string& assembly_id) { assembly_id_ = assembly_id; }
+
+    void apply_residue_scale(const std::map<char, float>& scale_values);
 
     void apply_foldseek_transform(int protein_idx, const float* U_flat, const float* T_norm,
                                   const float* T_angstrom = nullptr);
@@ -132,11 +136,16 @@ private:
     const std::string& chain_name(int idx) const;
 
     float focal_offset = 3.0f;
+    float focal_base_ = 3.0f;
     float zoom_level;
+    float aspect_ = 1.0f;
+
+    void layout_grid();
 
     std::vector<float> pan_x;
     std::vector<float> pan_y;
     std::vector<std::string> chainVec;
+    std::string assembly_id_;
     float** vectorpointer = nullptr;
 
     std::vector<Protein*> data;

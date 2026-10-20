@@ -12,13 +12,14 @@ const float PI  = 3.14159265359f;
 const int MAX_STRUCT_NUM = 9;
 
 Screen::Screen(const int& width, const int& height, const bool& show_structure,
-               const std::string& mode)
-    : renderer_(width, height, mode, show_structure)
+               const std::string& mode, float aspect)
+    : renderer_(width, height, mode, show_structure, aspect)
 {
     screen_width = width;
     screen_height = height;
     screen_show_structure = show_structure;
     screen_mode = mode;
+    aspect_ = (aspect > 0.0f) ? aspect : 1.0f;
     aspect_ratio = (float)screen_width / screen_height;
     zoom_level = 2.0f;
 
@@ -40,6 +41,22 @@ void Screen::free_tmatrix() {
     delete[] vectorpointer;
     vectorpointer = nullptr;
     vectorpointer_len_ = 0;
+}
+
+static void projected_half_extent(Protein* p, float focal, float fov_rads,
+                                  float& half_w, float& half_h) {
+    half_w = 0.0f;
+    half_h = 0.0f;
+    if (!p) return;
+    const float nearPlane = 0.05f;
+    for (const auto& [chainID, chain_atoms] : p->get_atoms()) {
+        for (const Atom& atom : chain_atoms) {
+            const float z = -atom.z + focal;
+            if (z < nearPlane) continue;
+            half_w = std::max(half_w, std::fabs((atom.x / z) * fov_rads));
+            half_h = std::max(half_h, std::fabs((atom.y / z) * fov_rads));
+        }
+    }
 }
 
 static float compute_scene_radius_from_render_positions(const std::vector<Protein*>& data) {
@@ -85,6 +102,7 @@ std::string Screen::apply_accession_chain(int idx, const std::string& accession,
 
 void Screen::set_protein(const std::string& in_file, int ii, const bool& show_structure) {
     Protein* protein = new Protein(in_file, chainVec.at(ii), show_structure);
+    protein->set_assembly(assembly_id_);
     data.push_back(protein);
     pan_x.push_back(0.0f);
     pan_y.push_back(0.0f);
@@ -669,11 +687,23 @@ void Screen::normalize_proteins() {
     float radius = compute_scene_radius_from_render_positions(data);
 
     focal_offset = std::clamp(2.5f * radius + 1.0f, 2.0f, 8.0f);
+    focal_base_  = focal_offset;
 
-    int n = (int)pan_x.size();
+    layout_grid();
+}
+
+void Screen::layout_grid() {
+    const int n = (int)pan_x.size();
+    if (n <= 0) return;
+
+    if (n == 1) {
+        pan_x[0] = 0.0f;
+        pan_y[0] = 0.0f;
+        return;
+    }
+
     int cols, rows;
     switch (n) {
-        case 1:  cols=1; rows=1; break;
         case 2:  cols=2; rows=1; break;
         case 3:  cols=3; rows=1; break;
         case 4:  cols=2; rows=2; break;
@@ -684,22 +714,42 @@ void Screen::normalize_proteins() {
         default: cols=3; rows=(n+2)/3; break;
     }
 
-    if (n > 1) {
-        int max_dim = std::max(cols, rows);
-        float step      = (max_dim == 2) ? 0.75f : 0.5f;
-        float foc_scale = (max_dim == 2) ? 0.8f  : 0.6f;
-        focal_offset *= max_dim * foc_scale;
-        for (int i = 0; i < n; i++) {
-            int col = i % cols;
-            int row = i / cols;
-            pan_x[i] =  (col - (cols - 1) / 2.0f) * step;
-            pan_y[i] = -((row - (rows - 1) / 2.0f) * step);
+    const float margin = 0.2f;
+    const float min_gutter_x = 4.0f / (float)std::max(screen_width, 1);
+    const float min_gutter_y = 4.0f / (float)std::max(screen_height, 1);
+
+    focal_offset = focal_base_;
+    float step_x = 0.0f;
+    float step_y = 0.0f;
+    for (int iter = 0; iter < 12; iter++) {
+        const float fov_rads = 1.0f / std::tan((FOV / zoom_level) * 0.5f / 180.0f * PI);
+        float half_w = 0.0f;
+        float half_h = 0.0f;
+        for (auto* p : data) {
+            float hw = 0.0f;
+            float hh = 0.0f;
+            projected_half_extent(p, focal_offset, fov_rads, hw, hh);
+            half_w = std::max(half_w, hw);
+            half_h = std::max(half_h, hh);
         }
-    } else {
-        for (int i = 0; i < n; i++) {
-            pan_x[i] = 0.0f;
-            pan_y[i] = 0.0f;
-        }
+        if (half_w <= 0.0f && half_h <= 0.0f) break;
+        half_w *= aspect_;
+
+        step_x = 2.0f * half_w + std::max(2.0f * half_w * margin, min_gutter_x);
+        step_y = 2.0f * half_h + std::max(2.0f * half_h * margin, min_gutter_y);
+
+        const float span_x = (cols - 1) * step_x + 2.0f * half_w;
+        const float span_y = (rows - 1) * step_y + 2.0f * half_h;
+        const float worst = std::max(span_x, span_y) * 0.5f;
+        if (worst <= 1.0f) break;
+        focal_offset *= worst * 1.02f;
+    }
+
+    for (int i = 0; i < n; i++) {
+        int col = i % cols;
+        int row = i / cols;
+        pan_x[i] =  (col - (cols - 1) / 2.0f) * step_x / aspect_;
+        pan_y[i] = -((row - (rows - 1) / 2.0f) * step_y);
     }
 }
 
@@ -726,7 +776,7 @@ void Screen::calibrate_depth_baseline_first_view() {
 
                 if (z < nearPlane) continue;
 
-                float projectedX = (x / z) * fovRads + pan_x[ii];
+                float projectedX = ((x / z) * fovRads + pan_x[ii]) * aspect_;
                 float projectedY = (y / z) * fovRads + pan_y[ii];
 
                 int screenX = (int)((projectedX + 1.0f) * 0.5f * screen_width);
@@ -807,17 +857,6 @@ void Screen::draw_screen(bool no_panel) {
     const bool prof = (bm && bm->enabled);
     auto t0 = Benchmark::clock::now();
 
-    calibrate_depth_baseline_first_view();
-    auto t_cal = Benchmark::clock::now();
-
-    renderer_.set_depth_params(focal_offset, zoom_level, depth_base_min_z, depth_base_max_z);
-
-    std::vector<RenderAtom> render_atoms = to_render_atoms();
-    auto t_tra = Benchmark::clock::now();
-
-    renderer_.render(render_atoms);
-    auto t_ren = Benchmark::clock::now();
-
     Terminal::Size term_sz = Terminal::get_size();
     int rows = term_sz.rows;
     int cols = term_sz.cols;
@@ -840,16 +879,33 @@ void Screen::draw_screen(bool no_panel) {
     }
     if (panel_h > rows) panel_h = rows;
 
-    int offset = 0;
-    if (!no_panel) {
-        offset += panel_h;
+    int avail_rows = no_panel ? rows : (rows - panel_h);
+    if (avail_rows < 1) avail_rows = 1;
+    if (avail_rows != screen_height) {
+        screen_height = avail_rows;
+        aspect_ratio = (float)screen_width / screen_height;
+        renderer_.resize(screen_width, screen_height);
+        if (!multimer_mode_ && !yesUT && data.size() > 1) {
+            layout_grid();
+        }
+        depth_calibrated = false;
     }
-    if (offset > rows) offset = rows;
 
     auto t_layout = Benchmark::clock::now();
 
+    calibrate_depth_baseline_first_view();
+    auto t_cal = Benchmark::clock::now();
+
+    renderer_.set_depth_params(focal_offset, zoom_level, depth_base_min_z, depth_base_max_z);
+
+    std::vector<RenderAtom> render_atoms = to_render_atoms();
+    auto t_tra = Benchmark::clock::now();
+
+    renderer_.render(render_atoms);
+    auto t_ren = Benchmark::clock::now();
+
     Terminal::cursor_home();
-    print_screen(offset);
+    print_screen(0);
     auto t_print = Benchmark::clock::now();
 
     int start_row = rows;
@@ -871,14 +927,14 @@ void Screen::draw_screen(bool no_panel) {
     int64_t render_dt_ms = Benchmark::ms_since(t0, t1);
 
     if (prof) {
-        bm->log("ph_calibrate", -1, Benchmark::us_since(t0,       t_cal),    total_len_ca);
+        bm->log("ph_layout",    -1, Benchmark::us_since(t0,       t_layout), total_len_ca);
+        bm->log("ph_calibrate", -1, Benchmark::us_since(t_layout, t_cal),    total_len_ca);
         bm->log("ph_torender",  -1, Benchmark::us_since(t_cal,    t_tra),    total_len_ca);
         bm->log("ph_render",    -1, Benchmark::us_since(t_tra,    t_ren),    total_len_ca);
         bm->log("ph_r_clear",   -1, renderer_.get_last_us_clear(), total_len_ca);
         bm->log("ph_r_fill",    -1, renderer_.get_last_us_fill(),  total_len_ca);
         bm->log("ph_r_zbuf",    -1, renderer_.get_last_us_zbuf(),  total_len_ca);
-        bm->log("ph_layout",    -1, Benchmark::us_since(t_ren,    t_layout), total_len_ca);
-        bm->log("ph_print",     -1, Benchmark::us_since(t_layout, t_print),  total_len_ca);
+        bm->log("ph_print",     -1, Benchmark::us_since(t_ren,    t_print),  total_len_ca);
         bm->log("ph_panel",     -1, Benchmark::us_since(t_print,  t1),       total_len_ca);
         bm->log("points",       -1, (int64_t)renderer_.get_last_point_count(), total_len_ca);
 
@@ -909,7 +965,7 @@ void Screen::print_screen_braille(int y_offset) {
     out.reserve(static_cast<size_t>(screen_width) * screen_height * 32);
 
     for (int ty = 0; ty < screen_height; ++ty) {
-        int row = ty - (y_offset / 2) - 3;
+        int row = ty + y_offset;
         if (row < 0) continue;
         if (row >= rows) break;
 
@@ -978,13 +1034,11 @@ void Screen::set_zoom_level(float zoom){
 }
 
 void Screen::update_hover_info(int mx, int my) {
-    int panel_offset = last_panel_h / 2 + 3;
-
     const RenderPoint* best = nullptr;
     float best_depth = std::numeric_limits<float>::infinity();
 
     {
-        int ty_screen = my + panel_offset;
+        int ty_screen = my;
         if (ty_screen >= 0 && ty_screen < screen_height && mx >= 0 && mx < screen_width) {
             const int logical_w = screen_width * 2;
             const int logical_h = screen_height * 4;
@@ -1240,6 +1294,12 @@ void Screen::compute_interface_all(float threshold) {
 void Screen::apply_msa_conservation(int protein_idx, const std::vector<float>& scores) {
     if (protein_idx >= 0 && protein_idx < (int)data.size() && data[protein_idx]) {
         data[protein_idx]->apply_conservation_scores(scores);
+    }
+}
+
+void Screen::apply_residue_scale(const std::map<char, float>& scale_values) {
+    for (Protein* p : data) {
+        if (p) p->apply_residue_scale(scale_values);
     }
 }
 
@@ -1565,6 +1625,8 @@ void Screen::load_next_hit(int delta) {
     float T_ang[3] = {0,0,0};
     bool computed_transform = false;
     std::string align_method_str;
+    std::vector<float> rmsd_P, rmsd_Q;
+    int rmsd_N = 0;
 
     if (hit.has_transform) {
         const float* Uf = hit.U;
@@ -1623,6 +1685,7 @@ void Screen::load_next_hit(int delta) {
                     for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen[c];
                 }
             }
+            rmsd_P = P_norm; rmsd_Q = Q_norm; rmsd_N = N;
             computed_transform = true;
             align_method_str = "kabsch-alns";
         }
@@ -1682,6 +1745,7 @@ void Screen::load_next_hit(int delta) {
                     for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen2[c];
                 }
             }
+            rmsd_P = P_norm; rmsd_Q = Q_norm; rmsd_N = N;
             computed_transform = true;
             align_method_str = "kabsch-qaln";
         }
@@ -1728,6 +1792,7 @@ void Screen::load_next_hit(int delta) {
                     for (int c = 0; c < 3; c++) T_ang[r] -= U[r*3+c] * t_cen2[c];
                 }
             }
+            rmsd_P = P_norm; rmsd_Q = Q_norm; rmsd_N = N;
             computed_transform = true;
             align_method_str = "kabsch-seq";
         }
@@ -1735,6 +1800,25 @@ void Screen::load_next_hit(int delta) {
 
     if (computed_transform) {
         apply_foldseek_transform(1, U, T, T_ang);
+    }
+
+    if (rmsd_N >= 3) {
+        double sum = 0.0;
+        for (int i = 0; i < rmsd_N; i++) {
+            const float qx = rmsd_Q[i*3], qy = rmsd_Q[i*3+1], qz = rmsd_Q[i*3+2];
+            const float tx = U[0]*qx + U[1]*qy + U[2]*qz + T[0];
+            const float ty = U[3]*qx + U[4]*qy + U[5]*qz + T[1];
+            const float tz = U[6]*qx + U[7]*qy + U[8]*qz + T[2];
+            const float dx = rmsd_P[i*3]     - tx;
+            const float dy = rmsd_P[i*3 + 1] - ty;
+            const float dz = rmsd_P[i*3 + 2] - tz;
+            sum += (double)(dx*dx + dy*dy + dz*dz);
+        }
+        const float rmsd_norm = (float)std::sqrt(sum / (double)rmsd_N);
+        fs_info.rmsd = (norm_scale > 0.0f) ? rmsd_norm / norm_scale : rmsd_norm;
+        fs_info.aligned_res = rmsd_N;
+    } else if (hit.alnlen > 0) {
+        fs_info.aligned_res = hit.alnlen;
     }
 
     fs_info.align_method = align_method_str;

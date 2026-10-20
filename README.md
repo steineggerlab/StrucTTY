@@ -11,7 +11,7 @@
 <p align="center">
   <a href="#-installation"><img src="https://img.shields.io/badge/C%2B%2B-17-blue.svg" alt="C++17"/></a>
   <a href="#-installation"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg" alt="Platform"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-green.svg" alt="License"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"/></a>
   <a href="https://github.com/steineggerlab/StrucTTY"><img src="https://img.shields.io/badge/build-CMake-orange.svg" alt="Build"/></a>
   <a href="https://doi.org/10.64898/2026.03.17.712308"><img src="https://img.shields.io/badge/bioRxiv-10.64898%2F2026.03.17.712308-b31b1b.svg?logo=biorxiv" alt="bioRxiv"/></a>
 </p>
@@ -26,7 +26,7 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 9 color modes 
 
 - **Braille sub-pixel rendering** — each terminal cell maps to a 2×4 logical pixel grid
 - **Up to 9 proteins** rendered simultaneously with independent controls
-- **9 color modes** — `protein`, `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `align`, `align-fs`, `align-near`
+- **10 color modes** — `protein`, `chain`, `rainbow`, `bfactor` (alias `plddt`), `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
 - **Secondary structure visualization** — helix cylinders and sheet ribbons
 - **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
@@ -62,12 +62,13 @@ make -j $(nproc)
 
 ### Example data
 
-The structures used below are distributed separately. Unpack them in the
-repository root, next to `build/`:
+The structures used below are distributed separately, from the
+[`data` release](https://github.com/steineggerlab/StrucTTY/releases/tag/data).
+Unpack them in the repository root, next to `build/`:
 
 ```bash
 cd StrucTTY
-curl -L -o example.zip https://github.com/user-attachments/files/31204019/structty_example.zip
+curl -L -o example.zip https://github.com/user-attachments/files/31627970/structty_example.zip
 unzip -d example example.zip && rm example.zip
 ```
 
@@ -94,7 +95,7 @@ https://github.com/user-attachments/assets/01d91bc2-4c49-46f8-80c5-d736ccdeea07
 ./StrucTTY ../example/3A0C-assembly1.cif                  # protein (default)
 ./StrucTTY ../example/3A0C-assembly1.cif --mode chain
 ./StrucTTY ../example/3A0C-assembly1.cif --mode rainbow
-./StrucTTY  ../example/3A0C-assembly1_colabfold.pdb --mode plddt
+./StrucTTY  ../example/3A0C-assembly1_colabfold.pdb --mode bfactor
 ./StrucTTY ../example/3A0C-assembly1.cif --mode interface
 ./StrucTTY ../example/3A0C-assembly1.cif --mode conservation \
   --msa ../example/msa_result/query.a3m
@@ -173,7 +174,7 @@ result with `]`/`[`:
 
 | Option | Description |
 |--------|-------------|
-| `-m, --mode <MODE>` | Color mode: `protein` (default), `chain`, `rainbow`, `plddt`, `interface`, `conservation`, `align`, `align-fs`, `align-near` |
+| `-m, --mode <MODE>` | Color mode: `protein` (default), `chain`, `rainbow`, `bfactor` (alias `plddt`), `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near` |
 | `-c, --chains <FILE>` | Chain selection file (TSV: index + chain IDs) |
 | `-s, --structure` | Show secondary structure (helix/sheet) |
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
@@ -181,6 +182,10 @@ result with `]`/`[`:
 | `-fsr, --foldseek-result <FILE>` | Foldseek result: `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) |
 | `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSA) |
 | `-n, --nopanel` | Hide info panel |
+| `--aspect <FLOAT>` | Horizontal stretch of the scene (default `1.0`), for terminals whose cells are not ~1:2 |
+| `--theme <dark\|light>` | Colour scheme for a dark (default) or light terminal background |
+| `--assembly <ID>` | Load the given biological assembly (e.g. `1`) instead of the asymmetric unit |
+| `--scale <FILE>` | Per-residue values used by `-m scale`; each line is `<one-letter AA> <value>` |
 
 `-fst` and `-fsr` must be given together — one without the other is an error.
 
@@ -229,9 +234,10 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `protein` | One color per protein (9 distinct colors, cycling) |
 | `chain` | One color per chain (15 colors) |
 | `rainbow` | N→C gradient (20-step hue spectrum) |
-| `plddt` | AlphaFold confidence: blue (≥90), cyan (70–90), yellow (50–70), orange (<50) |
+| `bfactor` (alias `plddt`) | B-factor column, which holds pLDDT in predicted models: blue (≥90), cyan (70–90), yellow (50–70), orange (<50) |
 | `interface` | Inter-chain contacts (CA–CA < 8 Å): magenta vs. dim |
 | `conservation` | MSA Shannon entropy: blue (variable) → red (conserved) |
+| `scale` | Any per-residue scale given with `--scale` (e.g. hydrophobicity), rescaled to the same ten-step ramp |
 | `align` | Structurally aligned regions: bright vs. dim gray. Uses the alignment when the result has one, otherwise falls back to distance |
 | `align-fs` | Only what Foldseek aligned (`qaln`/`taln` columns). Never falls back — errors out if the result carries no alignment |
 | `align-near` | Distance only: residues with a counterpart within the cutoff, whatever the result says |

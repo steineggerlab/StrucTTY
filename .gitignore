@@ -42,6 +42,9 @@ build*/*
 
 plan*
 research*
+
+# Manuscript drafts
+/paper_write/
 # Downloaded example data
 /example/
 example.zip

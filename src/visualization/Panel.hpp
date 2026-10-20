@@ -33,6 +33,8 @@ struct FoldseekHitInfo {
     float    lddt         = -1.0f;
     float    qtmscore     = -1.0f;
     std::string align_method;
+    float    rmsd         = -1.0f;
+    int      aligned_res  = 0;
     std::string status_msg;
     bool     multimer     = false;
     float    ttmscore     = -1.0f;

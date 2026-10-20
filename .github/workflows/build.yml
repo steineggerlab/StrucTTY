@@ -1,0 +1,56 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-13, ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j 3
+
+      - name: Fetch example data
+        run: |
+          set -eux
+          curl -fsSL -o example.zip https://github.com/user-attachments/files/31627970/structty_example.zip
+          unzip -q -d example example.zip
+          rm example.zip
+          test -f example/foldseek_result/DB1/3cna-assembly1.cif
+
+      - name: Smoke test
+        run: |
+          set -eux
+          ./build/StrucTTY --help > /dev/null
+          printf 'q' | ./build/StrucTTY example/3A0C-assembly1.cif -m chain > frame.txt
+          test -s frame.txt
+          printf 'q' | ./build/StrucTTY example/foldseek_result/DB1/3cna-assembly1.cif \
+            -fst example/foldseek_result/DB2/ \
+            -fsr example/foldseek_result/result -m align > hit.txt
+          test -s hit.txt
+          printf 'q' | ./build/StrucTTY example/3A0C-assembly1.cif -m conservation \
+            --msa example/msa_result/query.a3m > cons.txt
+          test -s cons.txt
+
+      - name: Report toolchain
+        if: always()
+        run: |
+          cmake --version | head -1
+          c++ --version | head -1
+          uname -a

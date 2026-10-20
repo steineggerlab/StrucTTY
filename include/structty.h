@@ -10,6 +10,10 @@ struct RunOptions {
     bool show_structure     = false;
     bool no_panel           = false;
     bool benchmark          = false;
+    float aspect            = 1.0f;
+    std::string theme       = "dark";
+    std::string assembly;
+    std::string scale_file;
 
     std::string chains_file;
     std::string msa_file;

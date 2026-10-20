@@ -71,10 +71,58 @@ bool check_alignment_available(const std::vector<FoldseekHit>& hits,
 
 }
 
+namespace {
+
+std::map<char, float> load_residue_scale(const std::string& path) {
+    std::map<char, float> values;
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        std::cerr << "Warning: cannot open scale file: " << path << std::endl;
+        return values;
+    }
+
+    std::string line;
+    while (std::getline(ifs, line)) {
+        const size_t first = line.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos || line[first] == '#') continue;
+        std::istringstream iss(line.substr(first));
+        std::string token;
+        float value = 0.0f;
+        if (!(iss >> token >> value)) continue;
+        if (token.size() != 1) continue;
+        values[(char)std::toupper((unsigned char)token[0])] = value;
+    }
+
+    if (values.empty()) {
+        std::cerr << "Warning: no usable entries in scale file: " << path << "\n"
+                  << "         Each line must be '<one-letter AA> <value>'." << std::endl;
+    }
+    return values;
+}
+
+}
+
 bool run(const RunOptions& opts) {
     if (!input_probe::validate_inputs(opts.input_files, opts.foldseek_target,
                                       opts.foldseek_result)) {
         return false;
+    }
+
+    if (!Palettes::set_theme_by_name(opts.theme)) {
+        std::cerr << "Warning: unknown theme '" << opts.theme
+                  << "', using dark." << std::endl;
+        Palettes::set_theme(Palettes::Theme::Dark);
+    }
+
+    std::map<char, float> residue_scale;
+    if (opts.mode == "scale") {
+        if (opts.scale_file.empty()) {
+            std::cerr << "Error: -m scale needs --scale <file> with per-residue values."
+                      << std::endl;
+            return false;
+        }
+        residue_scale = load_residue_scale(opts.scale_file);
+        if (residue_scale.empty()) return false;
     }
 
     setlocale(LC_ALL, "");
@@ -84,7 +132,7 @@ bool run(const RunOptions& opts) {
     int term_rows = term_sz.rows;
     int term_cols = term_sz.cols;
 
-    Screen screen(term_cols, term_rows, opts.show_structure, opts.mode);
+    Screen screen(term_cols, term_rows, opts.show_structure, opts.mode, opts.aspect);
 
     Benchmark bm;
     const bool bench = opts.benchmark;
@@ -100,6 +148,7 @@ bool run(const RunOptions& opts) {
         t_load0 = Benchmark::clock::now();
     }
 
+    screen.set_assembly(opts.assembly);
     screen.set_chainfile(opts.chains_file, (int)opts.input_files.size());
 
     using input_probe::InputKind;
@@ -406,6 +455,10 @@ bool run(const RunOptions& opts) {
                 screen.load_next_hit(+1);
             }
         }
+    }
+
+    if (!residue_scale.empty()) {
+        screen.apply_residue_scale(residue_scale);
     }
 
     if (opts.mode == "conservation" && !opts.msa_file.empty()) {

@@ -466,7 +466,70 @@ namespace Palettes {
         RGBA{238, 238, 238, 255}
     };
 
-    inline int palette_to_xterm256_fg(int cid) {
+    enum class Theme { Dark, Light };
+
+    inline Theme& theme_state() {
+        static Theme t = Theme::Dark;
+        return t;
+    }
+
+    inline void set_theme(Theme t) { theme_state() = t; }
+
+    inline bool set_theme_by_name(const std::string& name) {
+        if (name == "dark")  { set_theme(Theme::Dark);  return true; }
+        if (name == "light") { set_theme(Theme::Light); return true; }
+        return false;
+    }
+
+    inline int depth_band_of(int cid) {
+        if (cid == 47 || cid == 49 || cid == 10 || cid == 111 ||
+            (cid >= 120 && cid <= 128) || (cid >= 130 && cid <= 144) ||
+            (cid >= 160 && cid <= 179) || (cid >= 209 && cid <= 212) ||
+            (cid >= 217 && cid <= 226) || (cid >= 241 && cid <= 249) ||
+            cid == 237 || cid == 238) {
+            return 0;
+        }
+        if (cid == 48 || cid == 50 || cid == 20 || cid == 250 ||
+            (cid >= 85 && cid <= 93) || (cid >= 145 && cid <= 159) ||
+            (cid >= 180 && cid <= 199) || (cid >= 200 && cid <= 208) ||
+            (cid >= 213 && cid <= 216) || (cid >= 227 && cid <= 236) ||
+            (cid >= 251 && cid <= 259) || cid == 239 || cid == 240) {
+            return 2;
+        }
+        return 1;
+    }
+
+    inline int shift_xterm_level(int code, int steps) {
+        if (steps == 0) return code;
+        if (code >= 16 && code <= 231) {
+            int idx = code - 16;
+            int r = idx / 36;
+            int g = (idx / 6) % 6;
+            int b = idx % 6;
+            auto clamp6 = [](int v) { return v < 0 ? 0 : (v > 5 ? 5 : v); };
+            r = clamp6(r + steps);
+            g = clamp6(g + steps);
+            b = clamp6(b + steps);
+            return 16 + 36 * r + 6 * g + b;
+        }
+        if (code >= 232 && code <= 255) {
+            int v = code + steps;
+            if (v < 232) v = 232;
+            if (v > 255) v = 255;
+            return v;
+        }
+        return code;
+    }
+
+    inline int apply_theme(int cid, int xterm) {
+        if (theme_state() == Theme::Dark) return xterm;
+        const int band = depth_band_of(cid);
+        if (band == 0) return shift_xterm_level(xterm, -2);
+        if (band == 1) return shift_xterm_level(xterm, -1);
+        return shift_xterm_level(xterm, 2);
+    }
+
+    inline int palette_to_xterm256_base(int cid) {
         if      (cid == 10)                return CONSERVATION_UNSCORED_NEAR;
         else if (cid == 20)                return CONSERVATION_UNSCORED_FAR;
         else if (cid == 36)                return CONSERVATION_UNSCORED_MID;
@@ -508,6 +571,10 @@ namespace Palettes {
         else if (cid >= 241 && cid <= 249) return ALIGNED_BRIGHT_NEAR[cid - 241];
         else if (cid == 250)               return ALIGNED_NONALIGNED_FAR;
         else                               return 231;
+    }
+
+    inline int palette_to_xterm256_fg(int cid) {
+        return apply_theme(cid, palette_to_xterm256_base(cid));
     }
 
     inline std::string palette_to_ansi_fg_str(int color_id) {

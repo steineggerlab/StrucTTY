@@ -10,6 +10,7 @@
 #include <algorithm>
 
 #include <gemmi/mmread.hpp>
+#include <gemmi/gz.hpp>
 #include <gemmi/model.hpp>
 #include <gemmi/metadata.hpp>
 
@@ -86,6 +87,10 @@ public:
 
     void apply_conservation_scores(const std::vector<float>& scores);
 
+    void apply_residue_scale(const std::map<char, float>& scale);
+
+    void set_assembly(const std::string& assembly_id) { assembly = assembly_id; }
+
     void set_rotate(int x_rotate, int y_rotate, int z_rotate);
     void set_shift(float shift_x, float shift_y, float shift_z);
     void do_naive_rotation(float* rotate_mat);
@@ -119,6 +124,7 @@ private:
 
     std::string in_file;
     std::string target_chains;
+    std::string assembly;
     bool show_structure;
     bool ca_only_ = false;
 

@@ -1,10 +1,30 @@
 #include "Protein.hpp"
 
-static gemmi::Structure read_structure(const std::string& path) {
-    gemmi::Structure st = gemmi::read_structure_file(path);
+#include <gemmi/assembly.hpp>
+
+static gemmi::Structure read_structure(const std::string& path,
+                                       const std::string& assembly_id) {
+    gemmi::Structure st = gemmi::read_structure(gemmi::MaybeGzipped(path));
+    if (!assembly_id.empty()) {
+        st.setup_cell_images();
+        gemmi::change_to_assembly(st, assembly_id,
+                                  gemmi::HowToNameCopiedChain::AddNumber, nullptr);
+    }
     st.remove_empty_chains();
     st.merge_chain_parts();
     return st;
+}
+
+static bool has_supported_extension(const std::string& path) {
+    std::string p = path;
+    std::transform(p.begin(), p.end(), p.begin(),
+                   [](unsigned char c) { return (char)std::tolower(c); });
+    if (p.size() > 3 && p.compare(p.size() - 3, 3, ".gz") == 0) {
+        p.erase(p.size() - 3);
+    }
+    if (p.size() < 4) return false;
+    const std::string ext = p.substr(p.size() - 4);
+    return ext == ".pdb" || ext == ".cif" || ext == ".ent";
 }
 
 static inline bool chain_ok(const std::string& target, const std::string& cid) {
@@ -85,7 +105,7 @@ void Protein::set_scale(float scale_) {
 
 bool Protein::is_ss_in_file(const std::string& in_file) {
     try {
-        gemmi::Structure st = read_structure(in_file);
+        gemmi::Structure st = read_structure(in_file, assembly);
         return (!st.helices.empty() || !st.sheets.empty());
     } catch (...) {
         return false;
@@ -109,7 +129,7 @@ void Protein::count_seqres(const std::string& file) {
     chain_res_count.clear();
 
     try {
-        gemmi::Structure st = read_structure(file);
+        gemmi::Structure st = read_structure(file, assembly);
 
         for (const gemmi::Entity& ent : st.entities) {
             int len = (int)ent.full_sequence.size();
@@ -132,7 +152,7 @@ void Protein::load_init_atoms(const std::string& in_file,
                               float * vectorpointers , bool yesUT) {
     init_atoms.clear();
 
-    gemmi::Structure st = read_structure(in_file);
+    gemmi::Structure st = read_structure(in_file, assembly);
     gemmi::Model& model = st.first_model();
 
     for (gemmi::Chain& chain : model.chains) {
@@ -173,7 +193,7 @@ void Protein::load_init_atoms(const std::string& in_file,
                               const std::string& target_chains, float * vectorpointers, bool yesUT) {
     init_atoms.clear();
 
-    gemmi::Structure st = read_structure(in_file);
+    gemmi::Structure st = read_structure(in_file, assembly);
     gemmi::Model& model = st.first_model();
 
     for (gemmi::Chain& chain : model.chains) {
@@ -205,7 +225,7 @@ void Protein::load_ss_info(const std::string& in_file,
 {
     ss_info.clear();
 
-    gemmi::Structure st = read_structure(in_file);
+    gemmi::Structure st = read_structure(in_file, assembly);
 
     for (const gemmi::Helix& h : st.helices) {
         auto beg = h.start;
@@ -257,7 +277,13 @@ std::ostream& operator<<(std::ostream& os, const std::tuple<std::string, int, st
 }
 
 void Protein::load_data(float * vectorpointers, bool yesUT) {
-    if (in_file.find(".pdb") != std::string::npos || in_file.find(".cif") != std::string::npos) {
+    if (!has_supported_extension(in_file)) {
+        std::cerr << "Error: unsupported file extension: " << in_file << "\n"
+                  << "       Expected .pdb / .cif / .ent (optionally .gz)." << std::endl;
+        return;
+    }
+
+    try {
         if (show_structure){
             if (is_ss_in_file(in_file)){
                 std::vector<std::tuple<std::string, int, std::string, int, char>> ss_info;
@@ -272,23 +298,30 @@ void Protein::load_data(float * vectorpointers, bool yesUT) {
         else{
             load_init_atoms(in_file, target_chains, vectorpointers, yesUT);
         }
-
-        if (init_atoms.empty()) {
-            std::cerr << "Error: input PDB file is empty." << std::endl;
-            return;
-        }
-
-        if (show_structure){
-            structureMaker.calculate_ss_points(init_atoms, screen_atoms);
-        }
-        else{ screen_atoms = init_atoms; }
-        count_seqres(in_file);
-    }
-
-    else{
-        std::cerr << "Error: input file format is not supported." << std::endl;
+    } catch (const std::exception& e) {
+        init_atoms.clear();
+        screen_atoms.clear();
+        std::cerr << "Error: failed to parse " << in_file << ": " << e.what() << "\n"
+                  << "       The file extension may not match its content." << std::endl;
+        return;
+    } catch (...) {
+        init_atoms.clear();
+        screen_atoms.clear();
+        std::cerr << "Error: failed to parse " << in_file << std::endl;
         return;
     }
+
+    if (init_atoms.empty()) {
+        std::cerr << "Error: no C-alpha atoms were read from " << in_file << std::endl;
+        return;
+    }
+
+    if (show_structure){
+        structureMaker.calculate_ss_points(init_atoms, screen_atoms);
+    }
+    else{ screen_atoms = init_atoms; }
+    count_seqres(in_file);
+
     std::cout << std::endl;
 }
 
@@ -776,6 +809,47 @@ void Protein::apply_conservation_scores(const std::vector<float>& scores) {
                     a.conservation_score = scores[idx];
                 }
                 idx++;
+            }
+        }
+    }
+
+    sync_conservation_to_screen();
+}
+
+static char three_to_one(const std::string& name) {
+    static const std::map<std::string, char> table = {
+        {"ALA",'A'},{"ARG",'R'},{"ASN",'N'},{"ASP",'D'},{"CYS",'C'},
+        {"GLN",'Q'},{"GLU",'E'},{"GLY",'G'},{"HIS",'H'},{"ILE",'I'},
+        {"LEU",'L'},{"LYS",'K'},{"MET",'M'},{"PHE",'F'},{"PRO",'P'},
+        {"SER",'S'},{"THR",'T'},{"TRP",'W'},{"TYR",'Y'},{"VAL",'V'},
+        {"MSE",'M'},{"SEC",'U'},{"PYL",'O'}
+    };
+    std::string key = name;
+    std::transform(key.begin(), key.end(), key.begin(),
+                   [](unsigned char c) { return (char)std::toupper(c); });
+    auto it = table.find(key);
+    return (it == table.end()) ? 'X' : it->second;
+}
+
+void Protein::apply_residue_scale(const std::map<char, float>& scale_values) {
+    if (scale_values.empty()) return;
+
+    float lo = std::numeric_limits<float>::max();
+    float hi = std::numeric_limits<float>::lowest();
+    for (const auto& [aa, v] : scale_values) {
+        (void)aa;
+        lo = std::min(lo, v);
+        hi = std::max(hi, v);
+    }
+    const float span = (hi > lo) ? (hi - lo) : 1.0f;
+
+    for (auto& [cid, chain] : init_atoms) {
+        for (Atom& a : chain) {
+            auto it = scale_values.find(three_to_one(a.residue_name));
+            if (it == scale_values.end()) {
+                a.conservation_score = -1.0f;
+            } else {
+                a.conservation_score = (it->second - lo) / span;
             }
         }
     }
