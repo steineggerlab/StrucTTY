@@ -1,4 +1,6 @@
 #include <iostream>
+#include <cctype>
+#include <sstream>
 #include <clocale>
 #include <filesystem>
 #include <fstream>

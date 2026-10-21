@@ -1,5 +1,7 @@
 #pragma once
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include <cstring>
 #include <algorithm>
 #include <cctype>
