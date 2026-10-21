@@ -10,10 +10,11 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-13, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,7 +25,7 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build -j 3
+        run: cmake --build build -j 3 --verbose
 
       - name: Fetch example data
         run: |
@@ -37,14 +38,17 @@ jobs:
       - name: Smoke test
         run: |
           set -eux
+          TO=""
+          if command -v timeout  > /dev/null; then TO="timeout 60";  fi
+          if command -v gtimeout > /dev/null; then TO="gtimeout 60"; fi
           ./build/StrucTTY --help > /dev/null
-          printf 'q' | ./build/StrucTTY example/3A0C-assembly1.cif -m chain > frame.txt
+          printf 'q' | $TO ./build/StrucTTY example/3A0C-assembly1.cif -m chain > frame.txt
           test -s frame.txt
-          printf 'q' | ./build/StrucTTY example/foldseek_result/DB1/3cna-assembly1.cif \
+          printf 'q' | $TO ./build/StrucTTY example/foldseek_result/DB1/3cna-assembly1.cif \
             -fst example/foldseek_result/DB2/ \
             -fsr example/foldseek_result/result -m align > hit.txt
           test -s hit.txt
-          printf 'q' | ./build/StrucTTY example/3A0C-assembly1.cif -m conservation \
+          printf 'q' | $TO ./build/StrucTTY example/3A0C-assembly1.cif -m conservation \
             --msa example/msa_result/query.a3m > cons.txt
           test -s cons.txt
 

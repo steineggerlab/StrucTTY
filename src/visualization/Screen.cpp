@@ -2,6 +2,9 @@
 #include "Terminal.hpp"
 #include "Common.hpp"
 #include <cstring>
+#include <array>
+#include <sstream>
+#include <utility>
 #include <unordered_set>
 #include <string>
 #include <limits>
