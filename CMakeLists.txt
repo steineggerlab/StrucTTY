@@ -68,9 +68,14 @@ endif()
 # -----------------------------------------------------------------------
 # StrucTTY executable — thin wrapper around structty::run()
 # -----------------------------------------------------------------------
+# The target is named structty_app rather than StrucTTY: a target differing from
+# the structty library only in case collides on case-insensitive filesystems
+# (macOS APFS), where both would share one CMakeFiles/<target>.dir and the
+# generated dependency rules are lost. OUTPUT_NAME keeps the binary name.
 if (STRUCTTY_BUILD_APP)
-    add_executable(StrucTTY ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
-    target_link_libraries(StrucTTY PRIVATE structty)
+    add_executable(structty_app ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+    set_target_properties(structty_app PROPERTIES OUTPUT_NAME StrucTTY)
+    target_link_libraries(structty_app PRIVATE structty)
 endif()
 
 if (BUILD_RENDER_TEST)
