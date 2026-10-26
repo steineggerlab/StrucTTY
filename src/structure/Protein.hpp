@@ -91,6 +91,18 @@ public:
 
     void set_assembly(const std::string& assembly_id) { assembly = assembly_id; }
 
+    bool bfactor_range(float& lo, float& hi) const {
+        bool seen = false;
+        for (const auto& chain : init_atoms) {
+            for (const Atom& a : chain.second) {
+                if (!seen) { lo = hi = a.bfactor; seen = true; continue; }
+                if (a.bfactor < lo) lo = a.bfactor;
+                if (a.bfactor > hi) hi = a.bfactor;
+            }
+        }
+        return seen;
+    }
+
     void set_rotate(int x_rotate, int y_rotate, int z_rotate);
     void set_shift(float shift_x, float shift_y, float shift_z);
     void do_naive_rotation(float* rotate_mat);

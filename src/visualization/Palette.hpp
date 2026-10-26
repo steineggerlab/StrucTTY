@@ -123,6 +123,10 @@ namespace Palettes {
     inline const std::array<int, 4> PLDDT_NEAR = {69, 117, 229, 216};
     inline const std::array<int, 4> PLDDT_FAR = {24, 31, 58, 95};
 
+    inline const std::array<int, 10> BFACTOR_COLORS = {21, 27, 39, 81, 159, 224, 217, 210, 203, 196};
+    inline const std::array<int, 10> BFACTOR_NEAR   = {57, 63, 75, 117, 195, 230, 223, 216, 209, 202};
+    inline const std::array<int, 10> BFACTOR_FAR    = {17, 18, 24, 31, 66, 138, 131, 124, 88, 52};
+
     inline const std::array<int, 10> CONSERVATION_NEAR = {57, 63, 69, 75, 85, 157, 192, 229, 221, 210};
     inline const std::array<int, 10> CONSERVATION_FAR = {18, 18, 19, 24, 28, 30, 64, 58, 94, 88};
 
@@ -486,6 +490,7 @@ namespace Palettes {
             (cid >= 120 && cid <= 128) || (cid >= 130 && cid <= 144) ||
             (cid >= 160 && cid <= 179) || (cid >= 209 && cid <= 212) ||
             (cid >= 217 && cid <= 226) || (cid >= 241 && cid <= 249) ||
+            (cid >= 270 && cid <= 279) ||
             cid == 237 || cid == 238) {
             return 0;
         }
@@ -493,7 +498,8 @@ namespace Palettes {
             (cid >= 85 && cid <= 93) || (cid >= 145 && cid <= 159) ||
             (cid >= 180 && cid <= 199) || (cid >= 200 && cid <= 208) ||
             (cid >= 213 && cid <= 216) || (cid >= 227 && cid <= 236) ||
-            (cid >= 251 && cid <= 259) || cid == 239 || cid == 240) {
+            (cid >= 251 && cid <= 259) || (cid >= 280 && cid <= 289) ||
+            cid == 239 || cid == 240) {
             return 2;
         }
         return 1;
@@ -564,6 +570,9 @@ namespace Palettes {
         else if (cid >= 213 && cid <= 216) return PLDDT_FAR[cid - 213];
         else if (cid >= 217 && cid <= 226) return CONSERVATION_NEAR[cid - 217];
         else if (cid >= 227 && cid <= 236) return CONSERVATION_FAR[cid - 227];
+        else if (cid >= 260 && cid <= 269) return BFACTOR_COLORS[cid - 260];
+        else if (cid >= 270 && cid <= 279) return BFACTOR_NEAR[cid - 270];
+        else if (cid >= 280 && cid <= 289) return BFACTOR_FAR[cid - 280];
         else if (cid == 237)               return INTERFACE_NEAR_COLOR;
         else if (cid == 238)               return INTERFACE_DIM_NEAR_COLOR;
         else if (cid == 239)               return INTERFACE_FAR_COLOR;

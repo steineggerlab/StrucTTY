@@ -20,13 +20,13 @@
 
 **StrucTTY** is a lightweight, terminal-based protein structure visualizer built in C++17. It renders 3D protein structures directly in the terminal using **Unicode Braille sub-pixel rendering**, providing 8x resolution compared to standard character-based rendering.
 
-StrucTTY supports simultaneous visualization of up to 9 proteins, 10 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
+StrucTTY supports simultaneous visualization of up to 9 proteins, 11 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
 
 ## Features
 
 - **Braille sub-pixel rendering** — each terminal cell maps to a 2×4 logical pixel grid
 - **Up to 9 proteins** rendered simultaneously with independent controls
-- **10 color modes** — `protein`, `chain`, `rainbow`, `bfactor` (alias `plddt`), `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near`
+- **11 color modes** — `protein`, `chain`, `rainbow`, `bfactor`, `plddt`, `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
 - **Secondary structure visualization** — helices as helical ribbons, strands as flat zig-zag ribbons. HELIX/SHEET records are used when the file carries them, otherwise a P-SEA-style Cα fallback is applied
 - **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
@@ -116,7 +116,8 @@ https://github.com/user-attachments/assets/01d91bc2-4c49-46f8-80c5-d736ccdeea07
 ./StrucTTY ../example/3A0C-assembly1.cif                  # protein (default)
 ./StrucTTY ../example/3A0C-assembly1.cif --mode chain
 ./StrucTTY ../example/3A0C-assembly1.cif --mode rainbow
-./StrucTTY  ../example/3A0C-assembly1_colabfold.pdb --mode bfactor
+./StrucTTY ../example/3A0C-assembly1_colabfold.pdb --mode plddt    # predicted model
+./StrucTTY ../example/3A0C-assembly1.cif            --mode bfactor  # experimental
 ./StrucTTY ../example/3A0C-assembly1.cif --mode interface
 ./StrucTTY ../example/3A0C-assembly1.cif --mode conservation \
   --msa ../example/msa_result/query.a3m
@@ -234,7 +235,7 @@ result with `]`/`[`:
 
 | Option | Description |
 |--------|-------------|
-| `-m, --mode <MODE>` | Color mode: `protein` (default), `chain`, `rainbow`, `bfactor` (alias `plddt`), `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near` |
+| `-m, --mode <MODE>` | Color mode: `protein` (default), `chain`, `rainbow`, `bfactor`, `plddt`, `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near` |
 | `-c, --chains <FILE>` | Chain selection file (TSV: index + chain IDs) |
 | `-s, --structure` | Show secondary structure (helix/sheet) |
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
@@ -301,7 +302,8 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `protein` | One color per protein (9 distinct colors, cycling) |
 | `chain` | One color per chain (15 colors) |
 | `rainbow` | N→C gradient (20-step hue spectrum) |
-| `bfactor` (alias `plddt`) | B-factor column, which holds pLDDT in predicted models: blue (≥90), cyan (70–90), yellow (50–70), orange (<50) |
+| `bfactor` | B-factor column on a blue–white–red ramp spanning the observed range of the loaded structures, as in ChimeraX. The panel shows that range next to the hovered value |
+| `plddt` | Same column, but binned on the AlphaFold confidence scale that predicted models store there: blue (≥90), cyan (70–90), yellow (50–70), orange (<50) |
 | `interface` | Inter-chain contacts (CA–CA < 8 Å): magenta vs. dim |
 | `conservation` | MSA Shannon entropy: blue (variable) → red (conserved) |
 | `scale` | Any per-residue scale given with `--scale` (e.g. hydrophobicity), rescaled to the same ten-step ramp |

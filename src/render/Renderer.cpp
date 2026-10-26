@@ -14,6 +14,7 @@ Renderer::Renderer(int width, int height, const std::string& mode, bool show_str
     if      (mode_ == "chain")        mode_id_ = Mode::Chain;
     else if (mode_ == "rainbow")      mode_id_ = Mode::Rainbow;
     else if (mode_ == "plddt")        mode_id_ = Mode::Plddt;
+    else if (mode_ == "bfactor")      mode_id_ = Mode::Bfactor;
     else if (mode_ == "interface")    mode_id_ = Mode::Interface;
     else if (mode_ == "align" || mode_ == "align-fs" || mode_ == "align-near")
                                       mode_id_ = Mode::Aligned;
@@ -36,6 +37,11 @@ void Renderer::resize(int width, int height) {
     width_ = width;
     height_ = height;
     logical_pixels_.assign(width_ * 2 * height_ * 4, RenderPoint());
+}
+
+void Renderer::set_bfactor_range(float min_value, float max_value) {
+    bfactor_min_ = min_value;
+    bfactor_max_ = max_value;
 }
 
 void Renderer::render(const std::vector<RenderAtom>& atoms) {
@@ -120,6 +126,18 @@ int Renderer::color_from_style(const PlotStyle& s, int band) const {
             if (band == 0) return 209 + base;
             if (band == 1) return 71 + base;
             return 213 + base;
+        }
+        case Mode::Bfactor: {
+            const float span = bfactor_max_ - bfactor_min_;
+            float t = (span > 1e-6f) ? (a.bfactor - bfactor_min_) / span : 0.5f;
+            if (t < 0.0f) t = 0.0f;
+            if (t > 1.0f) t = 1.0f;
+            int idx = (int)(t * 9.0f + 0.5f);
+            if (idx < 0) idx = 0;
+            if (idx > 9) idx = 9;
+            if (band == 0) return 270 + idx;
+            if (band == 1) return 260 + idx;
+            return 280 + idx;
         }
         case Mode::Interface: {
             if (band == 0) return a.is_interface ? 237 : 238;
