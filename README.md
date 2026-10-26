@@ -12,7 +12,7 @@
   <a href="#-installation"><img src="https://img.shields.io/badge/C%2B%2B-17-blue.svg" alt="C++17"/></a>
   <a href="#-installation"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg" alt="Platform"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"/></a>
-  <a href="https://github.com/steineggerlab/StrucTTY"><img src="https://img.shields.io/badge/build-CMake-orange.svg" alt="Build"/></a>
+  <a href="https://github.com/steineggerlab/StrucTTY/actions/workflows/build.yml"><img src="https://github.com/steineggerlab/StrucTTY/actions/workflows/build.yml/badge.svg" alt="Build"/></a>
   <a href="https://doi.org/10.64898/2026.03.17.712308"><img src="https://img.shields.io/badge/bioRxiv-10.64898%2F2026.03.17.712308-b31b1b.svg?logo=biorxiv" alt="bioRxiv"/></a>
 </p>
 
@@ -20,7 +20,7 @@
 
 **StrucTTY** is a lightweight, terminal-based protein structure visualizer built in C++17. It renders 3D protein structures directly in the terminal using **Unicode Braille sub-pixel rendering**, providing 8x resolution compared to standard character-based rendering.
 
-StrucTTY supports simultaneous visualization of up to 9 proteins, 9 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
+StrucTTY supports simultaneous visualization of up to 9 proteins, 10 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
 
 ## Features
 
@@ -28,13 +28,17 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 9 color modes 
 - **Up to 9 proteins** rendered simultaneously with independent controls
 - **10 color modes** — `protein`, `chain`, `rainbow`, `bfactor` (alias `plddt`), `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
-- **Secondary structure visualization** — helix cylinders and sheet ribbons
+- **Secondary structure visualization** — helices as helical ribbons, strands as flat zig-zag ribbons. HELIX/SHEET records are used when the file carries them, otherwise a P-SEA-style Cα fallback is applied
 - **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
 - **FoldMason integration** — MSA superposition with conservation coloring
 - **MSA conservation scoring** — Shannon entropy from FASTA/A3M alignments
 - **Interface detection** — inter-chain contact residue highlighting
 - **Alignment visualization** — structural alignment region highlighting
-- **Screenshot export** — PNG output via stb_image_write
+- **Biological assemblies** — `--assembly <ID>` expands the requested assembly instead of the deposited asymmetric unit
+- **Light and dark themes** — `--theme light` remaps the palette for light terminal backgrounds
+- **Aspect correction** — `--aspect <FLOAT>` for terminals whose character cells are not in the usual 1:2 ratio
+- **Custom residue scales** — `-m scale --scale <FILE>` colors by any per-residue property (hydrophobicity, charge, ...)
+- **Screenshot export** — PNG output via stb_image_write (`C` key)
 - **Chain selection** — filter specific chains per protein
 
 ## Installation
@@ -46,7 +50,24 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 9 color modes 
 | C++ compiler | GCC ≥ 7.1 or Clang ≥ 5.0 (C++17) |
 | CMake | ≥ 3.15 |
 
-Supported platforms: **Linux**, **macOS**
+The terminal needs UTF-8 and 256-colour support. Mouse hover additionally needs SGR
+mouse reporting (`1006`) and is simply inactive without it. If the terminal size cannot
+be queried, an 80×24 layout is assumed. No ncurses and no graphical subsystem is used.
+
+#### Verified configurations
+
+Every push builds from a clean checkout and runs a rendering smoke test on:
+
+| OS | Architecture | Compiler |
+|---|---|---|
+| macOS (GitHub `macos-latest` image) | Apple Silicon (arm64) | Apple Clang (system `c++`) |
+| Ubuntu (GitHub `ubuntu-latest` image) | x86-64 | GCC (system `c++`) |
+
+The exact image and compiler versions of each run are printed in the
+[build log](https://github.com/steineggerlab/StrucTTY/actions/workflows/build.yml).
+The smoke test covers single-structure rendering, Foldseek hit rendering with
+superposition, and conservation colouring from an A3M alignment, using the published
+example archive — so a broken example link fails the build as well.
 
 ### Build (Linux / macOS)
 
@@ -100,6 +121,45 @@ https://github.com/user-attachments/assets/01d91bc2-4c49-46f8-80c5-d736ccdeea07
 ./StrucTTY ../example/3A0C-assembly1.cif --mode conservation \
   --msa ../example/msa_result/query.a3m
 ```
+
+Any per-residue scale can be used as a colour source. The file is one
+`<one-letter amino acid> <value>` per line (`#` comments allowed); values are
+rescaled to the same ten-step ramp, and residues missing from the file stay uncoloured:
+
+```bash
+# Kyte-Doolittle hydrophobicity
+printf 'A 1.8\nR -4.5\nN -3.5\nD -3.5\nC 2.5\nQ -3.5\nE -3.5\nG -0.4\nH -3.2\nI 4.5\nL 3.8\nK -3.9\nM 1.9\nF 2.8\nP -1.6\nS -0.8\nT -0.7\nW -0.9\nY -1.3\nV 4.2\n' > kd.txt
+./StrucTTY ../example/3A0C-assembly1.cif -m scale --scale kd.txt
+```
+
+### Biological assemblies
+
+Crystal structures are deposited as an asymmetric unit, which may hold more or fewer
+chains than the biological unit. `--assembly` expands the one you ask for:
+
+```bash
+curl -fsSL -o 1STP.cif https://files.rcsb.org/download/1STP.cif
+
+./StrucTTY 1STP.cif -m chain                 # asymmetric unit — chain A, 121 residues
+./StrucTTY 1STP.cif -m chain --assembly 1    # biological assembly — A1..A4, 4 x 121
+```
+
+Duplicated chains get a numeric suffix (`A1`, `A2`, ...) so they stay distinguishable in
+the panel and in `-m chain`. An unknown ID lists the ones the file actually defines, and a
+structure carrying no assembly records says so; in both cases StrucTTY exits with an error
+rather than opening a viewer that does not show what was asked for.
+The option applies to structure files; coordinates taken from a Foldseek database are
+already per chain.
+
+### Light terminal backgrounds
+
+```bash
+./StrucTTY ../example/3A0C-assembly1.cif -m chain --theme light
+```
+
+The far depth band fades toward white instead of black, so depth stays readable on a
+light background. Use `--aspect` if your terminal's character cells are not close to
+1:2 and the structure looks horizontally squashed or stretched.
 https://github.com/user-attachments/assets/d4fea46a-2dc5-4e92-85cc-aa47ebcdb2d1
 
 ### Multiple structures
@@ -186,6 +246,7 @@ result with `]`/`[`:
 | `--theme <dark\|light>` | Colour scheme for a dark (default) or light terminal background |
 | `--assembly <ID>` | Load the given biological assembly (e.g. `1`) instead of the asymmetric unit |
 | `--scale <FILE>` | Per-residue values used by `-m scale`; each line is `<one-letter AA> <value>` |
+| `-h, --help` | Show the option list, the accepted input kinds, and example invocations |
 
 `-fst` and `-fsr` must be given together — one without the other is an error.
 
@@ -199,6 +260,11 @@ The kind of every input is detected automatically (no format flags):
 | Structure directory | a directory of those files | query, `-fst` |
 | Foldseek DB | base path of a DB built **from structures** (needs `<db>_ca`) | query, `-fst` |
 | Foldseek result | `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) | `-fsr` |
+
+Only residues carrying a Cα atom are read. Waters, ligands and ions therefore never
+appear, with no flag needed; modified residues that do carry a Cα (MSE, for instance)
+are kept. A content/extension mismatch — mmCIF text in a `.pdb`, say — is reported as a
+diagnostic instead of aborting.
 
 A `_report` (14 columns) enters the multimer path. The query is where the per-complex chains are
 read from, so it must be a Foldseek **query DB** or a **directory** of structures.
@@ -222,7 +288,8 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `X` / `Y` / `Z` | Rotate around X / Y / Z axis |
 | `R` / `F` | Zoom in / out |
 | `N` / `P` | Next hit / Previous hit |
-| `[` / `]` | Next query / Previous query |
+| `]` / `[` | Next query / Previous query |
+| `C` | Save a PNG screenshot of the current view |
 | `Q` | Quit |
 
 > Mouse hover displays residue information in the info panel.
@@ -264,7 +331,15 @@ StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12,
 
 - Interactive hit navigation with automatic structure downloading
 - Direct Foldseek DB reading (`-fst <DB>`) read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Uses hit-based selective scanning for minimal memory usage (~152KB for 1000 hits, even on AFDB50)
-- Structural superposition using U/T rotation-translation matrices
+- Structural superposition, chosen automatically in four steps and named in the panel's
+  `Superpose:` line: the U/T rotation-translation matrices if the result carries them
+  (29 columns), else a Kabsch fit on the aligned coordinates of an `alis` result
+  (21 columns), else on the residue pairs implied by `qaln`/`taln` (17 columns), else on
+  residues in file order. A 12-column default result therefore still opens, but only
+  reaches that last step
+- Per-hit `RMSD: <value> A over <N> res` in the panel, over the residue pairs the fit
+  actually used. When the superposition comes from U/T matrices there is no explicit pair
+  list, so the alignment length is shown instead
 - Alignment string visualization (`qaln`/`taln`)
 - Multi-database support: PDB, AlphaFold DB, ESMAtlas, CATH, BFVD, and more
 - Multi-query navigation (`]`/`[`) across queries in a single `.m8`. The query can be a Foldseek DB
@@ -278,7 +353,7 @@ StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12,
 
 #### Launch from Foldseek
 
-StrucTTY is **embedded directly into Foldseek as a static library** (`add_subdirectory(lib/structty)`), so no external binary or `PATH` lookup is required — Foldseek calls `structty::run()` in-process. The viewer opens automatically once the search finishes, reading the query and target structures directly from the search's temporary databases (folder/tar/gz inputs supported). Temporary DBs are kept alive for the viewer and cleaned up after it closes. Supported workflows: `easy-search` and `easy-multimersearch`.
+StrucTTY is **embedded directly into Foldseek as a static library** (`add_subdirectory(lib/structty)`), so no external binary and no `PATH` lookup is involved — the viewer lives inside the `foldseek` binary itself and is reached through the `foldseek structty` subcommand, which the `easy-search` and `easy-multimersearch` workflows invoke for you. The viewer opens automatically once the search finishes, reading the query and target structures directly from the search's temporary databases (folder/tar/gz inputs supported). Temporary DBs are kept alive for the viewer and cleaned up after it closes. Supported workflows: `easy-search` and `easy-multimersearch`.
 
 **Automatic launch after a search** — add the `--view-structty` flag (it takes no value):
 
@@ -364,17 +439,25 @@ Load FASTA or A3M multiple sequence alignments to compute per-residue conservati
 
 StrucTTY renders interactively even for large complexes. The table below measures load time, time-to-first-frame (TTFF), per-frame render time, and input-to-frame latency across structures of increasing size:
 
-| Structure | Cα | Load (ms) | TTFF (ms) | Frame mean (ms) | Frame p95 (ms) | Latency mean (ms) | Latency p95 (ms) |
-|-----------|----:|----------:|----------:|----------------:|---------------:|------------------:|-----------------:|
-| 1CRN | 46 | 5.4 | 44.6 | <0.5 | <0.5 | <0.5 | <0.5 |
-| 1STP | 121 | 12.4 | 106.0 | <0.5 | <0.5 | <0.5 | <0.5 |
-| 3BIK | 446 | 47.0 | 205.8 | 0.01 | <0.5 | 0.01 | <0.5 |
-| 6VXX | 2916 | 255.0 | 894.4 | 2.97 | 3.00 | 2.99 | 3.00 |
-| 4V4Q | 11463 | 3336.8 | 6199.2 | 13.36 | 14.00 | 13.68 | 14.80 |
+| Structure | Cα | Load (ms) | TTFF (ms) | Frame mean (ms) | Frame p95 (ms) | Latency mean (ms) | Latency p95 (ms) | Peak RSS (MB) |
+|-----------|----:|----------:|----------:|----------------:|---------------:|------------------:|-----------------:|--------------:|
+| 1CRN | 46 | 4.8 | 39.6 | 0.16 | 0.18 | <1 | <1 | 6.0 |
+| 1STP | 121 | 11.0 | 74.4 | 0.28 | 0.32 | <1 | <1 | 7.3 |
+| 3BIK | 446 | 45.2 | 175.6 | 0.62 | 0.67 | <1 | <1 | 13.4 |
+| 6VXX | 2916 | 201.4 | 856.8 | 3.25 | 3.37 | 3.00 | 3.00 | 44.7 |
+| 4V4Q | 11463 | 2575.6 | 4744.8 | 10.58 | 10.78 | 10.34 | 11.00 | 379.0 |
+
+Measured on a single core (pinned with `taskset`) of an Arm Cortex-X925, memory capped at
+4 GB, Ubuntu 24.04 LTS, g++ 13.3, CMake Release. Mean of 5 independent runs; each run is
+200 warm-up iterations followed by 2000 timed ones. Frame time is the sum of the six
+microsecond-resolution stage timers; the other metrics are logged at millisecond
+resolution, so latencies below that limit are shown as `<1`. Peak resident set size comes
+from `/usr/bin/time -v` over a load-and-render run.
 
 - **Frame time stays under the 16 ms (60 fps) budget** even at 11,463 Cα — interaction remains smooth for structures spanning three orders of magnitude in size.
 - **Input latency tracks frame time closely**, so rotation/zoom feels responsive with no perceptible input lag.
 - Load and TTFF scale with atom count; the immediate z-test rasterizer keeps per-frame cost roughly linear in Cα count.
+- **Peak memory is set by the largest single file being parsed, not by how much is on screen** — opening the same 446-residue structure nine times at once moves the peak from 13.4 to 14.4 MB. Loading a Foldseek result and stepping through its hits stays around 22 MB whether the targets come from a directory or straight from a Foldseek DB, and conservation colouring from an A3M alignment is indistinguishable from the same structure without it (9.2 MB either way).
 
 Benchmarks are reproducible via the built-in benchmark mode, which replays a fixed key script and logs per-frame timings to a `structty_bench_*.csv` file.
 
