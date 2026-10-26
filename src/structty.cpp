@@ -393,6 +393,9 @@ bool run(const RunOptions& opts) {
     }
     screen.set_tmatrix();
     screen.normalize_proteins();
+    if (screen.had_load_error()) {
+        return false;
+    }
     screen.update_total_len_ca();
 
     if (opts.mode == "interface") {

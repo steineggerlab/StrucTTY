@@ -632,10 +632,11 @@ void Screen::set_chainfile(const std::string& chainfile, int filesize) {
 }
 
 void Screen::normalize_proteins() {
+    load_failed_ = false;
     for (size_t i = 0; i < data.size(); i++) {
         auto* p = data[i];
         if (!p->is_ca_only()) {
-            p->load_data(vectorpointer[i], yesUT);
+            if (!p->load_data(vectorpointer[i], yesUT)) load_failed_ = true;
         }
         std::string label = p->get_file_name();
         if (i < chainVec.size() && chainVec[i] != "-") {

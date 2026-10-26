@@ -2,13 +2,21 @@
 
 #include <gemmi/assembly.hpp>
 
+struct AssemblyError : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 static gemmi::Structure read_structure(const std::string& path,
                                        const std::string& assembly_id) {
     gemmi::Structure st = gemmi::read_structure(gemmi::MaybeGzipped(path));
     if (!assembly_id.empty()) {
         st.setup_cell_images();
-        gemmi::change_to_assembly(st, assembly_id,
-                                  gemmi::HowToNameCopiedChain::AddNumber, nullptr);
+        try {
+            gemmi::change_to_assembly(st, assembly_id,
+                                      gemmi::HowToNameCopiedChain::AddNumber, nullptr);
+        } catch (const std::exception& e) {
+            throw AssemblyError(e.what());
+        }
     }
     st.remove_empty_chains();
     st.merge_chain_parts();
@@ -276,11 +284,11 @@ std::ostream& operator<<(std::ostream& os, const std::tuple<std::string, int, st
     return os;
 }
 
-void Protein::load_data(float * vectorpointers, bool yesUT) {
+bool Protein::load_data(float * vectorpointers, bool yesUT) {
     if (!has_supported_extension(in_file)) {
         std::cerr << "Error: unsupported file extension: " << in_file << "\n"
                   << "       Expected .pdb / .cif / .ent (optionally .gz)." << std::endl;
-        return;
+        return false;
     }
 
     try {
@@ -298,22 +306,30 @@ void Protein::load_data(float * vectorpointers, bool yesUT) {
         else{
             load_init_atoms(in_file, target_chains, vectorpointers, yesUT);
         }
+    } catch (const AssemblyError& e) {
+        init_atoms.clear();
+        screen_atoms.clear();
+        std::cerr << "Error: cannot build assembly '" << assembly << "' of "
+                  << in_file << ": " << e.what() << "\n"
+                  << "       Drop --assembly to load the deposited asymmetric unit."
+                  << std::endl;
+        return false;
     } catch (const std::exception& e) {
         init_atoms.clear();
         screen_atoms.clear();
         std::cerr << "Error: failed to parse " << in_file << ": " << e.what() << "\n"
                   << "       The file extension may not match its content." << std::endl;
-        return;
+        return false;
     } catch (...) {
         init_atoms.clear();
         screen_atoms.clear();
         std::cerr << "Error: failed to parse " << in_file << std::endl;
-        return;
+        return false;
     }
 
     if (init_atoms.empty()) {
         std::cerr << "Error: no C-alpha atoms were read from " << in_file << std::endl;
-        return;
+        return false;
     }
 
     if (show_structure){
@@ -323,6 +339,7 @@ void Protein::load_data(float * vectorpointers, bool yesUT) {
     count_seqres(in_file);
 
     std::cout << std::endl;
+    return true;
 }
 
 static const char* aa_to_three(char one_letter) {

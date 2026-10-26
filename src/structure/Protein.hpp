@@ -66,7 +66,7 @@ public:
     void set_scale(float scale_);
     std::string get_file_name() { return in_file; }
 
-    void load_data(float * vectorpointers, bool yesUT);
+    bool load_data(float * vectorpointers, bool yesUT);
     void load_from_ca(const std::vector<float>& coords, size_t n_residues,
                       const std::string& aa_seq);
     bool is_ca_only() const { return ca_only_; }

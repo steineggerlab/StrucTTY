@@ -87,7 +87,7 @@ Parameters::Parameters(int argc, char* argv[]) {
                         mode = val;
                         i++;
                     } else {
-                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'bfactor' (alias 'plddt'), 'interface', 'conservation', 'align', 'align-fs', or 'align-near'.");
+                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'bfactor' (alias 'plddt'), 'interface', 'conservation', 'scale', 'align', 'align-fs', or 'align-near'.");
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");

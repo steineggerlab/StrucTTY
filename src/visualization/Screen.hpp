@@ -65,6 +65,7 @@ public:
                              const bool& show_structure);
 
     void normalize_proteins();
+    bool had_load_error() const { return load_failed_; }
 
     void set_tmatrix();
     void set_chainfile(const std::string& chainfile, int filesize);
@@ -124,6 +125,7 @@ private:
     float aspect_ratio;
     bool screen_show_structure;
     bool yesUT = false;
+    bool load_failed_ = false;
     std::string screen_mode;
     int structNum = -1;
 
