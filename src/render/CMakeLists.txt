@@ -3,8 +3,6 @@ add_library(structty_render STATIC
     AnsiOutput.cpp
 )
 
-# Use generator expressions so include paths are correct in both build-tree
-# (add_subdirectory) and install-tree (find_package) contexts.
 target_include_directories(structty_render
     PUBLIC
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
@@ -13,9 +11,6 @@ target_include_directories(structty_render
         $<INSTALL_INTERFACE:include>
 )
 
-# No ncurses linkage — intentional; consumers verify with:
-#   nm -u libstructty_render.a | grep -i ncurses
-# ── Install rules ──────────────────────────────────────────────────────────────
 include(GNUInstallDirs)
 
 install(TARGETS structty_render
@@ -23,7 +18,6 @@ install(TARGETS structty_render
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-# Public headers: structty_render.h + render headers + RenderPoint (used by both)
 install(FILES
     ${PROJECT_SOURCE_DIR}/include/structty_render.h
     ${CMAKE_CURRENT_SOURCE_DIR}/Renderer.hpp
@@ -32,7 +26,6 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# CMake package files for find_package(structty_render) support
 install(EXPORT structty_renderTargets
     FILE      structty_renderTargets.cmake
     NAMESPACE structty_render::

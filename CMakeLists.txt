@@ -8,24 +8,15 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set OFF when embedding via add_subdirectory (e.g. Foldseek) to skip the
-# StrucTTY executable target. The structty library is always built.
 option(STRUCTTY_BUILD_APP  "Build StrucTTY terminal application" ON)
-# Set ON to also build the render_test integration test binary.
 option(BUILD_RENDER_TEST   "Build render_test integration test binary" OFF)
 
-find_package(ZLIB)  # optional — gemmi bundles its own zlib when not found
+find_package(ZLIB)
 
-# Third-party deps are built in lib/
 add_subdirectory(lib)
 
-# Render library (ncurses-free static lib; Renderer.cpp + AnsiOutput.cpp)
 add_subdirectory(src/render)
 
-# -----------------------------------------------------------------------
-# structty static library — interactive viewer, no ncurses dependency.
-# Foldseek embeds this via add_subdirectory(structty) + link structty.
-# -----------------------------------------------------------------------
 file(GLOB_RECURSE STRUCTTY_LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/structty.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/structure/*.cpp"
@@ -65,13 +56,6 @@ if(ZLIB_FOUND)
     target_link_libraries(structty PUBLIC ZLIB::ZLIB)
 endif()
 
-# -----------------------------------------------------------------------
-# StrucTTY executable — thin wrapper around structty::run()
-# -----------------------------------------------------------------------
-# The target is named structty_app rather than StrucTTY: a target differing from
-# the structty library only in case collides on case-insensitive filesystems
-# (macOS APFS), where both would share one CMakeFiles/<target>.dir and the
-# generated dependency rules are lost. OUTPUT_NAME keeps the binary name.
 if (STRUCTTY_BUILD_APP)
     add_executable(structty_app ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
     set_target_properties(structty_app PROPERTIES OUTPUT_NAME StrucTTY)
