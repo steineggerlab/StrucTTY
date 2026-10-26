@@ -91,6 +91,7 @@ int Panel::get_last_hover_row() const {
 int Panel::get_residue_section_height() const {
     int h = 4;
     if (panel_mode == "plddt")        h += 1;
+    if (panel_mode == "bfactor")      h += 1;
     if (panel_mode == "conservation") h += 1;
     if (panel_mode == "scale")        h += 1;
     return h;
@@ -152,15 +153,19 @@ void Panel::draw_hover_section(int hover_start_row, int max_cols) const {
     }
     ++r;
 
-    if (panel_mode == "plddt") {
-        clear_ln(r);
-        if (hover_valid) {
-            char buf[48];
-            std::snprintf(buf, sizeof(buf), "B-factor (pLDDT): %.1f", hover_bfactor);
-            put_text(r, buf);
-        } else {
-            put_text(r, "B-factor (pLDDT): -");
+    if (panel_mode == "plddt" || panel_mode == "bfactor") {
+        const char* label = (panel_mode == "plddt") ? "pLDDT" : "B-fac";
+        char buf[80];
+        int n = hover_valid
+            ? std::snprintf(buf, sizeof(buf), "%s: %.1f", label, hover_bfactor)
+            : std::snprintf(buf, sizeof(buf), "%s: -", label);
+        if (panel_mode == "bfactor" && bfactor_range_valid &&
+            n > 0 && n < (int)sizeof(buf)) {
+            std::snprintf(buf + n, sizeof(buf) - n, "   [%.1f - %.1f]",
+                          bfactor_lo, bfactor_hi);
         }
+        clear_ln(r);
+        put_text(r, buf);
         ++r;
     }
 

@@ -397,6 +397,7 @@ bool run(const RunOptions& opts) {
         return false;
     }
     screen.update_total_len_ca();
+    screen.update_bfactor_range();
 
     if (opts.mode == "interface") {
         screen.compute_interface_all();

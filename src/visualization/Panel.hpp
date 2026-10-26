@@ -68,6 +68,12 @@ public:
 
     void set_align_method(const std::string& method);
 
+    void set_bfactor_range(bool valid, float lo, float hi) {
+        bfactor_range_valid = valid;
+        bfactor_lo = lo;
+        bfactor_hi = hi;
+    }
+
     void set_foldseek_hit_info(const FoldseekHitInfo& info);
     void clear_foldseek_hit_info();
     int  get_foldseek_section_height() const;
@@ -95,6 +101,9 @@ private:
 
     int panel_width;
     std::string panel_mode;
+    bool  bfactor_range_valid = false;
+    float bfactor_lo = 0.0f;
+    float bfactor_hi = 0.0f;
     bool panel_show_structure = false;
     std::string align_method;
 

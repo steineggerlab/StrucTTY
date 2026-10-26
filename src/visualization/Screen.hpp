@@ -120,6 +120,21 @@ public:
         total_len_ca = sum;
     }
 
+    void update_bfactor_range() {
+        float lo = 0.0f, hi = 0.0f;
+        bool seen = false;
+        for (auto* p : data) {
+            if (!p) continue;
+            float plo = 0.0f, phi = 0.0f;
+            if (!p->bfactor_range(plo, phi)) continue;
+            if (!seen) { lo = plo; hi = phi; seen = true; continue; }
+            if (plo < lo) lo = plo;
+            if (phi > hi) hi = phi;
+        }
+        renderer_.set_bfactor_range(lo, hi);
+        if (panel) panel->set_bfactor_range(seen, lo, hi);
+    }
+
 private:
     int screen_width, screen_height;
     float aspect_ratio;

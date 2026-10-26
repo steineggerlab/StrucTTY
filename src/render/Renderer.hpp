@@ -28,6 +28,7 @@ public:
     void set_depth_params(float focal_offset, float zoom_level,
                           float depth_min_z, float depth_max_z);
     void resize(int width, int height);
+    void set_bfactor_range(float min_value, float max_value);
     void render(const std::vector<RenderAtom>& atoms);
 
     const std::vector<RenderPoint>& get_pixels() const;
@@ -41,7 +42,7 @@ public:
     int64_t get_last_us_zbuf()  const { return last_us_zbuf_;  }
 
 private:
-    enum class Mode { Protein, Chain, Rainbow, Plddt, Interface, Aligned, Conservation };
+    enum class Mode { Protein, Chain, Rainbow, Plddt, Bfactor, Interface, Aligned, Conservation };
 
     struct PlotStyle {
         const RenderAtom* a;
@@ -53,6 +54,8 @@ private:
     int         width_, height_;
     std::string mode_;
     Mode        mode_id_ = Mode::Protein;
+    float       bfactor_min_ = 0.0f;
+    float       bfactor_max_ = 0.0f;
     bool        show_structure_;
     float       aspect_           = 1.0f;
     float       focal_offset_     = 3.0f;

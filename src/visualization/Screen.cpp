@@ -274,6 +274,7 @@ void Screen::activate_query(int idx) {
     set_tmatrix();
     normalize_proteins();
     update_total_len_ca();
+    update_bfactor_range();
 
     const auto it = hits_by_query_.find(acc);
     if (it != hits_by_query_.end() && !it->second.empty()) {
@@ -493,6 +494,7 @@ void Screen::activate_multimer_query(int idx) {
     set_tmatrix();
     normalize_complex();
     update_total_len_ca();
+    update_bfactor_range();
 
     mm_current_hit_idx_ = -1;
     load_multimer_hit(+1);

@@ -7,8 +7,10 @@ void print_help(){
     std::cout << "Options:\n";
     std::cout << "  -m, --mode <MODE>       Color mode:\n";
     std::cout << "                            protein (default), chain, rainbow,\n";
-    std::cout << "                            bfactor (alias: plddt; B-factor column,\n";
-    std::cout << "                              which holds pLDDT in predicted models),\n";
+    std::cout << "                            bfactor (B-factor column, ramped over the\n";
+    std::cout << "                              observed range of the loaded structures),\n";
+    std::cout << "                            plddt (same column, AlphaFold confidence\n";
+    std::cout << "                              cutoffs; use it for predicted models),\n";
     std::cout << "                            interface, conservation, scale,\n";
     std::cout << "                            align,\n";
     std::cout << "                            align-fs (Foldseek alignment only),\n";
@@ -77,17 +79,18 @@ Parameters::Parameters(int argc, char* argv[]) {
                 if (i + 1 < argc) {
                     std::string val(argv[i + 1]);
                     std::transform(val.begin(), val.end(), val.begin(), ::tolower);
-                    if (val == "bfactor" || val == "b-factor") {
-                        val = "plddt";
+                    if (val == "b-factor") {
+                        val = "bfactor";
                     }
                     if (val == "chain" || val == "rainbow" || val == "protein" ||
-                        val == "plddt" || val == "interface" || val == "conservation" ||
+                        val == "plddt" || val == "bfactor" ||
+                        val == "interface" || val == "conservation" ||
                         val == "scale" ||
                         val == "align" || val == "align-fs" || val == "align-near") {
                         mode = val;
                         i++;
                     } else {
-                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'bfactor' (alias 'plddt'), 'interface', 'conservation', 'scale', 'align', 'align-fs', or 'align-near'.");
+                        throw std::runtime_error("Error: Invalid value for --mode. Use 'protein', 'chain', 'rainbow', 'bfactor', 'plddt', 'interface', 'conservation', 'scale', 'align', 'align-fs', or 'align-near'.");
                     }
                 } else {
                     throw std::runtime_error("Error: Missing value for -m / --mode.");
