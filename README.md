@@ -28,7 +28,7 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 11 color modes
 - **Up to 9 proteins** rendered simultaneously with independent controls
 - **11 color modes** — `protein`, `chain`, `rainbow`, `bfactor`, `plddt`, `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
-- **Secondary structure visualization** — helices as helical ribbons, strands as flat zig-zag ribbons. HELIX/SHEET records are used when the file carries them, otherwise a P-SEA-style Cα fallback is applied
+- **Secondary structure visualization** — helices as helical ribbons, strands as flat zig-zag ribbons. HELIX/SHEET records are used when the file carries them, otherwise [P-SEA](https://doi.org/10.1093/bioinformatics/13.3.291) is applied to the Cα trace — the only class of method that works on the Cα-only coordinates of a Foldseek database. Cross-checked against the reference implementation in Biotite (92.4% of residues, exact on continuous chains)
 - **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
 - **FoldMason integration** — MSA superposition with conservation coloring
 - **MSA conservation scoring** — Shannon entropy from FASTA/A3M alignments

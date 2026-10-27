@@ -1,5 +1,47 @@
 #include "SSPredictor.hpp"
 #include <algorithm>
+#include <iostream>
+
+static const float PI_DEG = 180.0f / 3.14159265358979323846f;
+
+bool SSPredictor::within_angle(float value, float mid, float tol) {
+    float diff = value - mid;
+    while (diff > 180.0f)  diff -= 360.0f;
+    while (diff < -180.0f) diff += 360.0f;
+    return std::fabs(diff) <= tol;
+}
+
+float SSPredictor::angle_deg(const Atom& a, const Atom& b, const Atom& c) {
+    float u[3], v[3];
+    sub(a, b, u);
+    sub(c, b, v);
+    normalize(u);
+    normalize(v);
+    float cosine = dot(u, v);
+    if (cosine >  1.0f) cosine =  1.0f;
+    if (cosine < -1.0f) cosine = -1.0f;
+    return std::acos(cosine) * PI_DEG;
+}
+
+float SSPredictor::torsion_deg(const Atom& a, const Atom& b, const Atom& c, const Atom& d) {
+    float b1[3], b2[3], b3[3];
+    sub(b, a, b1); sub(c, b, b2); sub(d, c, b3);
+
+    float n1[3], n2[3];
+    cross(b1, b2, n1);
+    cross(b2, b3, n2);
+
+    float b2n[3] = { b2[0], b2[1], b2[2] };
+    normalize(b2n);
+
+    float m1[3];
+    cross(n1, b2n, m1);
+
+    float x = dot(n1, n2);
+    float y = dot(m1, n2);
+
+    return std::atan2(y, x) * PI_DEG;
+}
 
 std::vector<char> SSPredictor::compute_breaks(const std::vector<Atom>& A) {
     const size_t n = A.size();
@@ -13,115 +55,142 @@ std::vector<char> SSPredictor::compute_breaks(const std::vector<Atom>& A) {
     return br;
 }
 
-void SSPredictor::vote(const std::vector<Atom>& A,
-                       const std::vector<char>& is_break,
-                       std::vector<int>& h_score,
-                       std::vector<int>& e_score)
-{
+std::vector<SSPredictor::Geom>
+SSPredictor::compute_geometry(const std::vector<Atom>& A,
+                              const std::vector<char>& is_break) {
     const size_t n = A.size();
-    if (n < 4) return;
+    std::vector<Geom> geom(n);
+    if (n < 5) return geom;
 
-    auto same_segment = [&](size_t i, size_t j) -> bool {
-        if (i > j) std::swap(i, j);
-        for (size_t k = i; k < j; ++k) if (is_break[k]) return false;
+    auto spans = [&](size_t lo, size_t hi) {
+        for (size_t k = lo; k < hi; ++k) if (is_break[k]) return false;
         return true;
     };
 
-    for (size_t i = 0; i + 3 < n; ++i) {
-        if (!same_segment(i, i+3)) continue;
-
-        float d13 = dist(A[i], A[i+2]) * scale;
-        float d14 = dist(A[i], A[i+3]) * scale;
-        float tau = torsion_deg(A[i], A[i+1], A[i+2], A[i+3]);
-        float at = std::fabs(tau);
-
-        int h = 0, e = 0;
-
-        if (d13 >= d13_helix_min && d13 <= d13_helix_max) h++;
-        if (d14 >= d14_helix_min && d14 <= d14_helix_max) h++;
-        if (at >= tors_helix_abs_min && at <= tors_helix_abs_max) h++;
-
-        if (d13 >= d13_beta_min) e++;
-        if (d14 >= d14_beta_min) e++;
-        if (at >= tors_beta_abs_min) e++;
-
-        if (h >= 2) {
-            h_score[i+1] += 1;
-            h_score[i+2] += 1;
-        }
-        if (e >= 2) {
-            e_score[i+1] += 1;
-            e_score[i+2] += 1;
-        }
+    for (size_t i = 1; i + 3 < n; ++i) {
+        if (!spans(i - 1, i + 3)) continue;
+        Geom& g = geom[i];
+        g.valid = true;
+        g.d2 = dist(A[i-1], A[i+1]) * scale;
+        g.d3 = dist(A[i-1], A[i+2]) * scale;
+        g.d4 = dist(A[i-1], A[i+3]) * scale;
+        g.tau = angle_deg(A[i-1], A[i], A[i+1]);
+        g.alpha = torsion_deg(A[i-1], A[i], A[i+1], A[i+2]);
     }
+    return geom;
 }
 
-std::vector<char> SSPredictor::label_from_scores(const std::vector<int>& h_score,
-                                                 const std::vector<int>& e_score)
-{
-    const size_t n = h_score.size();
-    std::vector<char> lab(n, 'x');
-    for (size_t i = 0; i < n; ++i) {
-        int h = h_score[i], e = e_score[i];
-        if (h >= vote_threshold && h > e) lab[i] = 'H';
-        else if (e >= vote_threshold && e > h) lab[i] = 'S';
-        else lab[i] = 'x';
-    }
-    return lab;
+bool SSPredictor::helix_site(const Geom& g) const {
+    if (!g.valid) return false;
+    const bool by_distance = within(g.d3, helix_d3_mid, helix_d3_tol) &&
+                             within(g.d4, helix_d4_mid, helix_d4_tol);
+    const bool by_angle = within_angle(g.tau, helix_tau_mid, helix_tau_tol) &&
+                          within_angle(g.alpha, helix_alpha_mid, helix_alpha_tol);
+    return by_distance || by_angle;
 }
 
-void SSPredictor::squash_short_segments(std::vector<char>& lab, char target, int min_len) {
+bool SSPredictor::beta_site(const Geom& g) const {
+    if (!g.valid) return false;
+    const bool by_distance = within(g.d2, beta_d2_mid, beta_d2_tol) &&
+                             within(g.d3, beta_d3_mid, beta_d3_tol) &&
+                             within(g.d4, beta_d4_mid, beta_d4_tol);
+    const bool by_angle = within_angle(g.tau, beta_tau_mid, beta_tau_tol) &&
+                          within_angle(g.alpha, beta_alpha_mid, beta_alpha_tol);
+    return by_distance || by_angle;
+}
+
+bool SSPredictor::helix_extend_site(const Geom& g) const {
+    if (!g.valid) return false;
+    return within(g.d3, helix_d3_mid, helix_d3_tol) ||
+           within_angle(g.tau, helix_tau_mid, helix_tau_tol);
+}
+
+bool SSPredictor::beta_extend_site(const Geom& g) const {
+    if (!g.valid) return false;
+    return within(g.d3, beta_d3_mid, beta_d3_tol);
+}
+
+std::vector<char> SSPredictor::mask_consecutive(const std::vector<char>& in, int number) {
+    const size_t n = in.size();
+    std::vector<char> out(n, 0);
+    if (number <= 0 || n < (size_t)number) return out;
+    for (size_t i = 0; i + (size_t)number <= n; ++i) {
+        bool all = true;
+        for (int k = 0; k < number; ++k) if (!in[i + k]) { all = false; break; }
+        if (all) for (int k = 0; k < number; ++k) out[i + k] = 1;
+    }
+    return out;
+}
+
+bool SSPredictor::in_sheet(const std::vector<Atom>& A, size_t first, size_t last) const {
+    const size_t n = A.size();
+    int contacts = 0;
+    for (size_t i = first; i <= last; ++i) {
+        for (size_t j = 0; j < n; ++j) {
+            const float d = dist(A[i], A[j]) * scale;
+            if (d > sheet_contact_min && d <= sheet_contact_max) ++contacts;
+        }
+    }
+    return contacts >= sheet_contact_count;
+}
+
+void SSPredictor::assign_helices(const std::vector<Geom>& geom,
+                                 const std::vector<char>& is_break,
+                                 std::vector<char>& lab) {
     const size_t n = lab.size();
+    std::vector<char> strict(n, 0);
+    for (size_t i = 0; i < n; ++i) strict[i] = helix_site(geom[i]) ? 1 : 0;
+
+    std::vector<char> mask = mask_consecutive(strict, helix_min_len);
+
     size_t i = 0;
     while (i < n) {
-        if (lab[i] != target) { ++i; continue; }
+        if (!mask[i]) { ++i; continue; }
         size_t j = i;
-        while (j < n && lab[j] == target) ++j;
-        int len = static_cast<int>(j - i);
-        if (len < min_len) {
-            for (size_t k = i; k < j; ++k) lab[k] = 'x';
-        }
-        i = j;
+        while (j + 1 < n && mask[j + 1]) ++j;
+        if (i > 0 && !is_break[i - 1] && helix_extend_site(geom[i - 1])) mask[i - 1] = 1;
+        if (j + 1 < n && !is_break[j] && helix_extend_site(geom[j + 1])) mask[j + 1] = 1;
+        i = j + 2;
     }
+
+    for (size_t k = 0; k < n; ++k) if (mask[k]) lab[k] = 'H';
 }
 
-void SSPredictor::smooth_labels(const std::vector<char>& is_break,
-                                std::vector<char>& lab)
-{
+void SSPredictor::assign_strands(const std::vector<Atom>& A,
+                                 const std::vector<Geom>& geom,
+                                 const std::vector<char>& is_break,
+                                 std::vector<char>& lab) {
     const size_t n = lab.size();
-    if (n == 0) return;
+    std::vector<char> strict(n, 0);
+    for (size_t i = 0; i < n; ++i) strict[i] = beta_site(geom[i]) ? 1 : 0;
 
-    auto not_across_break = [&](size_t a, size_t b) {
-        if (a > b) std::swap(a, b);
-        for (size_t k = a; k < b; ++k) if (is_break[k]) return false;
-        return true;
-    };
+    std::vector<char> mask = mask_consecutive(strict, beta_min_len);
+    std::vector<char> cand = mask_consecutive(strict, short_beta_len);
 
-    int K = smooth_island;
-    if (K >= 1) {
-        for (char t : {'H', 'S'}) {
-            size_t i = 0;
-            while (i < n) {
-                if (lab[i] != t) { ++i; continue; }
-                size_t j = i;
-                while (j < n && lab[j] == t) ++j;
-                int len = static_cast<int>(j - i);
-
-                if (len <= K) {
-                    bool across_break = false;
-                    if (i > 0 && !not_across_break(i-1, i)) across_break = true;
-                    if (j < n && !not_across_break(j-1, j)) across_break = true;
-                    if (!across_break) {
-                        for (size_t k = i; k < j; ++k) lab[k] = 'x';
-                    }
-                }
-                i = j;
-            }
+    size_t i = 0;
+    while (i < n) {
+        if (!cand[i]) { ++i; continue; }
+        size_t j = i;
+        while (j + 1 < n && cand[j + 1]) ++j;
+        if (in_sheet(A, i, j)) {
+            for (size_t k = i; k <= j; ++k) mask[k] = 1;
         }
+        i = j + 1;
     }
 
-    squash_short_segments(lab, 'H', helix_min_len);
-    squash_short_segments(lab, 'S',  beta_min_len);
+    i = 0;
+    while (i < n) {
+        if (!mask[i]) { ++i; continue; }
+        size_t j = i;
+        while (j + 1 < n && mask[j + 1]) ++j;
+        if (i > 0 && !is_break[i - 1] && beta_extend_site(geom[i - 1])) mask[i - 1] = 1;
+        if (j + 1 < n && !is_break[j] && beta_extend_site(geom[j + 1])) mask[j + 1] = 1;
+        i = j + 2;
+    }
+
+    for (size_t k = 0; k < n; ++k) {
+        if (mask[k] && lab[k] != 'H') lab[k] = 'S';
+    }
 }
 
 void SSPredictor::run_chain(std::vector<Atom>& chain_atoms) {
@@ -129,12 +198,11 @@ void SSPredictor::run_chain(std::vector<Atom>& chain_atoms) {
     if (n == 0) return;
 
     std::vector<char> is_break = compute_breaks(chain_atoms);
+    std::vector<Geom> geom = compute_geometry(chain_atoms, is_break);
+    std::vector<char> lab(n, 'x');
 
-    std::vector<int> h_score(n, 0), e_score(n, 0);
-    vote(chain_atoms, is_break, h_score, e_score);
-
-    std::vector<char> lab = label_from_scores(h_score, e_score);
-    smooth_labels(is_break, lab);
+    assign_helices(geom, is_break, lab);
+    assign_strands(chain_atoms, geom, is_break, lab);
 
     for (size_t i = 0; i < n; ++i) {
         chain_atoms[i].set_structure(lab[i]);
@@ -142,9 +210,8 @@ void SSPredictor::run_chain(std::vector<Atom>& chain_atoms) {
 }
 
 void SSPredictor::run(std::map<std::string, std::vector<Atom>>& atoms) {
-    std:: cout << "  predict secondary structure\n";
+    std::cout << "  predict secondary structure\n";
     for (auto& chain : atoms) {
-        auto& chain_atoms = chain.second;
-        run_chain(chain_atoms);
+        run_chain(chain.second);
     }
 }

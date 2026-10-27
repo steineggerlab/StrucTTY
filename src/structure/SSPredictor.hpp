@@ -8,22 +8,28 @@
 class SSPredictor {
 public:
     float scale = 1.0f;
-    float d13_helix_min = 4.8f, d13_helix_max = 6.0f;
-    float d14_helix_min = 4.8f, d14_helix_max = 6.0f;
-    float d13_beta_min  = 6.4f;
-    float d14_beta_min  = 8.5f;
 
-    float tors_helix_abs_min = 35.0f, tors_helix_abs_max = 75.0f;
-    float tors_beta_abs_min  = 110.0f;
+    float helix_tau_mid   = 89.0f,  helix_tau_tol   = 12.0f;
+    float helix_alpha_mid = 50.0f,  helix_alpha_tol = 20.0f;
+    float helix_d2_mid    = 5.5f,   helix_d2_tol    = 0.5f;
+    float helix_d3_mid    = 5.3f,   helix_d3_tol    = 0.5f;
+    float helix_d4_mid    = 6.4f,   helix_d4_tol    = 0.6f;
 
-    int   helix_min_len = 4;
-    int   beta_min_len  = 3;
+    float beta_tau_mid    = 124.0f, beta_tau_tol    = 14.0f;
+    float beta_alpha_mid  = -170.0f, beta_alpha_tol = 45.0f;
+    float beta_d2_mid     = 6.7f,   beta_d2_tol     = 0.6f;
+    float beta_d3_mid     = 9.9f,   beta_d3_tol     = 0.9f;
+    float beta_d4_mid     = 12.4f,  beta_d4_tol     = 1.1f;
+
+    int   helix_min_len = 5;
+    int   beta_min_len  = 4;
+    int   short_beta_len = 3;
+
+    float sheet_contact_min = 4.2f;
+    float sheet_contact_max = 5.2f;
+    int   sheet_contact_count = 5;
 
     float break_gap = 4.8f;
-
-    int   vote_threshold = 2;
-
-    int   smooth_island = 1;
 
     void run(std::map<std::string, std::vector<Atom>>& atoms);
 
@@ -32,6 +38,12 @@ public:
     void set_scale(float scale_) { scale = scale_; }
 
 private:
+    struct Geom {
+        bool  valid = false;
+        float d2 = 0.0f, d3 = 0.0f, d4 = 0.0f;
+        float tau = 0.0f, alpha = 0.0f;
+    };
+
     static inline float dist(const Atom& a, const Atom& b) {
         float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
         return std::sqrt(dx*dx + dy*dy + dz*dz);
@@ -56,39 +68,36 @@ private:
         if (n > 1e-8f) { v[0]/=n; v[1]/=n; v[2]/=n; }
     }
 
-    static float torsion_deg(const Atom& a, const Atom& b, const Atom& c, const Atom& d) {
-        float b1[3], b2[3], b3[3];
-        sub(b, a, b1); sub(c, b, b2); sub(d, c, b3);
-
-        float n1[3], n2[3];
-        cross(b1, b2, n1);
-        cross(b2, b3, n2);
-
-        float b2n[3] = { b2[0], b2[1], b2[2] };
-        normalize(b2n);
-
-        float m1[3];
-        cross(n1, b2n, m1);
-
-        float x = dot(n1, n2);
-        float y = dot(m1, n2);
-
-        float angle = std::atan2(y, x) * 180.0f / 3.14159265358979323846f;
-        return angle;
+    static inline bool within(float value, float mid, float tol) {
+        return value >= mid - tol && value <= mid + tol;
     }
+
+    static bool within_angle(float value, float mid, float tol);
+
+    static float angle_deg(const Atom& a, const Atom& b, const Atom& c);
+
+    static float torsion_deg(const Atom& a, const Atom& b, const Atom& c, const Atom& d);
 
     std::vector<char> compute_breaks(const std::vector<Atom>& A);
 
-    void vote(const std::vector<Atom>& A,
-              const std::vector<char>& is_break,
-              std::vector<int>& h_score,
-              std::vector<int>& e_score);
+    std::vector<Geom> compute_geometry(const std::vector<Atom>& A,
+                                       const std::vector<char>& is_break);
 
-    std::vector<char> label_from_scores(const std::vector<int>& h_score,
-                                        const std::vector<int>& e_score);
+    bool helix_site(const Geom& g) const;
+    bool beta_site(const Geom& g) const;
+    bool helix_extend_site(const Geom& g) const;
+    bool beta_extend_site(const Geom& g) const;
 
-    void smooth_labels(const std::vector<char>& is_break,
-                       std::vector<char>& lab);
+    static std::vector<char> mask_consecutive(const std::vector<char>& in, int number);
 
-    static void squash_short_segments(std::vector<char>& lab, char target, int min_len);
+    bool in_sheet(const std::vector<Atom>& A, size_t first, size_t last) const;
+
+    void assign_helices(const std::vector<Geom>& geom,
+                        const std::vector<char>& is_break,
+                        std::vector<char>& lab);
+
+    void assign_strands(const std::vector<Atom>& A,
+                        const std::vector<Geom>& geom,
+                        const std::vector<char>& is_break,
+                        std::vector<char>& lab);
 };
