@@ -1,4 +1,5 @@
 #include "FoldseekParser.hpp"
+#include <cctype>
 
 #include <fstream>
 #include <sstream>
@@ -30,6 +31,18 @@ static float safe_stof(const std::string& s, float default_val = 0.0f) {
 
 static int safe_stoi(const std::string& s, int default_val = 0) {
     try { return std::stoi(s); } catch (...) { return default_val; }
+}
+
+static bool is_numeric_field(const std::string& s) {
+    if (s.empty()) return false;
+    try {
+        size_t used = 0;
+        (void)std::stof(s, &used);
+        while (used < s.size() && std::isspace((unsigned char)s[used])) ++used;
+        return used == s.size();
+    } catch (...) {
+        return false;
+    }
 }
 
 static std::string extract_target_id(const std::string& raw) {
@@ -91,16 +104,24 @@ bool FoldseekParser::parse_line(const std::vector<std::string>& cols,
         return true;
     }
 
-    for (int i = 0; i < 9; ++i) {
-        hit.U[i] = safe_stof(cols[15 + i]);
+    std::vector<int> text_cols, num_cols;
+    for (int i = 15; i <= 28; ++i) {
+        if (is_numeric_field(cols[i])) num_cols.push_back(i);
+        else                           text_cols.push_back(i);
     }
-    for (int i = 0; i < 3; ++i) {
-        hit.T[i] = safe_stof(cols[24 + i]);
+
+    if (text_cols.size() == 2 && num_cols.size() == 12) {
+        for (int i = 0; i < 9; ++i) hit.U[i] = safe_stof(cols[num_cols[i]]);
+        for (int i = 0; i < 3; ++i) hit.T[i] = safe_stof(cols[num_cols[9 + i]]);
+        hit.qaln = cols[text_cols[0]];
+        hit.taln = cols[text_cols[1]];
+        hit.has_transform = true;
+    } else {
+        hit.qaln = cols[27];
+        hit.taln = cols[28];
+        hit.has_transform = false;
     }
-    hit.qaln = cols[27];
-    hit.taln = cols[28];
-    hit.has_transform = true;
-    hit.has_aln       = true;
+    hit.has_aln = !hit.qaln.empty() && !hit.taln.empty();
     return true;
 }
 
