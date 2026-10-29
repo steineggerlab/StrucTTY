@@ -48,7 +48,7 @@ void Panel::clear_foldseek_hit_info() {
 
 int Panel::get_foldseek_section_height() const {
     if (!fs_hit_info.valid && fs_hit_info.total_hits == 0) return 0;
-    return fs_hit_info.multimer ? 6 : 9;
+    return fs_hit_info.multimer ? 6 : 8;
 }
 
 void Panel::set_foldmason_info(const FoldMasonInfo& info) {
@@ -328,6 +328,23 @@ void Panel::draw_panel(int start_row, int start_col,
             if (protein_pair > 0) fputs(Palettes::palette_to_ansi_fg_str(protein_pair).c_str(), stdout);
             put_str(r, x, file_name);
             if (protein_pair > 0) fputs("\033[0m", stdout);
+            if (compact_level >= 2 && !chain_info.empty()) {
+                int total_res = 0;
+                for (const auto& kv : chain_info) {
+                    auto it = entry.chain_residue_info.find(kv.first);
+                    total_res += (it != entry.chain_residue_info.end()) ? it->second : kv.second;
+                }
+                const int nch = (int)chain_info.size();
+                char sum[64];
+                if (total_res > 0) {
+                    std::snprintf(sum, sizeof(sum), "  %d chain%s, %d res",
+                                  nch, nch == 1 ? "" : "s", total_res);
+                } else {
+                    std::snprintf(sum, sizeof(sum), "  %d chain%s",
+                                  nch, nch == 1 ? "" : "s");
+                }
+                put_cstr(r, x, sum);
+            }
         }
         ++r;
         if (!in_rows(r)) break;
@@ -382,8 +399,17 @@ void Panel::draw_panel(int start_row, int start_col,
             {
                 int x = left;
                 put_indent(r, x);
-                char buf[32];
-                std::snprintf(buf, sizeof(buf), "%d chains", (int)chain_info.size());
+                int total_res = 0;
+                for (const auto& kv : entry.chain_residue_info) total_res += kv.second;
+                char buf[64];
+                const int nch = (int)chain_info.size();
+                if (total_res > 0) {
+                    std::snprintf(buf, sizeof(buf), "%d chain%s, %d res",
+                                  nch, nch == 1 ? "" : "s", total_res);
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%d chain%s",
+                                  nch, nch == 1 ? "" : "s");
+                }
                 put_cstr(r, x, buf);
             }
             ++r;
@@ -528,23 +554,15 @@ void Panel::draw_panel(int start_row, int start_col,
                 } else {
                     put_cstr(r, x, "Superpose: -");
                 }
-            }
-            ++r; if (!in_rows(r)) return;
-
-            clear_line(r);
-            {
-                int x = left;
                 char buf[80];
                 if (fi.rmsd >= 0.0f && fi.aligned_res > 0) {
-                    std::snprintf(buf, sizeof(buf), "RMSD:   %.2f A over %d res",
+                    std::snprintf(buf, sizeof(buf), "   RMSD %.2f A / %d res",
                                   fi.rmsd, fi.aligned_res);
                     put_cstr(r, x, buf);
                 } else if (fi.aligned_res > 0) {
-                    std::snprintf(buf, sizeof(buf), "RMSD:   -   (%d aligned res)",
+                    std::snprintf(buf, sizeof(buf), "   RMSD - / %d aligned res",
                                   fi.aligned_res);
                     put_cstr(r, x, buf);
-                } else {
-                    put_cstr(r, x, "RMSD:   -");
                 }
             }
             ++r; if (!in_rows(r)) return;
