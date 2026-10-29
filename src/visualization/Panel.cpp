@@ -46,9 +46,10 @@ void Panel::clear_foldseek_hit_info() {
     fs_hit_info = FoldseekHitInfo{};
 }
 
-int Panel::get_foldseek_section_height() const {
+int Panel::get_foldseek_section_height(int compact_level) const {
     if (!fs_hit_info.valid && fs_hit_info.total_hits == 0) return 0;
-    return fs_hit_info.multimer ? 6 : 8;
+    if (fs_hit_info.multimer) return 6;
+    return (compact_level == 0) ? 9 : 8;
 }
 
 void Panel::set_foldmason_info(const FoldMasonInfo& info) {
@@ -198,7 +199,7 @@ int Panel::get_height() const {
         lines += chain_lines;
         lines += 1;
     }
-    int fs_h = get_foldseek_section_height();
+    int fs_h = get_foldseek_section_height(0);
     if (fs_h > 0) {
         lines += 1;
         lines += fs_h;
@@ -428,7 +429,7 @@ void Panel::draw_panel(int start_row, int start_col,
     if (!in_rows(r)) return;
 
     {
-        int fs_h = get_foldseek_section_height();
+        int fs_h = get_foldseek_section_height(compact_level);
         if (fs_h > 0) {
             clear_line(r);
             {
@@ -554,18 +555,40 @@ void Panel::draw_panel(int start_row, int start_col,
                 } else {
                     put_cstr(r, x, "Superpose: -");
                 }
-                char buf[80];
-                if (fi.rmsd >= 0.0f && fi.aligned_res > 0) {
-                    std::snprintf(buf, sizeof(buf), "   RMSD %.2f A / %d res",
-                                  fi.rmsd, fi.aligned_res);
-                    put_cstr(r, x, buf);
-                } else if (fi.aligned_res > 0) {
-                    std::snprintf(buf, sizeof(buf), "   RMSD - / %d aligned res",
-                                  fi.aligned_res);
-                    put_cstr(r, x, buf);
+                if (compact_level > 0) {
+                    char buf[80];
+                    if (fi.rmsd >= 0.0f && fi.aligned_res > 0) {
+                        std::snprintf(buf, sizeof(buf), "   RMSD %.2f A / %d res",
+                                      fi.rmsd, fi.aligned_res);
+                        put_cstr(r, x, buf);
+                    } else if (fi.aligned_res > 0) {
+                        std::snprintf(buf, sizeof(buf), "   RMSD - / %d aligned res",
+                                      fi.aligned_res);
+                        put_cstr(r, x, buf);
+                    }
                 }
             }
             ++r; if (!in_rows(r)) return;
+
+            if (compact_level == 0) {
+                clear_line(r);
+                {
+                    int x = left;
+                    char buf[80];
+                    if (fi.rmsd >= 0.0f && fi.aligned_res > 0) {
+                        std::snprintf(buf, sizeof(buf), "RMSD:   %.2f A over %d res",
+                                      fi.rmsd, fi.aligned_res);
+                        put_cstr(r, x, buf);
+                    } else if (fi.aligned_res > 0) {
+                        std::snprintf(buf, sizeof(buf), "RMSD:   -   (%d aligned res)",
+                                      fi.aligned_res);
+                        put_cstr(r, x, buf);
+                    } else {
+                        put_cstr(r, x, "RMSD:   -");
+                    }
+                }
+                ++r; if (!in_rows(r)) return;
+            }
             }
 
             clear_line(r);
@@ -715,7 +738,7 @@ avail_cols,
         }
     }
 
-    int fs_h = get_foldseek_section_height();
+    int fs_h = get_foldseek_section_height(compact_level);
     if (fs_h > 0) {
         lines += 1;
         lines += fs_h;
