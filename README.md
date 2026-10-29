@@ -372,7 +372,7 @@ StrucTTY is **embedded directly into Foldseek as a static library** (`add_subdir
 
 ```bash
 foldseek easy-search query.cif targetDir result.m8 tmp --view-structty \
-  -a --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln,u,t"
+  -a --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,u,t,qaln,taln"
 ```
 
 The viewer builds that 17-column layout internally either way; passing
@@ -399,7 +399,7 @@ are `qaln` and `taln`; `-a` makes the search keep the backtraces they come from:
 
 ```bash
 foldseek easy-search query.pdb targetDir result.m8 tmp \
-  -a --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln,u,t"
+  -a --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,u,t,qaln,taln"
 ```
 
 Add `--alignment-type 1` to align with TM-align instead of 3Di+AA — slower, but
@@ -410,7 +410,7 @@ searching again:
 
 ```bash
 foldseek convertalis queryDB targetDB resultDB result.m8 \
-  --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,qaln,taln,u,t"
+  --format-output "query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,lddt,qtmscore,ttmscore,u,t,qaln,taln"
 ```
 
 ```bash
