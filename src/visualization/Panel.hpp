@@ -76,7 +76,7 @@ public:
 
     void set_foldseek_hit_info(const FoldseekHitInfo& info);
     void clear_foldseek_hit_info();
-    int  get_foldseek_section_height() const;
+    int  get_foldseek_section_height(int compact_level = 0) const;
 
     void set_hover_residue(const std::string& chainID,
                            const char* residue_name,
