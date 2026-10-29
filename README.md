@@ -314,8 +314,19 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 The panel's `Align:` line names the colour source actually used: `aln-string`
 (Foldseek alignment), `msa-col` (FoldMason MSA columns) or `nearest-nbr`
 (distance). The `Superpose:` line in the hit block is a different thing — how the
-structures were laid on top of each other (`aln-string`, `kabsch-qaln`, ...) —
-and does not change with the colour mode.
+structures were laid on top of each other — and does not change with the colour
+mode. It is chosen automatically in this order, and names the step that ran:
+
+| `Superpose:` | Source |
+|---|---|
+| `ut-matrix` | The U/T rotation-translation matrices carried by a 29-column result, applied directly |
+| `kabsch-alns` | Kabsch fit on the aligned coordinates of a 21-column `alis` result |
+| `kabsch-qaln` | Kabsch fit on the residue pairs implied by `qaln`/`taln` (17 columns) |
+| `kabsch-seq` | Kabsch fit on residues in file order, when the result carries none of the above |
+
+`RMSD` is reported over the residue pairs the fit used; with `ut-matrix` there is
+no explicit pair list, so the alignment length is shown instead. Multimer
+`_report` files carry their own U/T matrices and always use them.
 
 > The alignment-based modes need `qaln`/`taln`, i.e. a 17/21/29-column `.m8`.
 > Foldseek's default 12-column output has none.

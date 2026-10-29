@@ -1648,7 +1648,7 @@ void Screen::load_next_hit(int delta) {
         T[2] = (Utc[2] + Tf[2] - norm_cz) * norm_scale;
         T_ang[0] = Tf[0]; T_ang[1] = Tf[1]; T_ang[2] = Tf[2];
         computed_transform = true;
-        align_method_str = "aln-string";
+        align_method_str = "ut-matrix";
 
     } else if (hit.is_alis_format && !hit.alns.empty() && hit.has_aln) {
 
