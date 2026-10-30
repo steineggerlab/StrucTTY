@@ -54,6 +54,9 @@ The terminal needs UTF-8 and 256-colour support. Mouse hover additionally needs 
 mouse reporting (`1006`) and is simply inactive without it. If the terminal size cannot
 be queried, an 80×24 layout is assumed. No ncurses and no graphical subsystem is used.
 
+Rendering has been checked in **Windows Terminal** — natively, under WSL and over SSH to
+a Linux host — and in **iTerm2** on macOS.
+
 #### Verified configurations
 
 Every push builds from a clean checkout and runs a rendering smoke test on:
