@@ -28,7 +28,7 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 11 color modes
 - **Up to 9 proteins** rendered simultaneously with independent controls
 - **11 color modes** — `protein`, `chain`, `rainbow`, `bfactor`, `plddt`, `interface`, `conservation`, `scale`, `align`, `align-fs`, `align-near`
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
-- **Secondary structure visualization** — helices as helical ribbons, strands as flat zig-zag ribbons. HELIX/SHEET records are used when the file carries them, otherwise [P-SEA](https://doi.org/10.1093/bioinformatics/13.3.291) is applied to the Cα trace — the only class of method that works on the Cα-only coordinates of a Foldseek database. Cross-checked against the reference implementation in Biotite (99.9% of residues)
+- **Secondary structure visualization** — helices as helical ribbons, strands as flat zig-zag ribbons. HELIX/SHEET records are used when the file carries them, otherwise [P-SEA](https://doi.org/10.1093/bioinformatics/13.3.291) is applied to the Cα trace — the only class of method that works on the Cα-only coordinates of a Foldseek database. Cross-checked against the reference implementation in Biotite (99.9% of residues); see [StrucTTY_benchmark](https://github.com/LunaJang/StrucTTY_benchmark) for how far a Cα-only assignment follows deposited annotations
 - **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
 - **FoldMason integration** — MSA superposition with conservation coloring
 - **MSA conservation scoring** — Shannon entropy from FASTA/A3M alignments
@@ -346,7 +346,7 @@ All modes support **3-band depth fog**: near (vivid), mid (normal), far (dark, h
 StrucTTY reads Foldseek `easy-search` output (`.m8` format) with support for 12, 17, 21, and 29 column formats. Features include:
 
 - Interactive hit navigation with automatic structure downloading
-- Direct Foldseek DB reading (`-fst <DB>`) read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Uses hit-based selective scanning for minimal memory usage (~152KB for 1000 hits, even on AFDB50)
+- Direct Foldseek DB reading (`-fst <DB>`) read Cα coordinates directly from Foldseek `_ca` database, eliminating network dependency. Only the entries a hit refers to are scanned, so memory does not grow with the size of the database
 - Structural superposition, chosen automatically in four steps and named in the panel's
   `Superpose:` line: the U/T rotation-translation matrices if the result carries them
   (29 columns), else a Kabsch fit on the aligned coordinates of an `alis` result
@@ -475,7 +475,7 @@ from `/usr/bin/time -v` over a load-and-render run.
 - Load and TTFF scale with atom count; the immediate z-test rasterizer keeps per-frame cost roughly linear in Cα count.
 - **Peak memory is set by the largest single file being parsed, not by how much is on screen** — opening the same 446-residue structure nine times at once moves the peak from 13.4 to 14.4 MB. Loading a Foldseek result and stepping through its hits stays around 22 MB whether the targets come from a directory or straight from a Foldseek DB, and conservation colouring from an A3M alignment is indistinguishable from the same structure without it (9.2 MB either way).
 
-Benchmarks are reproducible via the built-in benchmark mode, which replays a fixed key script and logs per-frame timings to a `structty_bench_*.csv` file.
+Benchmarks are reproducible via the built-in benchmark mode, which replays a fixed key script and logs per-frame timings to a `structty_bench_*.csv` file. The structures, the measurement scripts and the raw output behind this table are in a separate repository, [StrucTTY_benchmark](https://github.com/LunaJang/StrucTTY_benchmark), together with the rendering determinism, multi-structure layout and secondary structure measurements.
 
 ## Third-Party Libraries
 
