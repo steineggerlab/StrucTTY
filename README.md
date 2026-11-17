@@ -457,23 +457,24 @@ StrucTTY renders interactively even for large complexes. The table below measure
 
 | Structure | Cα | Load (ms) | TTFF (ms) | Frame mean (ms) | Frame p95 (ms) | Latency mean (ms) | Latency p95 (ms) | Peak RSS (MB) |
 |-----------|----:|----------:|----------:|----------------:|---------------:|------------------:|-----------------:|--------------:|
-| 1CRN | 46 | 4.8 | 39.6 | 0.16 | 0.18 | <1 | <1 | 6.0 |
-| 1STP | 121 | 11.0 | 74.4 | 0.28 | 0.32 | <1 | <1 | 7.3 |
+| 1CRN | 46 | 4.8 | 39.6 | 0.16 | 0.18 | <1 | <1 | 6.1 |
+| 1STP | 121 | 11.0 | 74.4 | 0.28 | 0.32 | <1 | <1 | 7.4 |
 | 3BIK | 446 | 45.2 | 175.6 | 0.62 | 0.67 | <1 | <1 | 13.4 |
-| 6VXX | 2916 | 201.4 | 856.8 | 3.25 | 3.37 | 3.00 | 3.00 | 44.7 |
-| 4V4Q | 11463 | 2575.6 | 4744.8 | 10.58 | 10.78 | 10.34 | 11.00 | 379.0 |
+| 6VXX | 2916 | 201.4 | 856.8 | 3.25 | 3.37 | 3.00 | 3.00 | 44.5 |
+| 4V4Q | 11463 | 2575.6 | 4744.8 | 10.58 | 10.78 | 10.34 | 11.00 | 379.1 |
 
 Measured on a single core (pinned with `taskset`) of an Arm Cortex-X925, memory capped at
 4 GB, Ubuntu 24.04 LTS, g++ 13.3, CMake Release. Mean of 5 independent runs; each run is
 200 warm-up iterations followed by 2000 timed ones. Frame time is the sum of the six
 microsecond-resolution stage timers; the other metrics are logged at millisecond
-resolution, so latencies below that limit are shown as `<1`. Peak resident set size comes
-from `/usr/bin/time -v` over a load-and-render run.
+resolution, so latencies below that limit are shown as `<1`. Peak resident set size is the mean of five
+load-and-render runs measured with `/usr/bin/time -v`; it varied by at most 0.4 MB
+across those runs.
 
 - **Frame time stays under the 16 ms (60 fps) budget** even at 11,463 Cα — interaction remains smooth for structures spanning three orders of magnitude in size.
 - **Input latency tracks frame time closely**, so rotation/zoom feels responsive with no perceptible input lag.
 - Load and TTFF scale with atom count; the immediate z-test rasterizer keeps per-frame cost roughly linear in Cα count.
-- **Peak memory is set by the largest single file being parsed, not by how much is on screen** — opening the same 446-residue structure nine times at once moves the peak from 13.4 to 14.4 MB. Loading a Foldseek result and stepping through its hits stays around 22 MB whether the targets come from a directory or straight from a Foldseek DB, and conservation colouring from an A3M alignment is indistinguishable from the same structure without it (9.2 MB either way).
+- **Peak memory is set by the largest single file being parsed, not by how much is on screen** — opening the same 446-residue structure nine times at once moves the peak from 13.4 to 14.4 MB. Loading a Foldseek result and stepping through its hits stays around 22 MB whether the targets come from a directory or straight from a Foldseek DB, and conservation colouring from an A3M alignment is indistinguishable from the same structure without it (9.1 MB either way).
 
 Benchmarks are reproducible via the built-in benchmark mode, which replays a fixed key script and logs per-frame timings to a `structty_bench_*.csv` file. The structures, the measurement scripts and the raw output behind this table are in a separate repository, [StrucTTY_benchmark](https://github.com/LunaJang/StrucTTY_benchmark), together with the rendering determinism, multi-structure layout and secondary structure measurements.
 
