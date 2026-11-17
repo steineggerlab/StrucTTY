@@ -315,7 +315,7 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `align-near` | Distance only: residues with a counterpart within the cutoff, whatever the result says |
 
 The panel's `Align:` line names the colour source actually used: `aln-string`
-(Foldseek alignment), `msa-col` (FoldMason MSTA columns) or `nearest-nbr`
+(Foldseek alignment), `msta-col` (FoldMason MSTA columns) or `nearest-nbr`
 (distance). The `Superpose:` line in the hit block is a different thing — how the
 structures were laid on top of each other — and does not change with the colour
 mode. It is chosen automatically in this order, and names the step that ran:
