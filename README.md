@@ -20,7 +20,7 @@
 
 **StrucTTY** is a lightweight, terminal-based protein structure visualizer built in C++17. It renders 3D protein structures directly in the terminal using **Unicode Braille sub-pixel rendering**, providing 8x resolution compared to standard character-based rendering.
 
-StrucTTY supports simultaneous visualization of up to 9 proteins, 11 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment.
+StrucTTY supports simultaneous visualization of up to 9 proteins, 11 color modes with 3-band depth fog, and integrates with **Foldseek** and **FoldMason** for structural search and multiple structure alignment (MSTA).
 
 ## Features
 
@@ -30,8 +30,8 @@ StrucTTY supports simultaneous visualization of up to 9 proteins, 11 color modes
 - **3-band depth fog** — near (bright), mid (normal), far (dark with hue retention) for depth perception
 - **Secondary structure visualization** — helices as helical ribbons, strands as flat zig-zag ribbons. HELIX/SHEET records are used when the file carries them, otherwise [P-SEA](https://doi.org/10.1093/bioinformatics/13.3.291) is applied to the Cα trace — the only class of method that works on the Cα-only coordinates of a Foldseek database. Cross-checked against the reference implementation in Biotite (99.9% of residues); see [StrucTTY_benchmark](https://github.com/LunaJang/StrucTTY_benchmark) for how far a Cα-only assignment follows deposited annotations
 - **Foldseek integration** — load `.m8`/`_report` results (`-fsr`), navigate hits, and take targets from a Foldseek DB, a local directory, or automatic download (`-fst`)
-- **FoldMason integration** — MSA superposition with conservation coloring
-- **MSA conservation scoring** — Shannon entropy from FASTA/A3M alignments
+- **FoldMason integration** — MSTA superposition with conservation coloring
+- **Sequence conservation scoring** — Shannon entropy from a multiple sequence alignment (MSA) in FASTA or A3M format
 - **Interface detection** — inter-chain contact residue highlighting
 - **Alignment visualization** — structural alignment region highlighting
 - **Biological assemblies** — `--assembly <ID>` expands the requested assembly instead of the deposited asymmetric unit
@@ -221,7 +221,7 @@ result with `]`/`[`:
   -m align-fs -s
 ```
 
-### FoldMason MSA superposition
+### FoldMason MSTA superposition
 
 ```bash
 ./StrucTTY ../example/3A0C-assembly1.cif  ../example/L7RCY6.pdb 
@@ -244,7 +244,7 @@ result with `]`/`[`:
 | `--msa <FILE>` | MSA file for conservation scoring (FASTA/A3M) |
 | `-fst, --foldseek-target <PATH>` | Target source for Foldseek hits: Foldseek DB, structure directory, structure file, or `auto` (download from public DBs) |
 | `-fsr, --foldseek-result <FILE>` | Foldseek result: `.m8` (12/17/21/29 columns) or multimer `_report` (14 columns) |
-| `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSA) |
+| `-fm, --foldmason <FILE>` | FoldMason result (JSON or FASTA MSTA) |
 | `-n, --nopanel` | Hide info panel |
 | `--aspect <FLOAT>` | Horizontal stretch of the scene (default `1.0`), for terminals whose cells are not ~1:2 |
 | `--theme <dark\|light>` | Colour scheme for a dark (default) or light terminal background |
@@ -315,7 +315,7 @@ rendered either. Both cases fail before rendering starts, with the reason printe
 | `align-near` | Distance only: residues with a counterpart within the cutoff, whatever the result says |
 
 The panel's `Align:` line names the colour source actually used: `aln-string`
-(Foldseek alignment), `msa-col` (FoldMason MSA columns) or `nearest-nbr`
+(Foldseek alignment), `msa-col` (FoldMason MSTA columns) or `nearest-nbr`
 (distance). The `Superpose:` line in the hit block is a different thing — how the
 structures were laid on top of each other — and does not change with the colour
 mode. It is chosen automatically in this order, and names the step that ran:
@@ -441,7 +441,7 @@ foldseek convertalis queryDB targetDB resultDB result.m8 \
 
 ### FoldMason
 
-StrucTTY loads FoldMason MSA results (JSON with Cα coordinates or FASTA) for:
+StrucTTY loads FoldMason MSTA results (JSON with Cα coordinates or FASTA) for:
 
 - Kabsch-based structural superposition
 - Column-wise conservation scoring
@@ -449,7 +449,7 @@ StrucTTY loads FoldMason MSA results (JSON with Cα coordinates or FASTA) for:
 
 ### MSA Conservation
 
-Load FASTA or A3M multiple sequence alignments to compute per-residue conservation scores via Shannon entropy, visualized with the `conservation` color mode.
+Load an MSA in FASTA or A3M format to compute per-residue conservation scores via Shannon entropy, visualized with the `conservation` color mode.
 
 ## Performance
 
