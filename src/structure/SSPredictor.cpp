@@ -40,7 +40,7 @@ float SSPredictor::torsion_deg(const Atom& a, const Atom& b, const Atom& c, cons
     float x = dot(n1, n2);
     float y = dot(m1, n2);
 
-    return std::atan2(y, x) * PI_DEG;
+    return -std::atan2(y, x) * PI_DEG;
 }
 
 std::vector<char> SSPredictor::compute_breaks(const std::vector<Atom>& A) {
