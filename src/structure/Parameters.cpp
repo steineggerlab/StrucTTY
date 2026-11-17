@@ -26,7 +26,7 @@ void print_help(){
     std::cout << "                          Foldseek result: m8 (12/17/21/29 columns) or\n";
     std::cout << "                          multimer _report (14 columns)\n";
     std::cout << "                          -fst and -fsr must be given together\n";
-    std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSA)\n";
+    std::cout << "  -fm, --foldmason <FILE> FoldMason result (JSON or FASTA MSTA)\n";
     std::cout << "  -n, --nopanel           Hide info panel\n";
     std::cout << "  --aspect <FLOAT>        Horizontal stretch of the rendered scene\n";
     std::cout << "                          (default 1.0; raise it when cells look narrow)\n";

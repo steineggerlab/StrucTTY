@@ -2114,7 +2114,7 @@ void Screen::apply_foldmason_superposition(int query_protein_idx, int target_pro
             entries[fm_query_entry_idx].aa,
             entries[fm_target_entry_idx].aa,
             1, 1, 5.0f, true);
-        set_align_method("msa-col");
+        set_align_method("msta-col");
     }
 
     depth_calibrated = false;

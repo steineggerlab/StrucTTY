@@ -619,7 +619,7 @@ void Panel::draw_panel(int start_row, int start_col,
             const FoldMasonInfo& fi = fm_info;
 
             clear_line(r);
-            { int x = left; put_cstr(r, x, "FoldMason MSA"); }
+            { int x = left; put_cstr(r, x, "FoldMason MSTA"); }
             ++r; if (!in_rows(r)) return;
 
             clear_line(r);

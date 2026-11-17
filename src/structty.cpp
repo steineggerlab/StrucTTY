@@ -541,7 +541,7 @@ bool run(const RunOptions& opts) {
             bool do_superposition = ((int)opts.input_files.size() >= 2 && total_entries >= 2);
             if (do_superposition) {
                 fm_info.align_method = (opts.mode == "align-near") ? "nearest-nbr"
-                                     : (is_aligned_mode(opts.mode) ? "msa-col" : "-");
+                                     : (is_aligned_mode(opts.mode) ? "msta-col" : "-");
             } else {
                 fm_info.align_method = "-";
             }
